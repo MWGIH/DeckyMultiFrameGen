@@ -95,7 +95,10 @@ class PluginTests(unittest.TestCase):
         self.assertFalse(run(self.plugin.set_game_backend("../etc", "mako"))["ok"])
         self.assertFalse(run(self.plugin.get_game("abc"))["ok"])
 
-    def test_lists_games(self):
+    def test_lists_only_fully_installed_games(self):
+        steam = self.home / ".local" / "share" / "Steam"
+        support.add_game(steam, "292030", "The Witcher 3", "The Witcher 3", create_dir=False)
+        support.add_game(steam, "1245620", "Elden Ring", "ELDEN RING", state_flags="1026")
         r = run(self.plugin.list_installed_games())
         self.assertEqual(r["games"], [{"appid": "1091500", "name": "Cyberpunk 2077"}])
 

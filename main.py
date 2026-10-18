@@ -25,7 +25,7 @@ class Plugin:
     async def list_installed_games(self) -> dict:
         try:
             games = steam_library.installed_games(HOME)
-            return {"ok": True, "games": [{"appid": g["appid"], "name": g["name"]} for g in games]}
+            return {"ok": True, "games": [{"appid": g["appid"], "name": g["name"]} for g in games if g["install_found"]]}
         except Exception as exc:
             decky.logger.error(f"list_installed_games: {exc}")
             return {"ok": False, "message": str(exc), "games": []}

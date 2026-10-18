@@ -19,11 +19,11 @@ def reset_home() -> Path:
     return HOME
 
 
-def add_game(library: Path, appid: str, name: str, installdir: str, create_dir: bool = True) -> None:
+def add_game(library: Path, appid: str, name: str, installdir: str, create_dir: bool = True, state_flags: str = "4") -> None:
     steamapps = library / "steamapps"
     steamapps.mkdir(parents=True, exist_ok=True)
     (steamapps / f"appmanifest_{appid}.acf").write_text(
-        f'"AppState"\n{{\n\t"appid"\t\t"{appid}"\n\t"name"\t\t"{name}"\n\t"installdir"\t\t"{installdir}"\n}}\n'
+        f'"AppState"\n{{\n\t"appid"\t\t"{appid}"\n\t"name"\t\t"{name}"\n\t"installdir"\t\t"{installdir}"\n\t"StateFlags"\t\t"{state_flags}"\n}}\n'
     )
     if create_dir:
         (steamapps / "common" / installdir).mkdir(parents=True, exist_ok=True)

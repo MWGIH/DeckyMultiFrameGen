@@ -55,9 +55,20 @@ def _acf_field(text: str, name: str) -> str:
     key = f'"{name}"'
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped.lower().startswith(key):
+        if stripped.lower().startswith(key.lower()):
             return stripped[len(key):].strip().strip('"')
     return ""
+
+
+# StateFlags bit 4 is "fully installed"; manifests also exist for games that are queued, downloading or half removed
+_STATE_FULLY_INSTALLED = 4
+
+
+def _fully_installed(text: str) -> bool:
+    flags = _acf_field(text, "StateFlags")
+    if not flags.isdigit():
+        return True  # older manifests without the field: trust the install folder
+    return bool(int(flags) & _STATE_FULLY_INSTALLED)
 
 
 def installed_games(home: Path, appid: str | None = None) -> list[dict]:
@@ -83,7 +94,7 @@ def installed_games(home: Path, appid: str | None = None) -> list[dict]:
                 "appid": gid,
                 "name": name,
                 "install_path": str(install_path) if install_path else "",
-                "install_found": bool(install_path and install_path.is_dir()),
+                "install_found": bool(install_path and install_path.is_dir()) and _fully_installed(text),
             }
     return sorted(games.values(), key=lambda g: g["name"].lower())
 
