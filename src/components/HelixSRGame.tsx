@@ -134,6 +134,30 @@ export function HelixSRGame({ appid, helix }: { appid: string; helix: HelixStatu
           }
         />
       </PanelSectionRow>
+      {game.installed && (
+        <PanelSectionRow>
+          <Field
+            label={game.runtime_log ? "HelixSR's log from the game" : "HelixSR hasn't run in this game yet"}
+            description={
+              game.runtime_log ? (
+                <div style={{ fontFamily: "monospace", fontSize: "11px", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                  {`${new Date(game.runtime_log.modified * 1000).toLocaleString()}\n${game.runtime_log.lines.join("\n")}`}
+                </div>
+              ) : (
+                "HelixSR writes a log when the game loads it. If there is none after playing with the right upscaler selected, the game didn't load HelixSR."
+              )
+            }
+          />
+        </PanelSectionRow>
+      )}
+      {game.graphics === "vulkan" && (
+        <PanelSectionRow>
+          <Field
+            label="This game runs on Vulkan"
+            description="HelixSR only works in DirectX 12 games, so it will most likely have no effect here even though the game ships an FSR file it can replace."
+          />
+        </PanelSectionRow>
+      )}
       {(game.anticheat?.length ?? 0) > 0 && (
         <PanelSectionRow>
           <Field

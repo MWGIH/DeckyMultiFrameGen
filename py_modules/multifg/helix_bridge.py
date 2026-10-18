@@ -15,6 +15,39 @@ import sys
 from pathlib import Path
 
 
+def graphics_api(h, folder):
+    """"vulkan" when the game's main .exe (the largest in its folder) links Vulkan and not Direct3D 12, else None.
+    HelixSR only works in Direct3D 12 games; a Vulkan game can still ship FSR's DX12 DLL, which HelixSR then offers to
+    replace. Games that load Direct3D 12 at run time don't list it, so nothing else is concluded from the imports."""
+    try:
+        exes = [f for f in Path(folder).iterdir() if f.suffix.lower() == ".exe" and f.is_file()]
+    except OSError:
+        return None
+    if not exes:
+        return None
+    imports = h.exe_imports(max(exes, key=lambda f: f.stat().st_size))
+    return "vulkan" if "vulkan-1.dll" in imports and "d3d12.dll" not in imports else None
+
+
+def runtime_log(g):
+    """The end of helixsr.log, which HelixSR writes while the game runs (next to the game's FSR DLL for the drop-in, in
+    the HelixSR folder next to the .exe for HelixSR Scaler); None when HelixSR hasn't run in the game."""
+    current = g.current()
+    if current == "direct":
+        candidates = [Path(t).parent / "helixsr.log" for t in g.fsr_targets]
+    elif current == "scaler" and g.target:
+        candidates = [Path(g.target) / "HelixSR" / "helixsr.log"]
+    else:
+        return None
+    for log in candidates:
+        try:
+            text = log.read_text(errors="replace")
+            return {"path": str(log), "modified": log.stat().st_mtime, "lines": text.splitlines()[-12:]}
+        except OSError:
+            continue
+    return None
+
+
 def describe(h, g):
     return {
         "found": True,
@@ -29,6 +62,8 @@ def describe(h, g):
         "anticheat": g.anticheat,
         "fsr_targets": [str(t) for t in g.fsr_targets],
         "exe_folder": str(g.target) if g.target else None,
+        "graphics": graphics_api(h, g.target) if g.target else None,
+        "runtime_log": runtime_log(g),
         "scaler_name": (h.scaler_record(g.target) or {}).get("name") if g.scaler_installed and g.target else None,
     }
 

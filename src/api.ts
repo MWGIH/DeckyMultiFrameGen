@@ -79,6 +79,8 @@ export type HelixGame = {
   label?: string;
   anticheat?: string[];
   scaler_name?: string | null;
+  graphics?: "vulkan" | null;
+  runtime_log?: { path: string; modified: number; lines: string[] } | null;
   in_game?: string;
   launch_options?: string | null;
   release?: string;

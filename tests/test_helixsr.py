@@ -97,6 +97,28 @@ class ReleaseStateTests(unittest.TestCase):
         self.assertEqual(self.h.status()["job"]["state"], "failed")
 
 
+def fake_exe(imports):
+    """A minimal 64-bit Windows .exe whose import table lists these DLLs."""
+    import struct
+    b = bytearray(0x400)
+    b[:2] = b"MZ"
+    struct.pack_into("<I", b, 0x3C, 0x40)
+    b[0x40:0x44] = b"PE\0\0"
+    struct.pack_into("<HH", b, 0x44 + 2, 1, 0)        # one section
+    struct.pack_into("<H", b, 0x44 + 16, 240)          # optional header size
+    opt = 0x58
+    struct.pack_into("<H", b, opt, 0x20B)
+    struct.pack_into("<II", b, opt + 112 + 8, 0x1000, 20 * (len(imports) + 1))
+    struct.pack_into("<IIII", b, opt + 240 + 8, 0x200, 0x1000, 0x200, 0x200)
+    names = 0x1000 + 20 * (len(imports) + 1)
+    for k, name in enumerate(imports):
+        struct.pack_into("<I", b, 0x200 + 20 * k + 12, names)
+        raw = 0x200 + names - 0x1000
+        b[raw:raw + len(name) + 1] = name.encode() + b"\0"
+        names += len(name) + 1
+    return bytes(b)
+
+
 @unittest.skipUnless(REAL_RELEASE, "set HELIXSR_RELEASE_DIR to an extracted official HelixSR release")
 class InstallerBridgeTests(unittest.TestCase):
     def setUp(self):
@@ -135,6 +157,18 @@ class InstallerBridgeTests(unittest.TestCase):
         self.assertFalse(self.h.install_game(str(self.dlss), "direct")["ok"])
         self.assertTrue(self.h.uninstall_game(str(self.dlss))["ok"])
         self.assertEqual(sorted(p.name for p in self.dlss.iterdir()), ["Game.exe", "nvngx_dlss.dll"])
+
+    def test_vulkan_game_and_helixsrs_log(self):
+        (self.fsr / "Bin" / "Game.exe").write_bytes(fake_exe(["kernel32.dll", "vulkan-1.dll"]))
+        st = self.h.game_status(str(self.fsr))
+        self.assertEqual(st["graphics"], "vulkan")
+        self.assertIsNone(st["runtime_log"])
+        self.assertTrue(self.h.install_game(str(self.fsr))["ok"])
+        (self.fsr / "Bin" / "helixsr.log").write_text("HelixSR 1.9.3 loaded\nupscaling 1280x800\n")
+        st = self.h.game_status(str(self.fsr))
+        self.assertEqual(st["runtime_log"]["lines"], ["HelixSR 1.9.3 loaded", "upscaling 1280x800"])
+        (self.fsr / "Bin" / "Game.exe").write_bytes(fake_exe(["vulkan-1.dll", "d3d12.dll"]))
+        self.assertIsNone(self.h.game_status(str(self.fsr))["graphics"])
 
     def test_not_ready_refuses_to_install(self):
         dll = self.home / "HelixSR" / "v1.9.3" / helixsr.DLL
