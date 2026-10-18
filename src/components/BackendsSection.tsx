@@ -1,4 +1,4 @@
-import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import type { Backend, HelixStatus, OptiStatus } from "../api";
 import { HelixSRSetup } from "./HelixSRSetup";
 import { OptiScalerSetup } from "./OptiScaler";
@@ -15,9 +15,13 @@ type Props = {
   onHelixChange: () => void;
   opti: OptiStatus | null;
   onOptiChange: () => void;
+  makoShown: boolean;
+  makoPinned: boolean;
+  onToggleMako: () => void;
 };
 
-export function BackendsSection({ backends, helix, onHelixChange, opti, onOptiChange }: Props) {
+export function BackendsSection(props: Props) {
+  const { backends, helix, onHelixChange, opti, onOptiChange, makoShown, makoPinned, onToggleMako } = props;
   return (
     <PanelSection title="Backends">
       {backends === null ? (
@@ -34,6 +38,13 @@ export function BackendsSection({ backends, helix, onHelixChange, opti, onOptiCh
             </PanelSectionRow>
             {b.id === "helixsr" && <HelixSRSetup status={helix} onChange={onHelixChange} />}
             {b.id === "optiscaler" && <OptiScalerSetup status={opti} onChange={onOptiChange} />}
+            {b.id === "mako" && !makoPinned && (
+              <PanelSectionRow>
+                <ButtonItem layout="below" onClick={onToggleMako}>
+                  {makoShown ? "Hide MAKO's controls" : b.installed ? "Show MAKO's controls" : "Set up MAKO"}
+                </ButtonItem>
+              </PanelSectionRow>
+            )}
           </div>
         ))
       )}

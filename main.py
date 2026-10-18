@@ -1,10 +1,14 @@
 import asyncio
+import inspect
 import re
+import shlex
 from pathlib import Path
 
 import decky
 
-from multifg import backends, steam_library
+from mako_plugin.plugin import Plugin as MakoPlugin
+
+from multifg import backends, mako_payload, steam_library
 from multifg.helixsr import HelixSR
 from multifg.opti_job import OptiInstallJob
 from multifg.optiscaler import OptiScaler
@@ -17,6 +21,7 @@ OPTISCALER = OptiScaler()
 OPTI_JOB = OptiInstallJob(OPTISCALER)
 # The Steam Deck's GPU is RDNA2: always Valve's FSR 4.1.1 build with RDNA2 settings, no choice offered
 FSR4_VARIANT = "rdna2-valve-411-pre10"
+MAKO = MakoPlugin()  # MAKO Decky's backend (vendored); its methods are exposed below as mako_<name>
 _APPID = re.compile(r"\d{1,10}")
 
 
@@ -39,12 +44,38 @@ def _game_folder(appid) -> str:
 _OVERRIDES = re.compile(r'\bWINEDLLOVERRIDES=("[^"]*"|\S*)\s*')
 
 
-def _without_overrides(options: str) -> str:
-    """Launch options without a WINEDLLOVERRIDES=... (like withoutOverrides in src/launchOptions.ts)."""
-    rest = _OVERRIDES.sub("", options).strip()
+_MAKO_RUNNER = re.compile(r"""(?:'[^']*mako-(?:run|launch)'|"[^"]*mako-(?:run|launch)"|\S*mako-(?:run|launch))\s+""")
+
+
+def _tidy(rest: str) -> str:
+    rest = rest.strip()
     if rest == "%command%":
         return ""
+    # "%command% -dx12" means the same to Steam as "-dx12"
     return rest[len("%command% "):] if rest.startswith("%command% ") and "%command%" not in rest[10:] else rest
+
+
+def _without_overrides(options: str) -> str:
+    """Launch options without a WINEDLLOVERRIDES=... (like withoutOverrides in src/launchOptions.ts)."""
+    return _tidy(_OVERRIDES.sub("", options))
+
+
+def _without_mako(options: str) -> str:
+    """Launch options without MAKO's launcher (~/.local/bin/mako-run) in front of %command%."""
+    return _tidy(_MAKO_RUNNER.sub("", options))
+
+
+def _mako_runner() -> str:
+    return MAKO.installation_service.get_launch_script_path()
+
+
+def _with_mako(options: str) -> str:
+    """MAKO's launcher put in front of %command%, keeping everything else the game had."""
+    runner = shlex.quote(_mako_runner())
+    base = _without_mako(options)
+    if "%command%" in base:
+        return base.replace("%command%", f"{runner} %command%", 1)
+    return f"{runner} %command% {base}".strip()
 
 
 async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
@@ -66,6 +97,11 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
             removed.append("HelixSR")
             if helix.get("current") == "scaler":
                 new_launch = _without_overrides(new_launch)
+    if keep != "mako" and _MAKO_RUNNER.search(new_launch + " "):
+        new_launch = _without_mako(new_launch)
+        removed.append("MAKO")
+    elif keep == "mako" and Path(_mako_runner()).is_file():
+        new_launch = _with_mako(new_launch)
     return {"ok": True, "removed": removed, "launch_options": new_launch if new_launch != launch else None}
 
 
@@ -129,6 +165,17 @@ class Plugin:
         SETTINGS.set_game_choice(appid, backend)
         return {"ok": True, "appid": appid, "backend": backend,
                 "removed": cleared["removed"], "launch_options": cleared["launch_options"]}
+
+    # --- MAKO (its own controls are the mako_* methods at the end) ---
+
+    async def mako_game_launch_options(self, current_launch_options: str, enable: bool) -> dict:
+        """The launch options with MAKO's launcher added or taken out."""
+        installed = Path(_mako_runner()).is_file()
+        if enable and not installed:
+            return {"ok": False, "error": "Install MAKO first", "installed": False}
+        new = _with_mako(current_launch_options) if enable else _without_mako(current_launch_options)
+        return {"ok": True, "installed": installed, "launch_options": new,
+                "enabled": bool(_MAKO_RUNNER.search(new + " ")), "runner": _mako_runner()}
 
     # --- HelixSR ---
 
@@ -205,6 +252,52 @@ class Plugin:
 
     async def _main(self):
         decky.logger.info("DeckyMultiFrameGen loaded")
+        try:
+            await MAKO._main()
+        except Exception:
+            decky.logger.exception("MAKO startup")
 
     async def _unload(self):
+        try:
+            await MAKO._unload()
+        except Exception:
+            decky.logger.exception("MAKO unload")
         decky.logger.info("DeckyMultiFrameGen unloaded")
+
+
+async def _mako_install_mako():
+    try:
+        await asyncio.to_thread(mako_payload.ensure_renderer)
+    except Exception as exc:
+        decky.logger.exception("MAKO Renderer download")
+        return {"success": False, "error": str(exc), "message": ""}
+    return await MAKO.install_mako()
+
+
+async def _mako_install_flatpak_extension(version: str):
+    try:
+        await asyncio.to_thread(mako_payload.ensure_flatpaks)
+    except Exception as exc:
+        decky.logger.exception("MAKO Flatpak download")
+        return {"success": False, "error": str(exc)}
+    return await MAKO.install_flatpak_extension(version)
+
+
+# The frontend calls MAKO's methods as mako_<name> (src/mako/api/makoApi.ts), so they can't collide with ours.
+# Two of them first download the MAKO Renderer files they install.
+_MAKO_OVERRIDES = {"install_mako": _mako_install_mako, "install_flatpak_extension": _mako_install_flatpak_extension}
+
+
+def _mako_method(name):
+    target = _MAKO_OVERRIDES.get(name) or getattr(MAKO, name)
+
+    async def call(self, *args, **kwargs):
+        return await target(*args, **kwargs)
+
+    call.__name__ = f"mako_{name}"
+    return call
+
+
+for _name, _method in inspect.getmembers(MakoPlugin, inspect.iscoroutinefunction):
+    if not _name.startswith("_"):
+        setattr(Plugin, f"mako_{_name}", _mako_method(_name))

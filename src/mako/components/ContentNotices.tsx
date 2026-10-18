@@ -1,0 +1,495 @@
+import { MakoInfo } from "./MakoInfo";
+import { useState, type ReactNode } from "react";
+import {
+  ButtonItem,
+  DialogButton,
+  PanelSectionRow,
+  type AppOverview,
+} from "@decky/ui";
+import type { LocalDevelopmentBuildInfo } from "../config/devBuildInfo";
+import { SUPPORTED_FLATPAK_RUNTIMES } from "../config/configSchema";
+import { MakoInstallCompletion } from "./MakoInstallCountdown";
+import { MakoCompactSpinner, makoPanelDivider, makoPanelStyle } from "./MakoUi";
+import { usePersistentCollapseState } from "../hooks/usePersistentCollapseState";
+import t from "../i18n/i18n";
+import { ModelWarning, type ModelWarningProps } from "./ModelWarning";
+
+const SUPPORTED_FLATPAK_RUNTIME_VERSION_LIST = SUPPORTED_FLATPAK_RUNTIMES.map(
+  ({ version }) => version,
+).join(", ");
+
+interface ContentNoticesProps {
+  developmentBuildInfo: LocalDevelopmentBuildInfo | null;
+  mainRunningApp?: AppOverview;
+  showWelcome: boolean;
+  engineUpdateRequired: boolean;
+  installedEngineVersion?: string | null;
+  expectedEngineVersion?: string | null;
+  isInstalling: boolean;
+  isInstallCompletionVisible: boolean;
+  isUninstalling: boolean;
+  onInstall: () => Promise<void>;
+  modelStatus?: ModelWarningProps;
+}
+
+function UnderlinedWelcomeText({ children }: { children: ReactNode }) {
+  return (
+    <span
+      style={{
+        textDecorationLine: "underline",
+        textDecorationColor: "rgba(131, 191, 240, 0.8)",
+        textUnderlineOffset: "2px",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function WelcomeNotice({ separated }: { separated: boolean }) {
+  const [tipsCollapsed, setTipsCollapsed] = usePersistentCollapseState(
+    "mako-welcome-tips-collapsed",
+    false,
+    "welcome tips",
+  );
+  const expanded = !tipsCollapsed;
+
+  return (
+    <MakoInfo as={PanelSectionRow}>
+      <div
+        role="note"
+        data-mako-info="true"
+        style={{
+          ...makoPanelStyle,
+          width: "100%",
+          boxSizing: "border-box",
+          marginTop: separated ? "8px" : undefined,
+          padding: "12px",
+        }}
+      >
+        <div
+          style={{
+            color: "#edf8fb",
+            fontSize: "13px",
+            fontWeight: 700,
+            lineHeight: 1.3,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "7px",
+          }}
+        >
+          <span aria-hidden="true" style={{ fontSize: "16px", lineHeight: 1 }}>
+            🦈
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            {t("WELCOME_TITLE", "Hello from the MAKO Team!")}
+          </span>
+        </div>
+        {expanded && (
+          <>
+            <div
+              style={{
+                marginTop: "7px",
+                color: "#c8dce8",
+                fontSize: "11px",
+                lineHeight: 1.42,
+              }}
+            >
+              <div>
+                {t("WELCOME_LIVE_UPDATES", "Many settings apply live.")}{" "}
+                {t(
+                  "WELCOME_RESTART_REQUIRED",
+                  "Options marked Restart require a game restart.",
+                )}{" "}
+                {t(
+                  "WELCOME_PERFORMANCE_NOTE",
+                  "Game resolution and scaling changes can affect performance.",
+                )}{" "}
+                {t("WELCOME_CLEAN_SESSION_PREFIX", "If anything ")}
+                <UnderlinedWelcomeText>
+                  {t("WELCOME_CLEAN_SESSION_WRONG", "looks or feels wrong")}
+                </UnderlinedWelcomeText>
+                {t("WELCOME_CLEAN_SESSION_AFTER", " after ")}
+                <UnderlinedWelcomeText>
+                  {t("WELCOME_CLEAN_SESSION_CHANGES", "several changes")}
+                </UnderlinedWelcomeText>
+                {t("WELCOME_CLEAN_SESSION_RESTART_SEPARATOR", ", ")}
+                <UnderlinedWelcomeText>
+                  {t(
+                    "WELCOME_CLEAN_SESSION_RESTART",
+                    "restart the game for a clean new session.",
+                  )}
+                </UnderlinedWelcomeText>
+              </div>
+            </div>
+            <div
+              style={{
+                marginTop: "9px",
+                paddingTop: "8px",
+                borderTop: makoPanelDivider,
+                color: "#9fc1ca",
+                fontSize: "10.5px",
+                lineHeight: 1.4,
+              }}
+            >
+              {t(
+                "WELCOME_ENJOY",
+                "Settings vary by game. Test what works for you; check the release page for MAKO updates.",
+              )}
+            </div>
+          </>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginTop: expanded ? "9px" : "8px",
+          }}
+        >
+          <DialogButton
+            aria-expanded={expanded}
+            style={{
+              width: "auto",
+              minWidth: "78px",
+              height: "28px",
+              padding: "4px 10px",
+              fontSize: "11px",
+              flexShrink: 0,
+            }}
+            onClick={() => setTipsCollapsed((current) => !current)}
+          >
+            {expanded
+              ? t("WELCOME_TIPS_COLLAPSE", "Hide tips")
+              : t("WELCOME_TIPS_EXPAND", "Show tips")}
+          </DialogButton>
+        </div>
+      </div>
+    </MakoInfo>
+  );
+}
+
+/** Purely visual status notices shown above MAKO Decky's controls. */
+export function ContentNotices({
+  developmentBuildInfo,
+  mainRunningApp,
+  showWelcome,
+  engineUpdateRequired,
+  installedEngineVersion,
+  expectedEngineVersion,
+  isInstalling,
+  isInstallCompletionVisible,
+  isUninstalling,
+  onInstall,
+  modelStatus,
+}: ContentNoticesProps) {
+  const [showDevelopmentDetails, setShowDevelopmentDetails] = useState(false);
+  const hasDevelopmentNotice = Boolean(developmentBuildInfo);
+  const hasRunningAppNotice = Boolean(mainRunningApp);
+  const developmentDeployed = t("DEVELOPMENT_DEPLOYED", "deployed");
+  const developmentUnchanged = t("DEVELOPMENT_UNCHANGED", "unchanged");
+
+  return (
+    <>
+      <ModelWarning {...modelStatus} />
+      {developmentBuildInfo && (
+        <MakoInfo as={PanelSectionRow}>
+          <div
+            data-mako-info="true"
+            style={{
+              padding: "8px 12px",
+              width: "100%",
+              boxSizing: "border-box",
+              backgroundColor: "rgba(33, 150, 243, 0.16)",
+              borderRadius: "4px",
+              border: "1px solid rgba(33, 150, 243, 0.5)",
+              color: "#a8d8ff",
+              fontSize: "13px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                minWidth: 0,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: "bold" }}>
+                  🧪{" "}
+                  {t(
+                    "DEVELOPMENT_DEPLOYMENT_TITLE",
+                    "Local development deployment",
+                  )}
+                </div>
+                <div
+                  style={{
+                    marginTop: "2px",
+                    color: "#d6ecff",
+                    fontSize: "11px",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  MAKO Decky <code>{developmentBuildInfo.plugin.commit}</code>
+                  {developmentBuildInfo.plugin.dirty ? "*" : ""}
+                  {" · MAKO Renderer "}
+                  {developmentBuildInfo.engine ? (
+                    <code>{developmentBuildInfo.engine.commit}</code>
+                  ) : (
+                    developmentUnchanged
+                  )}
+                  {developmentBuildInfo.engine?.dirty ? "*" : ""}
+                </div>
+              </div>
+              <DialogButton
+                aria-expanded={showDevelopmentDetails}
+                style={{
+                  width: "72px",
+                  minWidth: "72px",
+                  height: "30px",
+                  padding: "4px 8px",
+                  fontSize: "12px",
+                }}
+                onClick={() => setShowDevelopmentDetails((current) => !current)}
+              >
+                {showDevelopmentDetails
+                  ? t("DEVELOPMENT_HIDE", "Hide")
+                  : t("DEVELOPMENT_DETAILS", "Details")}
+              </DialogButton>
+            </div>
+            {showDevelopmentDetails && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  marginTop: "8px",
+                  paddingTop: "8px",
+                  borderTop: "1px solid rgba(33, 150, 243, 0.35)",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                <div style={{ color: "#d6ecff" }}>
+                  <span style={{ color: "#83bff0" }}>
+                    {t("DEVELOPMENT_DEPLOYED_AT", "Deployed")}
+                  </span>{" "}
+                  {new Date(developmentBuildInfo.generatedAt).toLocaleString()}
+                </div>
+                <div>
+                  <div style={{ color: "#83bff0", fontWeight: "600" }}>
+                    MAKO Decky
+                  </div>
+                  <div>
+                    {t("DEVELOPMENT_COMMIT", "Commit")}:{" "}
+                    <code>{developmentBuildInfo.plugin.commit}</code>
+                    {developmentBuildInfo.plugin.dirty
+                      ? ` ${t("DEVELOPMENT_LOCAL_EDITS", "+ local edits")}`
+                      : ""}
+                  </div>
+                  <div>
+                    {t("DEVELOPMENT_FRONTEND", "Frontend")}:{" "}
+                    {developmentBuildInfo.plugin.frontendDeployed
+                      ? developmentDeployed
+                      : developmentUnchanged}
+                  </div>
+                  <div>
+                    {t("DEVELOPMENT_BACKEND", "Backend")}:{" "}
+                    {developmentBuildInfo.plugin.backendDeployed
+                      ? developmentDeployed
+                      : developmentUnchanged}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: "#83bff0", fontWeight: "600" }}>
+                    MAKO Renderer
+                  </div>
+                  {developmentBuildInfo.engine ? (
+                    <>
+                      <div>
+                        {t("DEVELOPMENT_COMMIT", "Commit")}:{" "}
+                        <code>{developmentBuildInfo.engine.commit}</code>
+                        {developmentBuildInfo.engine.dirty
+                          ? ` ${t("DEVELOPMENT_LOCAL_EDITS", "+ local edits")}`
+                          : ""}
+                      </div>
+                      <div>
+                        {t("DEVELOPMENT_LAYER_64", "64-bit layer")}:{" "}
+                        {developmentBuildInfo.engine.layer64Sha256 ? (
+                          <>
+                            {developmentDeployed} · SHA-256{" "}
+                            <code>
+                              {developmentBuildInfo.engine.layer64Sha256.slice(
+                                0,
+                                12,
+                              )}
+                            </code>
+                          </>
+                        ) : (
+                          developmentUnchanged
+                        )}
+                      </div>
+                      <div>
+                        {t("DEVELOPMENT_LAYER_32", "32-bit layer")}:{" "}
+                        {developmentBuildInfo.engine.layer32Sha256 ? (
+                          <>
+                            {developmentDeployed} · SHA-256{" "}
+                            <code>
+                              {developmentBuildInfo.engine.layer32Sha256.slice(
+                                0,
+                                12,
+                              )}
+                            </code>
+                          </>
+                        ) : (
+                          developmentUnchanged
+                        )}
+                      </div>
+                      <div>
+                        {t("DEVELOPMENT_FLATPAK_BUNDLES", "Flatpak bundles")}:{" "}
+                        {developmentBuildInfo.engine.flatpakArchiveSha256 ? (
+                          <>
+                            {SUPPORTED_FLATPAK_RUNTIME_VERSION_LIST}{" "}
+                            {developmentDeployed} · SHA-256{" "}
+                            <code>
+                              {developmentBuildInfo.engine.flatpakArchiveSha256.slice(
+                                0,
+                                12,
+                              )}
+                            </code>
+                          </>
+                        ) : (
+                          developmentUnchanged
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      {t(
+                        "DEVELOPMENT_UNCHANGED_BY_DEPLOYMENT",
+                        "Unchanged by this deployment",
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </MakoInfo>
+      )}
+
+      {showWelcome && <WelcomeNotice separated={hasDevelopmentNotice} />}
+
+      {mainRunningApp && (
+        <MakoInfo as={PanelSectionRow}>
+          <div
+            data-mako-info="true"
+            style={{
+              marginTop:
+                hasDevelopmentNotice || showWelcome ? "8px" : undefined,
+              padding: "8px 12px",
+              width: "100%",
+              boxSizing: "border-box",
+              backgroundColor: "rgba(0, 255, 0, 0.1)",
+              borderRadius: "4px",
+              border: "1px solid rgba(0, 255, 0, 0.3)",
+              fontSize: "13px",
+              overflowWrap: "anywhere",
+            }}
+          >
+            <strong>{mainRunningApp.display_name}</strong>{" "}
+            {t("CONTENT_RUNNING", "running.")}{" "}
+            {t(
+              "PROFILE_CAPTURE_READY",
+              "MAKO selects saved profiles automatically. If this game is new, save it below; restart the game after changing restart-only settings.",
+            )}
+          </div>
+        </MakoInfo>
+      )}
+
+      {engineUpdateRequired && (
+        <PanelSectionRow>
+          <div
+            data-mako-update-notice="true"
+            style={{
+              marginTop:
+                hasDevelopmentNotice || showWelcome || hasRunningAppNotice
+                  ? "8px"
+                  : undefined,
+              padding: "12px",
+              borderRadius: "8px",
+              background: "rgba(255, 152, 0, 0.16)",
+              border: "1px solid rgba(255, 152, 0, 0.7)",
+              color: "#ffd08a",
+            }}
+          >
+            <MakoInfo
+              data-mako-info="true"
+              style={{ fontWeight: "bold", marginBottom: "4px" }}
+            >
+              {t(
+                "CONTENT_ENGINE_UPDATE_REQUIRED",
+                "MAKO Renderer update required",
+              )}
+            </MakoInfo>
+            <MakoInfo
+              data-mako-info="true"
+              style={{ fontSize: "13px", marginBottom: "10px" }}
+            >
+              {t("CONTENT_ENGINE_INSTALLED", "Installed:")}{" "}
+              {installedEngineVersion ||
+                t("CONTENT_ENGINE_NOT_RECORDED", "not recorded")}
+              . {t("CONTENT_ENGINE_EXPECTS", "This plugin expects:")}{" "}
+              {expectedEngineVersion ||
+                t("CONTENT_ENGINE_BUNDLED_VERSION", "the bundled version")}
+              .
+              {!installedEngineVersion &&
+                ` ${t(
+                  "CONTENT_ENGINE_PREDATES_TRACKING",
+                  "The installed payload predates version tracking.",
+                )}`}{" "}
+              {t(
+                "CONTENT_ENGINE_UPDATE_DESC",
+                "Reinstall bundled MAKO Renderer, then update runtime extensions for prepared Flatpaks.",
+              )}
+            </MakoInfo>
+            <div className="Mako_BrandButton">
+              <ButtonItem
+                layout="below"
+                onClick={onInstall}
+                disabled={
+                  isInstalling || isInstallCompletionVisible || isUninstalling
+                }
+              >
+                {isInstallCompletionVisible ? (
+                  <MakoInstallCompletion />
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    {isInstalling && <MakoCompactSpinner />}
+                    <span>
+                      {isInstalling
+                        ? t(
+                            "CONTENT_UPDATING_RENDERER",
+                            "Updating MAKO Renderer...",
+                          )
+                        : t("CONTENT_UPDATE_RENDERER", "Update MAKO Renderer")}
+                    </span>
+                  </div>
+                )}
+              </ButtonItem>
+            </div>
+          </div>
+        </PanelSectionRow>
+      )}
+    </>
+  );
+}

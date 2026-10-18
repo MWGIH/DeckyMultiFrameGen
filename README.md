@@ -28,7 +28,13 @@ Early development.
       when needed.
 - [x] OptiScaler: installs Decky Framegen's OptiScaler bundle (downloaded from the same upstream releases) and
       patches or unpatches games with Decky Framegen's own logic, setting launch options.
-- [ ] MAKO: install and per-game profiles.
+- [x] MAKO: MAKO Decky's full controls (install, profiles, frame generation, scaling, shaders, Flatpak and Remote
+      Play setup) inside this plugin, with the MAKO Renderer downloaded from MAKO's releases; choosing MAKO for a game
+      adds MAKO's launcher to its launch options.
+- [x] Switching a game to another backend takes the previous one out of the game and restores its launch options.
+
+If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
+Renderer install.
 
 ## Install
 

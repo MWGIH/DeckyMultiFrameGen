@@ -1,6 +1,6 @@
 {
   "name": "decky-multi-framegen",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "Install and pick OptiScaler, HelixSR or MAKO frame generation per game from one Decky plugin.",
   "type": "module",
   "scripts": {
@@ -14,14 +14,22 @@
     "type": "git",
     "url": "git+https://github.com/MWGIH/DeckyMultiFrameGen.git"
   },
-  "keywords": ["decky", "plugin", "steam-deck", "framegen", "optiscaler", "helixsr", "mako"],
+  "keywords": [
+    "decky",
+    "plugin",
+    "steam-deck",
+    "framegen",
+    "optiscaler",
+    "helixsr",
+    "mako"
+  ],
   "author": "MWGIH",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@decky/rollup": "^1.0.2",
     "@decky/ui": "^4.11.0",
-    "@types/react": "19.1.1",
-    "@types/react-dom": "19.1.1",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
     "rollup": "^4.53.3",
     "typescript": "^5.6.2"
   },
@@ -32,7 +40,10 @@
   },
   "pnpm": {
     "peerDependencyRules": {
-      "ignoreMissing": ["react", "react-dom"]
+      "ignoreMissing": [
+        "react",
+        "react-dom"
+      ]
     }
   }
 }

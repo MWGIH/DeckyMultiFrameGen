@@ -7,7 +7,7 @@ please star, support and report backend bugs to the original projects.
 | --- | --- | --- | --- | --- |
 | [OptiScaler](https://github.com/optiscaler/OptiScaler) | [Decky Framegen](https://github.com/xXJSONDeruloXx/Decky-Framegen) | Kurt Himebauch (xXJSONDeruloXx) | BSD-3-Clause | Install and per-game patching logic, Steam library discovery |
 | [HelixSR](https://github.com/lonewolf0622/HelixSR) | [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager) | PeroTuncay (plugin), lonewolf0622 (HelixSR) | Unlicense (plugin), HelixSR Freeware License | Release download, setup and per-game install logic, packaging script |
-| [MAKO](https://github.com/eugeniosegala/MAKO) | MAKO Decky (same repo) | Eugenio Segala and contributors | GPL-3.0-or-later | Renderer install, per-game profiles and launch integration |
+| [MAKO](https://github.com/eugeniosegala/MAKO) | MAKO Decky (same repo) | Eugenio Segala and contributors | GPL-3.0-or-later | MAKO Decky's backend (`py_modules/mako_plugin`) and frontend (`src/mako`) from tag `plugin-v4.5.0`, with small marked changes so its methods are prefixed `mako_` and the Renderer is downloaded at runtime |
 
 Because MAKO is GPL-3.0-or-later, this plugin as a whole is distributed under the
 [GNU GPL version 3 or later](LICENSE). The upstream license texts are kept in [licenses/](licenses/).

@@ -42,5 +42,6 @@ cpSync("py_modules", `out/${name}/py_modules`, {
 });
 cpSync("licenses", `out/${name}/licenses`, { recursive: true });
 cpSync("assets", `out/${name}/assets`, { recursive: true });
+cpSync("bin", `out/${name}/bin`, { recursive: true }); // MAKO's diagnostics helper, where its installer looks
 execFileSync("zip", ["-qr", `${name}.zip`, name], { cwd: "out", stdio: "inherit" });
 console.log(`out/${name}.zip`);

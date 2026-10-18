@@ -15,6 +15,7 @@ import type { SelectedGame } from "../hooks/useSelectedGame";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRGame } from "./HelixSRGame";
 import { OptiScalerGame } from "./OptiScaler";
+import { MakoGame } from "./MakoGame";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
   none: "Off",
@@ -31,14 +32,6 @@ const SOURCE_LABELS = {
   picked: "Picked from the list",
 };
 
-// The backends a choice needs installed before it can be applied.
-const NEEDS: Record<GameChoice, string[]> = {
-  none: [],
-  optiscaler: ["optiscaler"],
-  helixsr: ["helixsr"],
-  mako: ["mako"],
-};
-
 type Props = {
   selected: SelectedGame;
   games: GameSummary[];
@@ -46,12 +39,11 @@ type Props = {
   helix: HelixStatus | null;
   opti: OptiStatus | null;
   onPick: (appid: string) => void;
+  onChoice: (choice: GameChoice | null) => void;
 };
 
-// Choices whose per-game controls aren't built yet
-const COMING: GameChoice[] = ["mako"];
 
-export function GameSection({ selected, games, backends, helix, opti, onPick }: Props) {
+export function GameSection({ selected, games, backends, helix, opti, onPick, onChoice }: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
 
   useEffect(() => {
@@ -66,6 +58,7 @@ export function GameSection({ selected, games, backends, helix, opti, onPick }: 
       cancelled = true;
     };
   }, [selected?.appid]);
+  useEffect(() => onChoice(detail?.ok && detail.installed ? detail.backend ?? null : null), [detail]);
 
   const [switching, setSwitching] = useState(false);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
@@ -91,7 +84,6 @@ export function GameSection({ selected, games, backends, helix, opti, onPick }: 
   };
 
   const installed = new Set((backends ?? []).filter((b) => b.installed).map((b) => b.id as string));
-  const missing = (choice: GameChoice) => NEEDS[choice].filter((id) => !installed.has(id));
   const name = detail?.name ?? selected?.name ?? (selected ? `App ${selected.appid}` : "");
 
   return (
@@ -118,13 +110,6 @@ export function GameSection({ selected, games, backends, helix, opti, onPick }: 
             <PanelSectionRow>
               <DropdownItem
                 label="Use"
-                description={
-                  detail.backend && COMING.includes(detail.backend) && missing(detail.backend).length
-                    ? `Needs ${missing(detail.backend).join(" and ")} installed first`
-                    : detail.backend && COMING.includes(detail.backend)
-                      ? "Applying this choice to the game comes in a later version"
-                      : undefined
-                }
                 rgOptions={(detail.choices ?? []).map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
                 disabled={switching}
@@ -137,6 +122,13 @@ export function GameSection({ selected, games, backends, helix, opti, onPick }: 
           )}
           {detail?.ok && detail.installed && detail.backend === "optiscaler" && (
             <OptiScalerGame appid={selected.appid} status={opti} />
+          )}
+          {detail?.ok && detail.installed && detail.backend === "mako" && (
+            <MakoGame
+              appid={selected.appid}
+              makoInstalled={installed.has("mako")}
+              losslessScaling={Boolean(backends?.find((b) => b.id === "mako")?.lossless_scaling)}
+            />
           )}
         </>
       )}

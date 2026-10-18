@@ -1,0 +1,146 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Router, type AppOverview } from "@decky/ui";
+import type { ProfileResult } from "../api/makoApi";
+import { DEFAULT_PROFILE_NAME } from "../config/configSchema";
+
+const PROFILE_SYNC_INTERVAL_MS = 2000;
+
+interface ProfileSessionOptions {
+  isInstalled: boolean;
+  loadProfileConfig: (profileName?: string) => Promise<void>;
+  syncCurrentProfile: (appId?: string) => Promise<ProfileResult>;
+}
+
+/**
+ * Coordinates the profile being edited with Decky's running-game state.
+ *
+ * A live game locks the editor to its resolved profile. After that game exits,
+ * the editor follows the backend's idle selection exactly once. Native streams
+ * retain their selected profile on exit. Offline choices remain until launch.
+ */
+export function useProfileSession({
+  isInstalled,
+  loadProfileConfig,
+  syncCurrentProfile,
+}: ProfileSessionOptions) {
+  const [mainRunningApp, setMainRunningApp] = useState<AppOverview | undefined>(
+    undefined,
+  );
+  const [editingProfile, setEditingProfile] =
+    useState<string>(DEFAULT_PROFILE_NAME);
+  const editingProfileRef = useRef<string>(DEFAULT_PROFILE_NAME);
+  const gameWasRunningRef = useRef(false);
+  const remoteWasRunningRef = useRef(false);
+  const initializedProfileRef = useRef(false);
+  const selectionRevisionRef = useRef(0);
+  const [remotePlayRunning, setRemotePlayRunning] = useState(false);
+  const lastPowerSource = useRef<string | undefined>(undefined);
+  const [powerSource, setPowerSource] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (isInstalled) {
+      void loadProfileConfig(editingProfileRef.current);
+    }
+  }, [isInstalled, loadProfileConfig]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let syncInFlight = false;
+
+    const checkRunningApp = async () => {
+      const runningApp = Router.MainRunningApp;
+      if (syncInFlight) return;
+
+      syncInFlight = true;
+      const selectionRevision = selectionRevisionRef.current;
+      try {
+        const result = await syncCurrentProfile(
+          runningApp ? String(runningApp.appid) : undefined,
+        );
+        if (
+          !cancelled &&
+          result.success &&
+          selectionRevision === selectionRevisionRef.current
+        ) {
+          const remoteRunning = Boolean(result.remote_play_running);
+          const gameIsRunning = Boolean(
+            result.game_running && (runningApp || remoteRunning),
+          );
+          setRemotePlayRunning(remoteRunning);
+          const nextEditingProfile = gameIsRunning
+            ? result.profile_name || DEFAULT_PROFILE_NAME
+            : remoteWasRunningRef.current
+              ? result.profile_name || editingProfileRef.current
+              : gameWasRunningRef.current
+                ? result.profile_name || DEFAULT_PROFILE_NAME
+                : !initializedProfileRef.current
+                  ? result.profile_name
+                  : undefined;
+          initializedProfileRef.current = true;
+          const editingProfileChanged = Boolean(
+            nextEditingProfile &&
+            nextEditingProfile !== editingProfileRef.current,
+          );
+
+          // On exit, reset the editor before unlocking profile controls. On
+          // launch, lock controls before following the detected game profile.
+          if (!gameIsRunning && editingProfileChanged && nextEditingProfile) {
+            editingProfileRef.current = nextEditingProfile;
+            setEditingProfile(nextEditingProfile);
+          }
+          setMainRunningApp(
+            gameIsRunning && !remoteRunning ? runningApp : undefined,
+          );
+          gameWasRunningRef.current = gameIsRunning;
+          remoteWasRunningRef.current = remoteRunning;
+          if (gameIsRunning && editingProfileChanged && nextEditingProfile) {
+            editingProfileRef.current = nextEditingProfile;
+            setEditingProfile(nextEditingProfile);
+          }
+          const powerChanged =
+            Boolean(result.power_source) &&
+            lastPowerSource.current !== undefined &&
+            result.power_source !== lastPowerSource.current;
+          lastPowerSource.current =
+            result.power_source || lastPowerSource.current || "";
+          setPowerSource(result.power_source || "");
+          if (editingProfileChanged && nextEditingProfile) {
+            await loadProfileConfig(nextEditingProfile);
+          } else if (gameIsRunning && powerChanged) {
+            await loadProfileConfig(editingProfileRef.current);
+          }
+        }
+      } finally {
+        syncInFlight = false;
+      }
+    };
+
+    void checkRunningApp();
+    const interval = setInterval(
+      () => void checkRunningApp(),
+      PROFILE_SYNC_INTERVAL_MS,
+    );
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [loadProfileConfig, syncCurrentProfile]);
+
+  const selectEditingProfile = useCallback((profileName: string) => {
+    selectionRevisionRef.current += 1;
+    initializedProfileRef.current = true;
+    editingProfileRef.current = profileName;
+    setEditingProfile(profileName);
+  }, []);
+
+  const getEditingProfile = useCallback(() => editingProfileRef.current, []);
+
+  return {
+    mainRunningApp,
+    remotePlayRunning,
+    powerSource,
+    editingProfile,
+    selectEditingProfile,
+    getEditingProfile,
+  };
+}

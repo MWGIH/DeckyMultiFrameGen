@@ -1,0 +1,824 @@
+import { FC, useState, useEffect, CSSProperties } from "react";
+import {
+  ModalRoot,
+  DialogBody,
+  DialogHeader,
+  DialogControlsSection,
+  ButtonItem,
+  PanelSectionRow,
+  Toggle,
+  Navigation,
+  showModal,
+  ConfirmModal,
+} from "@decky/ui";
+import { FaCheck, FaTimes, FaDownload, FaTrash, FaCog } from "react-icons/fa";
+import {
+  checkFlatpakExtensionStatus,
+  installFlatpakExtension,
+  uninstallFlatpakExtension,
+  getFlatpakApps,
+  getLaunchOption,
+  setFlatpakAppOverride,
+  removeFlatpakAppOverride,
+  FlatpakExtensionStatus,
+  FlatpakApp,
+  FlatpakAppInfo,
+} from "../api/makoApi";
+import {
+  PER_GAME_WRAPPER_FLATPAK_APP_IDS,
+  SUPPORTED_FLATPAK_RUNTIMES,
+  type FlatpakRuntimeVersion,
+} from "../config/configSchema";
+import { DEFAULT_MAKO_WRAPPER_PATH } from "../config/runtimePaths";
+import t from "../i18n/i18n";
+import { showErrorToast, showSuccessToast } from "../utils/toastUtils";
+import {
+  MakoCompactSpinner,
+  MakoFocusable,
+  makoPanelDivider,
+  makoPanelItemStyle,
+  makoPanelSectionHeaderStyle,
+  makoPanelStyle,
+} from "./MakoUi";
+
+interface FlatpaksModalProps {
+  closeModal?: () => void;
+}
+
+const MAKO_FLATPAK_GUIDE_URL =
+  "https://github.com/eugeniosegala/MAKO/blob/main/plugin/docs/LAUNCHERS.md";
+
+function translateFlatpakRuntime(version: FlatpakRuntimeVersion): string {
+  return t("FLATPAK_RUNTIME_VERSION", "Runtime {version}", { version });
+}
+
+export const FlatpaksModal: FC<FlatpaksModalProps> = ({ closeModal }) => {
+  const [extensionStatus, setExtensionStatus] =
+    useState<FlatpakExtensionStatus | null>(null);
+  const [flatpakApps, setFlatpakApps] = useState<FlatpakAppInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [operationInProgress, setOperationInProgress] = useState<string | null>(
+    null,
+  );
+  const [appErrors, setAppErrors] = useState<Record<string, string>>({});
+  const [wrapperPath, setWrapperPath] = useState(DEFAULT_MAKO_WRAPPER_PATH);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [statusResult, appsResult, launchOptionResult] = await Promise.all([
+        checkFlatpakExtensionStatus(),
+        getFlatpakApps(),
+        getLaunchOption().catch(() => null),
+      ]);
+
+      setExtensionStatus(statusResult);
+      setFlatpakApps(appsResult);
+      if (launchOptionResult?.wrapper_path) {
+        setWrapperPath(launchOptionResult.wrapper_path);
+      }
+    } catch (error) {
+      console.error("Error loading Flatpak data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleExtensionOperation = async (
+    operation: "install" | "uninstall",
+    version: FlatpakRuntimeVersion,
+  ) => {
+    const operationId = `${operation}-${version}`;
+    setOperationInProgress(operationId);
+
+    try {
+      const result =
+        operation === "install"
+          ? await installFlatpakExtension(version)
+          : await uninstallFlatpakExtension(version);
+
+      if (result.success) {
+        // Reload status after operation
+        const [newStatus, newApps] = await Promise.all([
+          checkFlatpakExtensionStatus(),
+          getFlatpakApps(),
+        ]);
+        setExtensionStatus(newStatus);
+        setFlatpakApps(newApps);
+        showSuccessToast(
+          t("FLATPAK_EXTENSION_UPDATED", "Flatpak extension updated"),
+          result.message ||
+            `${version} ${t("FLATPAK_RUNTIME_EXTENSION_UPDATED", "runtime extension updated")}`,
+        );
+      } else {
+        const action =
+          operation === "install"
+            ? t("FLATPAK_INSTALL_ACTION", "install")
+            : t("FLATPAK_UNINSTALL_ACTION", "uninstall");
+        showErrorToast(
+          t("FLATPAK_EXTENSION_FAILED", "Flatpak extension failed"),
+          result.error ||
+            result.message ||
+            `${t("FLATPAK_EXTENSION_ACTION_FAILED", "Could not")} ${action} ${version} ${t("FLATPAK_RUNTIME_EXTENSION", "runtime extension")}`,
+        );
+      }
+    } catch (error) {
+      console.error(`Error ${operation}ing extension:`, error);
+      showErrorToast(
+        t("FLATPAK_EXTENSION_FAILED", "Flatpak extension failed"),
+        String(error),
+      );
+    } finally {
+      setOperationInProgress(null);
+    }
+  };
+
+  const handleAppOverrideToggle = async (app: FlatpakApp) => {
+    const hasOverrides =
+      app.has_filesystem_override &&
+      app.has_wrapper_override &&
+      app.has_required_env_override !== false;
+    const operationId = `app-${app.app_id}`;
+    setOperationInProgress(operationId);
+    setAppErrors((current) => {
+      const next = { ...current };
+      delete next[app.app_id];
+      return next;
+    });
+
+    try {
+      const result = hasOverrides
+        ? await removeFlatpakAppOverride(app.app_id)
+        : await setFlatpakAppOverride(app.app_id);
+
+      if (result.success) {
+        // Reload apps data after operation
+        const newApps = await getFlatpakApps();
+        setFlatpakApps(newApps);
+        showSuccessToast(
+          t("FLATPAK_APPLICATION_UPDATED", "Flatpak application updated"),
+          result.message ||
+            `${app.app_name || app.app_id} ${t("FLATPAK_UPDATED", "updated")}`,
+        );
+      } else {
+        setAppErrors((current) => ({
+          ...current,
+          [app.app_id]:
+            result.error ||
+            result.message ||
+            `${t("FLATPAK_APPLICATION_ACTION_FAILED", "Could not update")} ${app.app_name || app.app_id}`,
+        }));
+      }
+    } catch (error) {
+      console.error("Error toggling app override:", error);
+      setAppErrors((current) => ({ ...current, [app.app_id]: String(error) }));
+    } finally {
+      setOperationInProgress(null);
+    }
+  };
+
+  const confirmOperation = (
+    operation: () => void,
+    title: string,
+    description: string,
+  ) => {
+    showModal(
+      <ConfirmModal
+        strTitle={title}
+        strDescription={description}
+        onOK={operation}
+        onCancel={() => {}}
+      />,
+    );
+  };
+
+  const handleRuntimePrimaryAction = (
+    version: FlatpakRuntimeVersion,
+    installed: boolean,
+  ) => {
+    const operation: "install" | "uninstall" = installed
+      ? "uninstall"
+      : "install";
+    const action = () => handleExtensionOperation(operation, version);
+
+    if (operation === "uninstall") {
+      confirmOperation(
+        action,
+        t("FLATPAK_UNINSTALL_TITLE", "Uninstall Runtime Extension"),
+        `${t("FLATPAK_UNINSTALL_CONFIRM_PREFIX", "Are you sure you want to uninstall the")} ${version} ${t("FLATPAK_UNINSTALL_CONFIRM_SUFFIX", "runtime extension?")}`,
+      );
+      return;
+    }
+
+    action();
+  };
+
+  if (loading) {
+    return (
+      <ModalRoot closeModal={closeModal}>
+        <DialogHeader>
+          {t("FLATPAK_MODAL_TITLE", "Flatpak Extensions")}
+        </DialogHeader>
+        <DialogBody>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              padding: "20px",
+            }}
+          >
+            <MakoCompactSpinner size={28} />
+          </div>
+        </DialogBody>
+      </ModalRoot>
+    );
+  }
+
+  const instructionSteps = [
+    {
+      id: "try-first",
+      title: t(
+        "FLATPAK_STEP_WRAPPER_PATH",
+        "Wrapper installed on this device:",
+      ),
+      command: wrapperPath,
+    },
+    {
+      id: "final-result",
+      title: t(
+        "FLATPAK_STEP_FINAL",
+        'Target for a shortcut that originally used "/usr/bin/flatpak":',
+      ),
+      command: `"${wrapperPath}" "/usr/bin/flatpak"`,
+    },
+  ];
+
+  const focusableInstructionStyle: CSSProperties = {
+    padding: "10px",
+    background: "rgba(0, 0, 0, 0.3)",
+    borderRadius: "6px",
+    marginBottom: "12px",
+  };
+
+  const commandStyle: CSSProperties = {
+    fontFamily: "monospace",
+    fontSize: "0.85em",
+    background: "rgba(0, 0, 0, 0.45)",
+    padding: "8px",
+    borderRadius: "4px",
+    marginTop: "6px",
+    overflowWrap: "anywhere",
+  };
+
+  return (
+    <ModalRoot closeModal={closeModal}>
+      <DialogHeader>
+        {t("FLATPAK_MODAL_TITLE", "Flatpak Extensions")}
+      </DialogHeader>
+      <DialogBody>
+        <MakoFocusable flow-children="column">
+          <div
+            style={{
+              ...makoPanelStyle,
+              margin: "8px 0 18px",
+            }}
+          >
+            <div style={makoPanelSectionHeaderStyle}>
+              {t("FLATPAK_RUNTIME_INSTALLER", "Runtime Extension Installer")}
+            </div>
+
+            {extensionStatus && extensionStatus.success ? (
+              SUPPORTED_FLATPAK_RUNTIMES.map((runtime) => {
+                const installBusy =
+                  operationInProgress === `install-${runtime.version}`;
+                const uninstallBusy =
+                  operationInProgress === `uninstall-${runtime.version}`;
+                const isBusy = operationInProgress !== null;
+                const installed = extensionStatus[runtime.statusField];
+
+                return (
+                  <div key={runtime.version} style={makoPanelItemStyle}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      {installed ? (
+                        <FaCheck
+                          style={{ color: "#65b9c9", flex: "0 0 16px" }}
+                        />
+                      ) : (
+                        <FaTimes
+                          style={{ color: "#c89558", flex: "0 0 16px" }}
+                        />
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ color: "#edf8fb", fontWeight: 600 }}>
+                          {translateFlatpakRuntime(runtime.version)}
+                        </div>
+                        <div
+                          style={{
+                            marginTop: "2px",
+                            color: "#b9cbd0",
+                            fontSize: "12px",
+                          }}
+                        >
+                          {installed
+                            ? t("FLATPAK_INSTALLED", "Installed")
+                            : t("FLATPAK_NOT_INSTALLED", "Not installed")}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      style={{ display: "flex", gap: "8px", marginTop: "10px" }}
+                    >
+                      {installed && (
+                        <div
+                          className="Mako_BrandButton"
+                          style={{ flex: 1, minWidth: 0 }}
+                        >
+                          <ButtonItem
+                            layout="below"
+                            onClick={() =>
+                              handleExtensionOperation(
+                                "install",
+                                runtime.version,
+                              )
+                            }
+                            disabled={isBusy}
+                          >
+                            {installBusy ? (
+                              <>
+                                <MakoCompactSpinner />{" "}
+                                {t("FLATPAK_UPDATING_BTN", "Updating...")}
+                              </>
+                            ) : (
+                              <>
+                                <FaDownload />{" "}
+                                {t("FLATPAK_UPDATE_BTN", "Update")}
+                              </>
+                            )}
+                          </ButtonItem>
+                        </div>
+                      )}
+                      <div
+                        className={`Mako_BrandButton${installed ? " Mako_BrandButton--danger" : ""}`}
+                        style={{ flex: 1, minWidth: 0 }}
+                      >
+                        <ButtonItem
+                          layout="below"
+                          onClick={() =>
+                            handleRuntimePrimaryAction(
+                              runtime.version,
+                              installed,
+                            )
+                          }
+                          disabled={isBusy}
+                        >
+                          {uninstallBusy ? (
+                            <>
+                              <MakoCompactSpinner />{" "}
+                              {t("FLATPAK_UNINSTALLING_BTN", "Uninstalling...")}
+                            </>
+                          ) : installBusy && !installed ? (
+                            <>
+                              <MakoCompactSpinner />{" "}
+                              {t("FLATPAK_INSTALLING_BTN", "Installing...")}
+                            </>
+                          ) : installed ? (
+                            <>
+                              <FaTrash />{" "}
+                              {t("FLATPAK_UNINSTALL_BTN", "Uninstall")}
+                            </>
+                          ) : (
+                            <>
+                              <FaDownload />{" "}
+                              {t("FLATPAK_INSTALL_BTN", "Install")}
+                            </>
+                          )}
+                        </ButtonItem>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={makoPanelItemStyle}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                  }}
+                >
+                  <FaTimes
+                    style={{
+                      color: "#c89558",
+                      flex: "0 0 16px",
+                      marginTop: "2px",
+                    }}
+                  />
+                  <div>
+                    <div style={{ color: "#edf8fb", fontWeight: 600 }}>
+                      {t("FLATPAK_ERROR", "Error")}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: "3px",
+                        color: "#b9cbd0",
+                        fontSize: "12px",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {extensionStatus?.error ||
+                        t(
+                          "FLATPAK_ERROR_STATUS",
+                          "Failed to check extension status",
+                        )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                ...makoPanelSectionHeaderStyle,
+                borderTop: makoPanelDivider,
+              }}
+            >
+              {t("FLATPAK_APPS_TITLE", "Flatpak Applications")}
+            </div>
+            <div
+              style={{
+                ...makoPanelItemStyle,
+                color: "#b9cbd0",
+                fontSize: "12px",
+                lineHeight: 1.4,
+              }}
+            >
+              <div
+                style={{
+                  color: "#edf8fb",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  marginBottom: "4px",
+                }}
+              >
+                {t("FLATPAK_PREPARE_APPLICATION", "Prepare an application")}
+              </div>
+              {t(
+                "FLATPAK_PREPARE_APPLICATION_DESC",
+                "Install the matching extension and prepare the app. Heroic/Lutris need a per-game wrapper; emulators apply app-wide. See launcher guide.",
+              )}
+            </div>
+
+            {flatpakApps && flatpakApps.success ? (
+              flatpakApps.apps.length > 0 ? (
+                flatpakApps.apps.map((app) => {
+                  const hasOverrides =
+                    app.has_filesystem_override &&
+                    app.has_wrapper_override &&
+                    app.has_required_env_override !== false;
+                  const partialOverrides =
+                    app.has_filesystem_override ||
+                    app.has_wrapper_override ||
+                    app.has_env_override;
+                  const appBusy = operationInProgress === `app-${app.app_id}`;
+                  const runtime = SUPPORTED_FLATPAK_RUNTIMES.find(
+                    (entry) => entry.version === app.runtime_version,
+                  );
+                  const extensionInstalled =
+                    runtime && extensionStatus?.success
+                      ? extensionStatus[runtime.statusField]
+                      : null;
+                  const needsExtension =
+                    hasOverrides && runtime && extensionInstalled === false;
+                  const installBusy =
+                    runtime &&
+                    operationInProgress === `install-${runtime.version}`;
+
+                  let statusColor = "#c89558";
+                  let statusText = t(
+                    "FLATPAK_STATUS_NO_OVERRIDES",
+                    "No overrides",
+                  );
+
+                  if (hasOverrides) {
+                    if (!runtime) {
+                      statusText = t(
+                        "FLATPAK_STATUS_RUNTIME_UNAVAILABLE",
+                        "Prepared — runtime unsupported or unavailable",
+                      );
+                    } else if (extensionInstalled === null) {
+                      statusText = t(
+                        "FLATPAK_STATUS_EXTENSION_UNAVAILABLE",
+                        "Prepared — extension status unavailable",
+                      );
+                    } else if (extensionInstalled) {
+                      statusColor = "#65b9c9";
+                      statusText = t(
+                        "FLATPAK_STATUS_EXTENSION_READY",
+                        "Prepared — MAKO {version} extension installed",
+                        { version: runtime.version },
+                      );
+                    } else {
+                      statusText = t(
+                        "FLATPAK_STATUS_EXTENSION_MISSING",
+                        "Prepared — MAKO {version} extension missing",
+                        { version: runtime.version },
+                      );
+                    }
+                  } else if (partialOverrides) {
+                    statusColor = "#d58a39";
+                    statusText = t("FLATPAK_STATUS_PARTIAL", "Partial");
+                  }
+
+                  const appError = appErrors[app.app_id];
+                  const description = PER_GAME_WRAPPER_FLATPAK_APP_IDS.some(
+                    (appId) => appId === app.app_id,
+                  )
+                    ? t(
+                        "FLATPAK_PER_GAME_APP_DESC",
+                        "{app_id} - {status}. Enable MAKO per game using {wrapper_path}. See the launcher setup guide for the correct field.",
+                        {
+                          app_id: app.app_id,
+                          status: statusText,
+                          wrapper_path: app.wrapper_path,
+                        },
+                      )
+                    : t(
+                        "FLATPAK_DIRECT_APP_DESC",
+                        "{app_id} - {status}. Preparation applies to this entire Flatpak app. Follow the launcher setup guide for EmuDeck and Steam shortcuts.",
+                        {
+                          app_id: app.app_id,
+                          status: statusText,
+                        },
+                      );
+
+                  return (
+                    <div
+                      key={app.app_id}
+                      style={{
+                        ...makoPanelItemStyle,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <FaCog
+                        style={{
+                          color: appError ? "#d96d79" : statusColor,
+                          flex: "0 0 16px",
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            color: "#edf8fb",
+                            fontWeight: 600,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {app.app_name || app.app_id}
+                        </div>
+                        <div
+                          style={{
+                            marginTop: "3px",
+                            color: "#b9cbd0",
+                            fontSize: "12px",
+                            lineHeight: 1.35,
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {description}
+                        </div>
+                        {appError && (
+                          <div
+                            style={{
+                              marginTop: "5px",
+                              color: "#ff9b9b",
+                              fontSize: "12px",
+                              lineHeight: 1.35,
+                              overflowWrap: "anywhere",
+                            }}
+                          >
+                            {appError}
+                          </div>
+                        )}
+                        {needsExtension && (
+                          <div
+                            className="Mako_BrandButton"
+                            style={{ marginTop: "10px" }}
+                          >
+                            <ButtonItem
+                              layout="below"
+                              disabled={operationInProgress !== null}
+                              onClick={() =>
+                                handleExtensionOperation(
+                                  "install",
+                                  runtime.version,
+                                )
+                              }
+                            >
+                              {installBusy ? (
+                                <>
+                                  <MakoCompactSpinner />{" "}
+                                  {t("FLATPAK_INSTALLING_BTN", "Installing...")}
+                                </>
+                              ) : (
+                                t(
+                                  "FLATPAK_INSTALL_MATCHING_EXTENSION_BTN",
+                                  "Install {version} extension",
+                                  { version: runtime.version },
+                                )
+                              )}
+                            </ButtonItem>
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        aria-busy={appBusy}
+                        style={{
+                          flex: "0 0 auto",
+                          position: "relative",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Toggle
+                          value={hasOverrides}
+                          onChange={() => {
+                            if (operationInProgress === null)
+                              void handleAppOverrideToggle(app);
+                          }}
+                        />
+                        {appBusy && (
+                          <div
+                            role="status"
+                            style={{
+                              position: "absolute",
+                              inset: "1px 4px 1px 1px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              boxSizing: "border-box",
+                              pointerEvents: "none",
+                              overflow: "hidden",
+                              border: "1px solid rgba(101, 185, 201, 0.42)",
+                              borderRadius: "999px",
+                              background: "rgba(8, 39, 56, 0.9)",
+                            }}
+                          >
+                            <MakoCompactSpinner size={14} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={makoPanelItemStyle}>
+                  <div style={{ color: "#edf8fb", fontWeight: 600 }}>
+                    {t("FLATPAK_NO_APPS", "No Flatpak Apps Found")}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "3px",
+                      color: "#b9cbd0",
+                      fontSize: "12px",
+                    }}
+                  >
+                    {t(
+                      "FLATPAK_NO_APPS_DESC",
+                      "No Flatpak applications are currently installed",
+                    )}
+                  </div>
+                </div>
+              )
+            ) : (
+              <div style={makoPanelItemStyle}>
+                <div style={{ color: "#edf8fb", fontWeight: 600 }}>
+                  {t("FLATPAK_ERROR", "Error")}
+                </div>
+                <div
+                  style={{
+                    marginTop: "3px",
+                    color: "#b9cbd0",
+                    fontSize: "12px",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {flatpakApps?.error ||
+                    t(
+                      "FLATPAK_ERROR_APPS",
+                      "Failed to load Flatpak applications",
+                    )}
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                ...makoPanelSectionHeaderStyle,
+                borderTop: makoPanelDivider,
+              }}
+            >
+              {t(
+                "FLATPAK_STEAM_CONFIG_TITLE",
+                "Manual Steam shortcut reference",
+              )}
+            </div>
+            <div
+              style={{
+                ...makoPanelItemStyle,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "bold",
+                  marginBottom: "8px",
+                  color: "#fff",
+                }}
+              >
+                {t(
+                  "FLATPAK_STEAM_CONFIG_HEADER",
+                  "Target example (does not configure Steam)",
+                )}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.9em",
+                  lineHeight: "1.4",
+                  marginBottom: "8px",
+                }}
+              >
+                {t(
+                  "FLATPAK_STEAM_CONFIG_DESC",
+                  "Only for manual Steam shortcuts originally targeting /usr/bin/flatpak. Prepare the app above; keep Start In and Launch Options. Heroic, Lutris, and EmuDeck use the launcher guide.",
+                )}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.9em",
+                  lineHeight: "1.4",
+                  marginBottom: "12px",
+                  color: "#ffa500",
+                }}
+              >
+                <strong>{t("FLATPAK_IMPORTANT_LABEL", "IMPORTANT:")}</strong>{" "}
+                {t(
+                  "FLATPAK_STEAM_CONFIG_IMPORTANT",
+                  "Replace TARGET only. Do not paste this into Launch Options.",
+                )}
+              </div>
+
+              {instructionSteps.map((step) => (
+                <MakoFocusable
+                  key={step.id}
+                  focusWithinClassName="gpfocuswithin"
+                  onActivate={() => {}}
+                  style={focusableInstructionStyle}
+                >
+                  <div style={{ fontWeight: "bold" }}>{step.title}</div>
+                  <div style={commandStyle}>{step.command}</div>
+                </MakoFocusable>
+              ))}
+
+              <div className="Mako_BrandButton">
+                <ButtonItem
+                  layout="below"
+                  onClick={() =>
+                    Navigation.NavigateToExternalWeb(MAKO_FLATPAK_GUIDE_URL)
+                  }
+                >
+                  {t("FLATPAK_OPEN_README", "Open launcher setup guide")}
+                </ButtonItem>
+              </div>
+            </div>
+          </div>
+
+          {/* Close Button */}
+          <DialogControlsSection>
+            <PanelSectionRow>
+              <div className="Mako_BrandButton">
+                <ButtonItem layout="below" onClick={closeModal}>
+                  {t("FLATPAK_CLOSE", "Close")}
+                </ButtonItem>
+              </div>
+            </PanelSectionRow>
+          </DialogControlsSection>
+        </MakoFocusable>
+      </DialogBody>
+    </ModalRoot>
+  );
+};

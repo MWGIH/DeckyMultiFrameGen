@@ -8,9 +8,11 @@ import { BackendsSection } from "./components/BackendsSection";
 import { GameSection } from "./components/GameSection";
 import { useHelixStatus } from "./components/HelixSRSetup";
 import { useOptiStatus } from "./components/OptiScaler";
-import { helixsrStatus, optiscalerStatus } from "./api";
+import { helixsrStatus, optiscalerStatus, type GameChoice } from "./api";
+import { Content as MakoContent } from "./mako/components/Content";
 
 const PICKED_KEY = "multifg:picked";
+const SHOW_MAKO_KEY = "multifg:showMako";
 const BACKEND_POLL_MS = 5000;
 
 function readPicked(): string | null {
@@ -29,6 +31,22 @@ function Content() {
   const [helix, setHelix] = useHelixStatus();
   const refreshHelix = () => helixsrStatus().then(setHelix);
   const [opti, setOpti] = useOptiStatus();
+  const [choice, setChoice] = useState<GameChoice | null>(null);
+  const [showMako, setShowMako] = useState(() => {
+    try {
+      return localStorage.getItem(SHOW_MAKO_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleMako = () => {
+    setShowMako(!showMako);
+    try {
+      localStorage.setItem(SHOW_MAKO_KEY, showMako ? "0" : "1");
+    } catch {
+      // just not remembered
+    }
+  };
   const refreshOpti = () => optiscalerStatus().then(setOpti);
 
   useEffect(() => {
@@ -55,13 +73,26 @@ function Content() {
 
   return (
     <>
-      <GameSection selected={selected} games={games} backends={backends} helix={helix} opti={opti} onPick={pick} />
+      <GameSection
+        selected={selected}
+        games={games}
+        backends={backends}
+        helix={helix}
+        opti={opti}
+        onPick={pick}
+        onChoice={setChoice}
+      />
+      {/* MAKO Decky's own controls (vendored, GPL-3.0), shown for a MAKO game or when opened from Backends */}
+      {(choice === "mako" || showMako) && <MakoContent />}
       <BackendsSection
         backends={backends}
         helix={helix}
         onHelixChange={refreshHelix}
         opti={opti}
         onOptiChange={refreshOpti}
+        makoShown={choice === "mako" || showMako}
+        makoPinned={choice === "mako"}
+        onToggleMako={toggleMako}
       />
     </>
   );

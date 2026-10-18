@@ -42,6 +42,13 @@ export const setGameBackend = callable<
 >("set_game_backend");
 export const logError = callable<[message: string], void>("log_error");
 
+// --- MAKO (its own panel calls mako_* through src/mako/api/makoApi.ts) ---
+
+export const makoGameLaunchOptions = callable<
+  [current_launch_options: string, enable: boolean],
+  { ok: boolean; error?: string; installed: boolean; launch_options?: string; enabled?: boolean; runner?: string }
+>("mako_game_launch_options");
+
 // --- HelixSR ---
 
 export type HelixRelease = { tag: string; name: string; url: string; size?: number; prerelease: boolean };
