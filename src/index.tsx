@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ButtonItem, PanelSection, PanelSectionRow, staticClasses } from "@decky/ui";
 import { definePlugin } from "@decky/api";
 import { MdOutlineAutoAwesomeMotion } from "react-icons/md";
@@ -60,6 +60,16 @@ function Content() {
   const [makoFull, setMakoFull] = usePersisted(MAKO_FULL_KEY, false);
   const makoShown = makoGame && !makoHidden;
   const toggleMako = () => setMakoHidden(!makoHidden);
+  // once MAKO is first installed (from Backends or its own panel), its settings open in the light view
+  const makoInstalled = backends?.find((b) => b.id === "mako")?.installed;
+  const makoWasInstalled = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (makoWasInstalled.current === false && makoInstalled) {
+      setMakoFull(false);
+      setMakoHidden(false);
+    }
+    if (makoInstalled !== undefined) makoWasInstalled.current = makoInstalled;
+  }, [makoInstalled]);
   const refreshOpti = () => optiscalerStatus().then(setOpti);
 
   const refreshBackends = () =>
@@ -103,9 +113,10 @@ function Content() {
         onPick={pick}
         onChoice={setChoice}
       />
-      {/* MAKO Decky's own controls (vendored, GPL-3.0), shown for a MAKO game or when opened from Backends */}
+      {/* MAKO Decky's own controls (vendored, GPL-3.0) for a MAKO game, with ours to switch view or hide below */}
+      {makoShown && <MakoContent variant={makoFull ? "full" : "light"} />}
       {makoGame && (
-        <PanelSection title="MAKO">
+        <PanelSection title={makoShown ? undefined : "MAKO"}>
           {makoShown && (
             <PanelSectionRow>
               <ButtonItem layout="below" onClick={() => setMakoFull(!makoFull)}>
@@ -115,12 +126,11 @@ function Content() {
           )}
           <PanelSectionRow>
             <ButtonItem layout="below" onClick={toggleMako}>
-              {makoShown ? "Hide MAKO" : "Show MAKO"}
+              {makoShown ? "Hide MAKO settings" : "Show MAKO settings"}
             </ButtonItem>
           </PanelSectionRow>
         </PanelSection>
       )}
-      {makoShown && <MakoContent variant={makoFull ? "full" : "light"} />}
     </>
   );
 }
