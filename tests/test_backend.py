@@ -83,9 +83,9 @@ class PluginTests(unittest.TestCase):
 
     def test_game_choice_round_trip(self):
         self.assertEqual(run(self.plugin.get_game("1091500"))["backend"], "none")
-        self.assertTrue(run(self.plugin.set_game_backend("1091500", "optiscaler+helixsr"))["ok"])
+        self.assertTrue(run(self.plugin.set_game_backend("1091500", "helixsr"))["ok"])
         game = run(self.plugin.get_game("1091500"))
-        self.assertEqual(game["backend"], "optiscaler+helixsr")
+        self.assertEqual(game["backend"], "helixsr")
         self.assertEqual(game["name"], "Cyberpunk 2077")
         self.assertTrue(run(self.plugin.set_game_backend("1091500", "none"))["ok"])
         self.assertEqual(run(self.plugin.get_game("1091500"))["backend"], "none")

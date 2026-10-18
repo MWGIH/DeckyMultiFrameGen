@@ -1,0 +1,146 @@
+import json
+import os
+import shutil
+import subprocess
+import sys
+import unittest
+import zipfile
+from pathlib import Path
+
+import support  # noqa: F401
+
+from multifg import helixsr
+from multifg.helixsr import HelixSR
+
+# A real HelixSR release folder (extracted official zip) for the end-to-end installer tests; skipped without one.
+# The release's DLL is copied and a test-only network marker appended, so no setup has to run.
+REAL_RELEASE = os.environ.get("HELIXSR_RELEASE_DIR")
+
+
+def make_helix(home: Path) -> HelixSR:
+    return HelixSR(home, support.ROOT / "runtime", support.ROOT / "logs", "deck")
+
+
+class ExtractTests(unittest.TestCase):
+    def setUp(self):
+        self.home = support.reset_home()
+
+    def zip_with(self, entries):
+        p = support.ROOT / "r.zip"
+        with zipfile.ZipFile(p, "w") as z:
+            for name, data in entries:
+                z.writestr(name, data)
+        return p
+
+    def test_drops_the_top_folder_and_makes_scripts_executable(self):
+        z = self.zip_with([("HelixSR-1.9.3/helixsr-setup.sh", "#!/bin/bash\n"), ("HelixSR-1.9.3/setup/a.py", "")])
+        helixsr._extract(z, self.home / "out")
+        self.assertTrue((self.home / "out" / "setup" / "a.py").exists())
+        self.assertTrue(os.access(self.home / "out" / "helixsr-setup.sh", os.X_OK))
+
+    def test_refuses_paths_outside_the_target(self):
+        z = self.zip_with([("../evil.txt", "x"), ("ok.txt", "y")])
+        with self.assertRaises(RuntimeError):
+            helixsr._extract(z, self.home / "out")
+        self.assertFalse((self.home / "evil.txt").exists())
+
+    def test_picks_helixsrs_own_zip(self):
+        assets = [{"name": "HelixSR-Desktop-1.0.3.zip"}, {"name": "HelixSR-Scaler-1.0.6.zip"},
+                  {"name": "HelixSR-1.9.3.zip"}]
+        self.assertEqual(helixsr._release_zip(assets)["name"], "HelixSR-1.9.3.zip")
+
+
+class ReleaseStateTests(unittest.TestCase):
+    def setUp(self):
+        self.home = support.reset_home()
+        self.h = make_helix(self.home)
+
+    def add_release(self, tag, built):
+        d = self.home / "HelixSR" / tag
+        d.mkdir(parents=True)
+        (d / helixsr.DLL).write_bytes(b"MZ" + (b"HXSRNET1" + b"\0" * 24 if built else b"\0" * 32))
+        return d
+
+    def test_active_prefers_the_newest_built_release(self):
+        self.add_release("v1.8.1", built=True)
+        self.add_release("v1.9.3", built=False)
+        self.assertEqual(self.h.local_releases(), ["v1.9.3", "v1.8.1"])
+        self.assertEqual(self.h.active(), "v1.8.1")
+        self.assertFalse(self.h.ready("v1.9.3"))
+
+    def test_rejects_bad_tags(self):
+        with self.assertRaises(ValueError):
+            self.h.release_dir("../x")
+
+    def test_finished_setup_is_recorded(self):
+        self.add_release("v1.9.3", built=True)
+        rc = support.ROOT / "runtime" / "helixsr-setup.rc"
+        rc.parent.mkdir(parents=True, exist_ok=True)
+        rc.write_text("0\n")
+        self.h._write_json(self.h.job_file, {"state": "running", "phase": "setup", "tag": "v1.9.3",
+                                             "pid": 999999999, "rc_file": str(rc)})
+        self.assertEqual(self.h.status()["job"]["state"], "succeeded")
+
+    def test_setup_that_built_nothing_is_a_failure(self):
+        self.add_release("v1.9.3", built=False)
+        rc = support.ROOT / "runtime" / "helixsr-setup.rc"
+        rc.parent.mkdir(parents=True, exist_ok=True)
+        rc.write_text("0\n")
+        self.h._write_json(self.h.job_file, {"state": "running", "phase": "setup", "tag": "v1.9.3",
+                                             "pid": 999999999, "rc_file": str(rc)})
+        job = self.h.status()["job"]
+        self.assertEqual(job["state"], "failed")
+        self.assertIn("network", job["error"])
+
+    def test_download_interrupted_by_a_restart_is_a_failure(self):
+        self.h._write_json(self.h.job_file, {"state": "running", "phase": "download", "tag": "v1.9.3"})
+        self.assertEqual(self.h.status()["job"]["state"], "failed")
+
+
+@unittest.skipUnless(REAL_RELEASE, "set HELIXSR_RELEASE_DIR to an extracted official HelixSR release")
+class InstallerBridgeTests(unittest.TestCase):
+    def setUp(self):
+        self.home = support.reset_home()
+        rel = self.home / "HelixSR" / "v1.9.3"
+        shutil.copytree(REAL_RELEASE, rel)
+        with open(rel / helixsr.DLL, "ab") as f:
+            f.write(b"HXSRNET1" + b"\0" * 24)   # test only: pretend the setup built the network
+        self.h = make_helix(self.home)
+        common = self.home / "steamapps" / "common"
+        self.fsr = common / "FSR Game"
+        (self.fsr / "Bin").mkdir(parents=True)
+        (self.fsr / "Bin" / "Game.exe").write_bytes(b"MZ")
+        (self.fsr / "Bin" / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"ORIGINAL")
+        self.dlss = common / "DLSS Game"
+        self.dlss.mkdir(parents=True)
+        (self.dlss / "Game.exe").write_bytes(b"MZ")
+        (self.dlss / "nvngx_dlss.dll").write_bytes(b"x")
+
+    def test_fsr_drop_in_round_trip(self):
+        st = self.h.game_status(str(self.fsr))
+        self.assertEqual((st["route"], st["installed"]), ("direct", False))
+        r = self.h.install_game(str(self.fsr))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["current"], "direct")
+        self.assertEqual(r["in_game"], "AMD FSR")
+        r = self.h.uninstall_game(str(self.fsr))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual((self.fsr / "Bin" / "amd_fidelityfx_upscaler_dx12.dll").read_bytes(), b"ORIGINAL")
+
+    def test_scaler_for_a_dlss_game(self):
+        r = self.h.install_game(str(self.dlss))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual((r["current"], r["scaler_name"]), ("scaler", "dxgi.dll"))
+        self.assertIsNone(r["launch_options"])   # Proton loads a game's own dxgi.dll by itself
+        self.assertFalse(self.h.install_game(str(self.dlss), "direct")["ok"])
+        self.assertTrue(self.h.uninstall_game(str(self.dlss))["ok"])
+        self.assertEqual(sorted(p.name for p in self.dlss.iterdir()), ["Game.exe", "nvngx_dlss.dll"])
+
+    def test_not_ready_refuses_to_install(self):
+        dll = self.home / "HelixSR" / "v1.9.3" / helixsr.DLL
+        dll.write_bytes(dll.read_bytes()[:-32])
+        self.assertFalse(self.h.install_game(str(self.fsr))["ok"])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -18,13 +18,16 @@ See [CREDITS.md](CREDITS.md) for who made what.
 
 ## Status
 
-Early development. Version 0.1 is the skeleton:
+Early development.
 
 - [x] Detects the game you're on: the running game, else the game page open in your library, else one you pick.
 - [x] Shows which backends are installed, including installs made by the original plugins.
 - [x] Remembers which backend each game should use.
-- [ ] Installs and updates each backend from its upstream releases, including HelixSR's setup (no Konsole needed).
-- [ ] Applies the chosen backend to the game and writes its Steam launch options.
+- [x] HelixSR: downloads the official release, runs HelixSR's own setup from the plugin (no Konsole), and installs
+      or removes it per game with HelixSR's own installer (FSR drop-in or HelixSR Scaler), setting launch options
+      when needed.
+- [ ] OptiScaler: install and per-game patching.
+- [ ] MAKO: install and per-game profiles.
 
 ## Install
 

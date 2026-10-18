@@ -13,8 +13,8 @@ OPTISCALER = "optiscaler"
 HELIXSR = "helixsr"
 MAKO = "mako"
 
-# What a game can use. "optiscaler+helixsr" runs HelixSR through OptiScaler's upscaler slot.
-GAME_CHOICES = ("none", OPTISCALER, HELIXSR, "optiscaler+helixsr", MAKO)
+# What a game can use. HelixSR picks its own way per game: the FSR drop-in, or HelixSR Scaler (its OptiScaler build).
+GAME_CHOICES = ("none", OPTISCALER, HELIXSR, MAKO)
 
 UPSTREAM = {
     OPTISCALER: {

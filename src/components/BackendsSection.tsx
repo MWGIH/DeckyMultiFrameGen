@@ -1,5 +1,6 @@
 import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
-import type { Backend } from "../api";
+import type { Backend, HelixStatus } from "../api";
+import { HelixSRSetup } from "./HelixSRSetup";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -7,7 +8,9 @@ function statusLine(b: Backend): string {
   return b.version ? `Installed (${b.version})` : "Installed";
 }
 
-export function BackendsSection({ backends }: { backends: Backend[] | null }) {
+type Props = { backends: Backend[] | null; helix: HelixStatus | null; onHelixChange: () => void };
+
+export function BackendsSection({ backends, helix, onHelixChange }: Props) {
   return (
     <PanelSection title="Backends">
       {backends === null ? (
@@ -16,11 +19,14 @@ export function BackendsSection({ backends }: { backends: Backend[] | null }) {
         </PanelSectionRow>
       ) : (
         backends.map((b) => (
-          <PanelSectionRow key={b.id}>
-            <Field label={b.name} description={[b.kind, ...(b.notes ?? [])].join("\n")} bottomSeparator="standard">
-              {statusLine(b)}
-            </Field>
-          </PanelSectionRow>
+          <div key={b.id}>
+            <PanelSectionRow>
+              <Field label={b.name} description={[b.kind, ...(b.notes ?? [])].join("\n")} bottomSeparator="standard">
+                {statusLine(b)}
+              </Field>
+            </PanelSectionRow>
+            {b.id === "helixsr" && <HelixSRSetup status={helix} onChange={onHelixChange} />}
+          </div>
         ))
       )}
     </PanelSection>

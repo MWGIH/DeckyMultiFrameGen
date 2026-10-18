@@ -22,7 +22,8 @@ class Settings:
         tmp.replace(self.path)
 
     def game_choice(self, appid: str) -> str:
-        return self.load().get("games", {}).get(appid, {}).get("backend", "none")
+        choice = self.load().get("games", {}).get(appid, {}).get("backend", "none")
+        return "helixsr" if choice == "optiscaler+helixsr" else choice   # 0.1's combined choice: HelixSR Scaler now
 
     def set_game_choice(self, appid: str, backend: str) -> None:
         data = self.load()

@@ -6,6 +6,8 @@ import { getBackends, listInstalledGames, logError, type Backend, type GameSumma
 import { useSelectedGame } from "./hooks/useSelectedGame";
 import { BackendsSection } from "./components/BackendsSection";
 import { GameSection } from "./components/GameSection";
+import { useHelixStatus } from "./components/HelixSRSetup";
+import { helixsrStatus } from "./api";
 
 const PICKED_KEY = "multifg:picked";
 const BACKEND_POLL_MS = 5000;
@@ -23,6 +25,8 @@ function Content() {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [picked, setPicked] = useState<string | null>(readPicked);
   const selected = useSelectedGame(picked);
+  const [helix, setHelix] = useHelixStatus();
+  const refreshHelix = () => helixsrStatus().then(setHelix);
 
   useEffect(() => {
     const load = () =>
@@ -48,8 +52,8 @@ function Content() {
 
   return (
     <>
-      <GameSection selected={selected} games={games} backends={backends} onPick={pick} />
-      <BackendsSection backends={backends} />
+      <GameSection selected={selected} games={games} backends={backends} helix={helix} onPick={pick} />
+      <BackendsSection backends={backends} helix={helix} onHelixChange={refreshHelix} />
     </>
   );
 }

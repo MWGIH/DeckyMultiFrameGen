@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
 import { DropdownItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
-import { getGame, setGameBackend, type Backend, type GameChoice, type GameDetail, type GameSummary } from "../api";
+import {
+  getGame,
+  setGameBackend,
+  type Backend,
+  type GameChoice,
+  type GameDetail,
+  type GameSummary,
+  type HelixStatus,
+} from "../api";
 import type { SelectedGame } from "../hooks/useSelectedGame";
+import { HelixSRGame } from "./HelixSRGame";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
   none: "Off",
   optiscaler: "OptiScaler",
   helixsr: "HelixSR",
-  "optiscaler+helixsr": "OptiScaler with HelixSR",
   mako: "MAKO",
 };
 
@@ -23,7 +31,6 @@ const NEEDS: Record<GameChoice, string[]> = {
   none: [],
   optiscaler: ["optiscaler"],
   helixsr: ["helixsr"],
-  "optiscaler+helixsr": ["optiscaler", "helixsr"],
   mako: ["mako"],
 };
 
@@ -31,10 +38,14 @@ type Props = {
   selected: SelectedGame;
   games: GameSummary[];
   backends: Backend[] | null;
+  helix: HelixStatus | null;
   onPick: (appid: string) => void;
 };
 
-export function GameSection({ selected, games, backends, onPick }: Props) {
+// Choices whose per-game controls aren't built yet
+const COMING: GameChoice[] = ["optiscaler", "mako"];
+
+export function GameSection({ selected, games, backends, helix, onPick }: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
 
   useEffect(() => {
@@ -89,15 +100,20 @@ export function GameSection({ selected, games, backends, onPick }: Props) {
               <DropdownItem
                 label="Use"
                 description={
-                  detail.backend && missing(detail.backend).length
+                  detail.backend && detail.backend !== "helixsr" && missing(detail.backend).length
                     ? `Needs ${missing(detail.backend).join(" and ")} installed first`
-                    : "Applying the choice to the game comes in the next version"
+                    : detail.backend && COMING.includes(detail.backend)
+                      ? "Applying this choice to the game comes in a later version"
+                      : undefined
                 }
                 rgOptions={(detail.choices ?? []).map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
                 onChange={(o) => choose(o.data as GameChoice)}
               />
             </PanelSectionRow>
+          )}
+          {detail?.ok && detail.installed && detail.backend === "helixsr" && (
+            <HelixSRGame appid={selected.appid} helix={helix} />
           )}
         </>
       )}
