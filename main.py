@@ -79,16 +79,18 @@ def _with_mako(options: str) -> str:
 
 
 async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
-    """Removes every backend but keep from the game, since they would conflict (OptiScaler and HelixSR use the same
-    DLL slot). Returns {ok, removed: [names], launch_options: what they become, or None if unchanged} or {ok: False}."""
+    """Removes every backend not in keep (a game choice, e.g. "optiscaler+mako") from the game, since they would
+    conflict (OptiScaler and HelixSR use the same DLL slot), and puts MAKO's launcher in the launch options when keep
+    has MAKO. Returns {ok, removed: [names], launch_options: what they become, or None if unchanged} or {ok: False}."""
+    keeps = set(keep.split("+"))
     removed, new_launch = [], launch
-    if keep != "optiscaler" and (await OPTISCALER.get_game_status(appid)).get("patched"):
+    if "optiscaler" not in keeps and (await OPTISCALER.get_game_status(appid)).get("patched"):
         r = await OPTISCALER.unpatch_game(appid)
         if r.get("status") != "success":
             return {"ok": False, "error": f"Couldn't remove OptiScaler: {r.get('message')}"}
         removed.append("OptiScaler")
         new_launch = r.get("launch_options") or ""
-    if keep != "helixsr" and HELIXSR.active():
+    if "helixsr" not in keeps and HELIXSR.active():
         helix = await asyncio.to_thread(HELIXSR.game_status, folder)
         if helix.get("installed"):
             r = await asyncio.to_thread(HELIXSR.uninstall_game, folder)
@@ -97,10 +99,10 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
             removed.append("HelixSR")
             if helix.get("current") == "scaler":
                 new_launch = _without_overrides(new_launch)
-    if keep != "mako" and _MAKO_RUNNER.search(new_launch + " "):
+    if "mako" not in keeps and _MAKO_RUNNER.search(new_launch + " "):
         new_launch = _without_mako(new_launch)
         removed.append("MAKO")
-    elif keep == "mako" and Path(_mako_runner()).is_file():
+    elif "mako" in keeps and Path(_mako_runner()).is_file():
         new_launch = _with_mako(new_launch)
     return {"ok": True, "removed": removed, "launch_options": new_launch if new_launch != launch else None}
 
@@ -243,18 +245,27 @@ class Plugin:
             folder = _game_folder(appid)
         except ValueError as exc:
             return {"status": "error", "message": str(exc)}
-        cleared = await _clear_game(str(appid), folder, "optiscaler", current_launch_options or "")
+        # with OptiScaler + MAKO chosen, MAKO stays and its launcher goes into OptiScaler's launch options
+        choice = SETTINGS.game_choice(str(appid))
+        keep = choice if "optiscaler" in choice.split("+") else "optiscaler"
+        cleared = await _clear_game(str(appid), folder, keep, current_launch_options or "")
         if not cleared["ok"]:
             return {"status": "error", "message": cleared["error"]}
         launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options or ""
         result = await OPTISCALER.patch_game(str(appid), dll_name, launch, FSR4_VARIANT)
+        if result.get("launch_options") and "mako" in keep.split("+") and Path(_mako_runner()).is_file():
+            result["launch_options"] = _with_mako(result["launch_options"])
         return {**result, "removed": cleared["removed"]}
 
     async def optiscaler_unpatch_game(self, appid: str) -> dict:
         try:
-            return await OPTISCALER.unpatch_game(_valid_appid(appid))
+            result = await OPTISCALER.unpatch_game(_valid_appid(appid))
         except ValueError as exc:
             return {"status": "error", "message": str(exc)}
+        if result.get("status") == "success" and "mako" in SETTINGS.game_choice(str(appid)).split("+") \
+                and Path(_mako_runner()).is_file():
+            result["launch_options"] = _with_mako(result.get("launch_options") or "")
+        return result
 
     async def log_error(self, message: str) -> None:
         decky.logger.error(f"frontend: {message}")

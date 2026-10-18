@@ -1,7 +1,7 @@
 import { callable } from "@decky/api";
 
 export type BackendId = "optiscaler" | "helixsr" | "mako";
-export type GameChoice = "none" | "optiscaler" | "helixsr" | "mako";
+export type GameChoice = "none" | "optiscaler" | "helixsr" | "mako" | "optiscaler+mako";
 
 export type Backend = {
   id: BackendId;

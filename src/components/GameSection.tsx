@@ -22,7 +22,10 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   optiscaler: "OptiScaler",
   helixsr: "HelixSR",
   mako: "MAKO",
+  "optiscaler+mako": "OptiScaler + MAKO",
 };
+
+const parts = (choice: GameChoice | null | undefined) => (choice ? choice.split("+") : []);
 
 const toast = (body: string) => toaster.toast({ title: "MultiFrameGen", body });
 
@@ -42,7 +45,6 @@ type Props = {
   onChoice: (choice: GameChoice | null) => void;
 };
 
-
 export function GameSection({ selected, games, backends, helix, opti, onPick, onChoice }: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
 
@@ -58,7 +60,7 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
       cancelled = true;
     };
   }, [selected?.appid]);
-  useEffect(() => onChoice(detail?.ok && detail.installed ? detail.backend ?? null : null), [detail]);
+  useEffect(() => onChoice(detail?.ok && detail.installed ? (detail.backend ?? null) : null), [detail]);
 
   const [switching, setSwitching] = useState(false);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
@@ -88,17 +90,19 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
 
   return (
     <PanelSection title="Game">
-      <PanelSectionRow>
-        <DropdownItem
-          label="Choose a game"
-          description="Used when no game is running and no game page is open"
-          menuLabel="Installed games"
-          strDefaultLabel="Pick a game"
-          rgOptions={games.map((g) => ({ data: g.appid, label: g.name }))}
-          selectedOption={selected?.source === "picked" ? selected.appid : undefined}
-          onChange={(o) => onPick(String(o.data))}
-        />
-      </PanelSectionRow>
+      {(!selected || selected.source === "picked") && (
+        <PanelSectionRow>
+          <DropdownItem
+            label="Choose a game"
+            description="No game is running or open in your library"
+            menuLabel="Installed games"
+            strDefaultLabel="Pick a game"
+            rgOptions={games.map((g) => ({ data: g.appid, label: g.name }))}
+            selectedOption={selected?.source === "picked" ? selected.appid : undefined}
+            onChange={(o) => onPick(String(o.data))}
+          />
+        </PanelSectionRow>
+      )}
       {selected && (
         <>
           <PanelSectionRow>
@@ -110,7 +114,10 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
             <PanelSectionRow>
               <DropdownItem
                 label="Use"
-                rgOptions={(detail.choices ?? []).map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
+                rgOptions={(detail.choices ?? [])
+                  // only methods that are installed, plus whatever the game is set to now
+                  .filter((c) => c === "none" || c === detail.backend || parts(c).every((id) => installed.has(id)))
+                  .map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
                 disabled={switching}
                 onChange={(o) => choose(o.data as GameChoice)}
@@ -120,10 +127,10 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
           {detail?.ok && detail.installed && detail.backend === "helixsr" && (
             <HelixSRGame appid={selected.appid} helix={helix} />
           )}
-          {detail?.ok && detail.installed && detail.backend === "optiscaler" && (
+          {detail?.ok && detail.installed && parts(detail.backend).includes("optiscaler") && (
             <OptiScalerGame appid={selected.appid} status={opti} />
           )}
-          {detail?.ok && detail.installed && detail.backend === "mako" && (
+          {detail?.ok && detail.installed && parts(detail.backend).includes("mako") && (
             <MakoGame
               appid={selected.appid}
               makoInstalled={installed.has("mako")}

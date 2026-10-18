@@ -14,7 +14,9 @@ HELIXSR = "helixsr"
 MAKO = "mako"
 
 # What a game can use. HelixSR picks its own way per game: the FSR drop-in, or HelixSR Scaler (its OptiScaler build).
-GAME_CHOICES = ("none", OPTISCALER, HELIXSR, MAKO)
+# OptiScaler and MAKO can run together: OptiScaler upscales inside the game, MAKO generates frames in Vulkan after it.
+OPTISCALER_MAKO = f"{OPTISCALER}+{MAKO}"
+GAME_CHOICES = ("none", OPTISCALER, HELIXSR, MAKO, OPTISCALER_MAKO)
 
 UPSTREAM = {
     OPTISCALER: {

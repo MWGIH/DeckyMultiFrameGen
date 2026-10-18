@@ -32,6 +32,7 @@ function Content() {
   const refreshHelix = () => helixsrStatus().then(setHelix);
   const [opti, setOpti] = useOptiStatus();
   const [choice, setChoice] = useState<GameChoice | null>(null);
+  const makoGame = Boolean(choice?.split("+").includes("mako"));
   const [showMako, setShowMako] = useState(() => {
     try {
       return localStorage.getItem(SHOW_MAKO_KEY) === "1";
@@ -83,15 +84,15 @@ function Content() {
         onChoice={setChoice}
       />
       {/* MAKO Decky's own controls (vendored, GPL-3.0), shown for a MAKO game or when opened from Backends */}
-      {(choice === "mako" || showMako) && <MakoContent />}
+      {(makoGame || showMako) && <MakoContent />}
       <BackendsSection
         backends={backends}
         helix={helix}
         onHelixChange={refreshHelix}
         opti={opti}
         onOptiChange={refreshOpti}
-        makoShown={choice === "mako" || showMako}
-        makoPinned={choice === "mako"}
+        makoShown={makoGame || showMako}
+        makoPinned={makoGame}
         onToggleMako={toggleMako}
       />
     </>

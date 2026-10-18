@@ -32,6 +32,8 @@ Early development.
       Play setup) inside this plugin, with the MAKO Renderer downloaded from MAKO's releases; choosing MAKO for a game
       adds MAKO's launcher to its launch options.
 - [x] Switching a game to another backend takes the previous one out of the game and restores its launch options.
+- [x] OptiScaler + MAKO together: OptiScaler upscales in the game and MAKO's launcher goes into OptiScaler's launch
+      options.
 
 If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
 Renderer install.
