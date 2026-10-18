@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ButtonItem, PanelSection, PanelSectionRow, staticClasses } from "@decky/ui";
 import { definePlugin } from "@decky/api";
-import { MdOutlineAutoAwesomeMotion } from "react-icons/md";
+import { LuGalleryHorizontalEnd } from "react-icons/lu";
 import { getBackends, listInstalledGames, logError, type Backend, type GameSummary } from "./api";
 import { useSelectedGame } from "./hooks/useSelectedGame";
 import { BackendsSection } from "./components/BackendsSection";
@@ -140,5 +140,5 @@ export default definePlugin(() => ({
   titleView: <div className={staticClasses.Title}>MultiFrameGen</div>,
   alwaysRender: true,
   content: <Content />,
-  icon: <MdOutlineAutoAwesomeMotion />,
+  icon: <LuGalleryHorizontalEnd />,
 }));
