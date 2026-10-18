@@ -179,7 +179,8 @@ export function OptiScalerGame({ appid, status }: { appid: string; status: OptiS
         if (r.launch_options && !writeLaunchOptions(id, r.launch_options)) {
           toast(`Patched, but couldn't set the launch options. Set them in Steam: ${r.launch_options}`);
         } else {
-          toast(`${r.message ?? "Patched"} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`);
+          const removed = r.removed?.length ? `Removed ${r.removed.join(" and ")}. ` : "";
+          toast(`${removed}${r.message ?? "Patched"} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`);
         }
       } else {
         toast(r.message ?? "Patching failed");

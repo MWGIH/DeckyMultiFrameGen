@@ -77,8 +77,9 @@ class OptiScalerEndToEnd(unittest.TestCase):
         self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dxgi=n,b SteamDeck=0 %command%")
         self.assertTrue((exe_dir / "dxgi.dll").exists())
         self.assertTrue(run(p.optiscaler_game_status("1091500"))["patched"])
-        r = run(p.optiscaler_unpatch_game("1091500"))
-        self.assertEqual(r["launch_options"], "-skipStartScreen")
+        r = run(p.set_game_backend("1091500", "helixsr", r["launch_options"]))   # switching takes OptiScaler out
+        self.assertEqual((r["removed"], r["launch_options"]), (["OptiScaler"], "-skipStartScreen"))
+        self.assertFalse(run(p.optiscaler_game_status("1091500"))["patched"])
         self.assertEqual([x.name for x in exe_dir.iterdir()], ["Cyberpunk2077.exe"])
 
 

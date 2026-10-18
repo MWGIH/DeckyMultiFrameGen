@@ -29,9 +29,9 @@ function toast(body: string) {
 }
 
 // Steam launch options HelixSR Scaler needs when it goes in under a name other than dxgi.dll.
-async function syncLaunchOptions(appid: string, wanted: string | null | undefined) {
+async function syncLaunchOptions(appid: string, wanted: string | null | undefined, base?: string | null) {
   const id = Number(appid);
-  const current = await readLaunchOptions(id);
+  const current = base ?? (await readLaunchOptions(id));
   if (current === null) {
     if (wanted) toast(`Couldn't read the launch options. Set them in Steam: ${wanted}`);
     return;
@@ -93,10 +93,14 @@ export function HelixSRGame({ appid, helix }: { appid: string; helix: HelixStatu
   const install = async () => {
     setBusy(true);
     try {
-      const r = await helixsrInstallGame(appid, route === "auto" ? "" : route);
+      const current = (await readLaunchOptions(Number(appid))) ?? "";
+      const r = await helixsrInstallGame(appid, route === "auto" ? "" : route, current);
       if (r.ok) {
-        await syncLaunchOptions(appid, r.launch_options);
-        toast(`Installed (${WAYS[r.route ?? ""] ?? r.route}). ${IN_GAME[r.route as HelixRoute] ?? ""}`);
+        // OptiScaler was taken out first: its launch options go back to what the game had before
+        if (r.base_launch_options != null) writeLaunchOptions(Number(appid), r.base_launch_options);
+        await syncLaunchOptions(appid, r.launch_options, r.base_launch_options);
+        const removed = r.removed?.length ? `Removed ${r.removed.join(" and ")}. ` : "";
+        toast(`${removed}Installed (${WAYS[r.route ?? ""] ?? r.route}). ${IN_GAME[r.route as HelixRoute] ?? ""}`);
       } else {
         toast(r.error ?? "Install failed");
       }

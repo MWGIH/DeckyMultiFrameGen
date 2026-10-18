@@ -37,8 +37,8 @@ export const listInstalledGames = callable<[], { ok: boolean; message?: string; 
 );
 export const getGame = callable<[appid: string], GameDetail>("get_game");
 export const setGameBackend = callable<
-  [appid: string, backend: GameChoice],
-  { ok: boolean; message?: string; backend?: GameChoice }
+  [appid: string, backend: GameChoice, current_launch_options: string | null],
+  { ok: boolean; message?: string; backend?: GameChoice; removed?: string[]; launch_options?: string | null }
 >("set_game_backend");
 export const logError = callable<[message: string], void>("log_error");
 
@@ -92,7 +92,10 @@ export const helixsrInstall = callable<[tag?: string], { ok: boolean; error?: st
   "helixsr_install",
 );
 export const helixsrGameStatus = callable<[appid: string], HelixGame>("helixsr_game_status");
-export const helixsrInstallGame = callable<[appid: string, route?: string], HelixGame>("helixsr_install_game");
+export const helixsrInstallGame = callable<
+  [appid: string, route: string, current_launch_options: string],
+  HelixGame & { removed?: string[]; base_launch_options?: string | null }
+>("helixsr_install_game");
 export const helixsrUninstallGame = callable<[appid: string], HelixGame>("helixsr_uninstall_game");
 
 // --- OptiScaler (Decky Framegen) ---
@@ -135,7 +138,7 @@ export type OptiGame = {
   optiscaler_version?: string | null;
 };
 
-export type OptiPatch = OptiResult & { launch_options?: string; original_launch_options?: string };
+export type OptiPatch = OptiResult & { launch_options?: string; original_launch_options?: string; removed?: string[] };
 
 export const optiscalerStatus = callable<[], OptiStatus>("optiscaler_status");
 export const optiscalerInstall = callable<[], OptiResult>("optiscaler_install");

@@ -170,6 +170,25 @@ class InstallerBridgeTests(unittest.TestCase):
         (self.fsr / "Bin" / "Game.exe").write_bytes(fake_exe(["vulkan-1.dll", "d3d12.dll"]))
         self.assertIsNone(self.h.game_status(str(self.fsr))["graphics"])
 
+    def test_switching_the_game_to_optiscaler_takes_helixsr_out(self):
+        import asyncio
+        import main
+        steam = self.home / ".local" / "share" / "Steam"
+        support.add_game(steam, "123", "DLSS Game", "DLSS Game", create_dir=False)
+        game = steam / "steamapps" / "common" / "DLSS Game"
+        shutil.copytree(self.dlss, game)
+        (game / "dxgi.dll").write_bytes(b"the game's own")   # so HelixSR Scaler needs WINEDLLOVERRIDES
+        p = main.Plugin()
+        r = asyncio.run(p.helixsr_install_game("123", "", "-dx12"))
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["launch_options"])
+        launch = f'{r["launch_options"].replace(" %command%", "")} %command% -dx12'
+        r = asyncio.run(p.set_game_backend("123", "optiscaler", launch))
+        self.assertEqual((r["ok"], r["removed"], r["launch_options"]), (True, ["HelixSR"], "-dx12"))
+        self.assertFalse(asyncio.run(p.helixsr_game_status("123"))["installed"])
+        r = asyncio.run(p.set_game_backend("123", "none", "-dx12"))
+        self.assertEqual((r["removed"], r["launch_options"]), ([], None))
+
     def test_not_ready_refuses_to_install(self):
         dll = self.home / "HelixSR" / "v1.9.3" / helixsr.DLL
         dll.write_bytes(dll.read_bytes()[:-32])

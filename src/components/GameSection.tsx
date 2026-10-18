@@ -12,6 +12,7 @@ import {
   type OptiStatus,
 } from "../api";
 import type { SelectedGame } from "../hooks/useSelectedGame";
+import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRGame } from "./HelixSRGame";
 import { OptiScalerGame } from "./OptiScaler";
 
@@ -21,6 +22,8 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   helixsr: "HelixSR",
   mako: "MAKO",
 };
+
+const toast = (body: string) => toaster.toast({ title: "MultiFrameGen", body });
 
 const SOURCE_LABELS = {
   running: "Running now",
@@ -64,13 +67,26 @@ export function GameSection({ selected, games, backends, helix, opti, onPick }: 
     };
   }, [selected?.appid]);
 
+  const [switching, setSwitching] = useState(false);
+  // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
   const choose = async (choice: GameChoice) => {
-    if (!selected) return;
-    const r = await setGameBackend(selected.appid, choice);
-    if (r.ok) {
-      setDetail((d) => (d ? { ...d, backend: choice } : d));
-    } else {
-      toaster.toast({ title: "MultiFrameGen", body: r.message ?? "Couldn't save the choice" });
+    if (!selected || choice === detail?.backend) return;
+    const id = Number(selected.appid);
+    setSwitching(true);
+    try {
+      const current = detail?.installed ? await readLaunchOptions(id) : null;
+      const r = await setGameBackend(selected.appid, choice, current);
+      if (r.ok) {
+        setDetail((d) => (d ? { ...d, backend: choice } : d));
+        if (r.launch_options != null && !writeLaunchOptions(id, r.launch_options)) {
+          toast(`Couldn't update the launch options. Set them in Steam: ${r.launch_options || "(empty)"}`);
+        }
+        if (r.removed?.length) toast(`Removed ${r.removed.join(" and ")} from this game.`);
+      } else {
+        toast(r.message ?? "Couldn't save the choice");
+      }
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -111,6 +127,7 @@ export function GameSection({ selected, games, backends, helix, opti, onPick }: 
                 }
                 rgOptions={(detail.choices ?? []).map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
+                disabled={switching}
                 onChange={(o) => choose(o.data as GameChoice)}
               />
             </PanelSectionRow>
