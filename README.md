@@ -62,8 +62,9 @@ If the game stops loading or crashes after patching, unpatch, pick the next name
 menu never appears, the game doesn't load that name: try the next one too. If none works, OptiScaler can't hook the
 game; MAKO still can, since it works outside the game.
 
-OptiScaler mainly targets DirectX 11/12 games. A Vulkan game (such as Enshrouded) may not start with OptiScaler as
-`dxgi.dll`; try `winmm.dll` or `version.dll` there. Source: OptiScaler's
+OptiScaler mainly targets DirectX 11/12 games. A Vulkan game may not start with OptiScaler as `dxgi.dll`.
+Enshrouded is one: only `dbghelp.dll` worked there (`winmm.dll` and `version.dll` started the game without loading
+OptiScaler). Source: OptiScaler's
 [Manual Installation](https://github.com/optiscaler/OptiScaler/wiki/Manual-Installation) guide (it lists the supported
 names and prefers `dxgi.dll`); the fallback order is this plugin's advice.
 
@@ -88,7 +89,7 @@ Reports so far:
 | --- | --- | --- | --- |
 | Gears of War: E-Day | FSR drop-in | ❌ Easy Anti-Cheat splash, then a black screen | Steam Deck test for this plugin |
 | Gears of War: E-Day | OptiScaler + HelixSR | ✅ Works, gets past Easy Anti-Cheat (select DLSS in the game, FSR 3.X in OptiScaler) | Steam Deck test for this plugin |
-| Enshrouded | FSR drop-in, OptiScaler | ❌ HelixSR never loads (the game runs on Vulkan); OptiScaler as `dxgi.dll` stops the game loading | Steam Deck test for this plugin |
+| Enshrouded | FSR drop-in, OptiScaler | ❌ HelixSR never loads (the game runs on Vulkan); OptiScaler works as `dbghelp.dll` (`dxgi.dll` stops the game loading; with `winmm.dll` or `version.dll` the game runs but OptiScaler doesn't load) | Steam Deck test for this plugin |
 | Pragmata | not stated | ✅ 34 to 40 FPS, Steam Deck, performance mode | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | CONTROL Resonant | not stated | ✅ 35 to 40 FPS at 1080p, locked 60 at 720p, ROG Ally X | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | Hitman: World of Assassination | not stated | ✅ 35 FPS with DLSS Quality vs 17 with FSR 4, BC-250 at 4K | via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
