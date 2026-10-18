@@ -103,6 +103,17 @@ export type OptiStatus = {
   selected_fsr4_variant?: string | null;
   selected_fsr4_variant_label?: string | null;
   install_manifest_present?: boolean;
+  legacy?: boolean;
+  job?: OptiJob | null;
+};
+
+export type OptiJob = {
+  state: "running" | "done" | "failed";
+  phase: "download" | "install";
+  asset: string | null;
+  downloaded: number;
+  size: number;
+  message: string | null;
 };
 
 export type OptiResult = {

@@ -254,9 +254,10 @@ ASSETS_DIR = Path(decky.DECKY_PLUGIN_DIR) / "assets" / "optiscaler"
 BIN_DIR = Path(decky.DECKY_PLUGIN_RUNTIME_DIR) / "optiscaler-bin"
 
 
-def ensure_binaries() -> None:
+def ensure_binaries(progress=None) -> None:
     """Downloads the files Decky Framegen bundles (OptiScaler's release archive and its FSR4 variants) from their
-    upstream URLs into BIN_DIR, keeping files whose SHA-256 already matches."""
+    upstream URLs into BIN_DIR, keeping files whose SHA-256 already matches. progress(asset, part_path) is called before
+    each download and progress(asset, None) once the asset is in place."""
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     assets = json.loads((ASSETS_DIR / "remote_binary.json").read_text())
     env = os.environ.copy()
@@ -264,8 +265,12 @@ def ensure_binaries() -> None:
     for asset in assets:
         dest = BIN_DIR / asset["name"]
         if dest.exists() and _sha256(dest) == asset["sha256hash"].lower():
+            if progress:
+                progress(asset, None)
             continue
         tmp = dest.with_name(dest.name + ".part")
+        if progress:
+            progress(asset, tmp)
         result = subprocess.run(["curl", "-fL", "--retry", "3", "-o", str(tmp), asset["url"]],
                                 capture_output=True, text=True, env=env, timeout=1800)
         if result.returncode != 0:
@@ -276,6 +281,8 @@ def ensure_binaries() -> None:
             raise RuntimeError(f"{asset['name']} doesn't match its expected checksum")
         tmp.replace(dest)
         decky.logger.info(f"[Framegen] downloaded {asset['name']}")
+        if progress:
+            progress(asset, None)
 
 
 def _sha256(path: Path) -> str:

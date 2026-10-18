@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, showModal } from "@decky/ui";
+import { useEffect, useRef, useState } from "react";
+import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, ProgressBarWithInfo, showModal } from "@decky/ui";
 import { toaster } from "@decky/api";
 import {
   optiscalerGameStatus,
@@ -15,6 +15,7 @@ import { DEFAULT_FSR4_VARIANT, FSR4_VARIANT_OPTIONS, PROXY_DLL_OPTIONS } from ".
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 
 const POLL_MS = 5000;
+const POLL_RUNNING_MS = 1000;
 
 function toast(body: string) {
   toaster.toast({ title: "OptiScaler", body });
@@ -24,6 +25,8 @@ const variantHint = (v: string) => FSR4_VARIANT_OPTIONS.find((o) => o.value === 
 
 export function useOptiStatus() {
   const [status, setStatus] = useState<OptiStatus | null>(null);
+  const running = status?.job?.state === "running";
+  const wasRunning = useRef(false);
   useEffect(() => {
     let cancelled = false;
     const load = () =>
@@ -31,14 +34,23 @@ export function useOptiStatus() {
         .then((s) => !cancelled && setStatus(s))
         .catch(() => undefined);
     load();
-    const id = setInterval(load, POLL_MS);
+    const id = setInterval(load, running ? POLL_RUNNING_MS : POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [running]);
+  useEffect(() => {
+    const job = status?.job;
+    if (wasRunning.current && job && job.state !== "running") {
+      toast(job.message ?? (job.state === "done" ? "Installed" : "Install failed"));
+    }
+    wasRunning.current = running;
+  }, [status?.job?.state]);
   return [status, setStatus] as const;
 }
+
+const MB = 1024 * 1024;
 
 // Installing OptiScaler into ~/fgmod, the way Decky Framegen does (and where it finds an install Decky Framegen made).
 export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | null; onChange: () => void }) {
@@ -53,12 +65,32 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
     setBusy(true);
     try {
       const r = await optiscalerInstall(variant);
-      toast(r.status === "success" ? r.output ?? "Installed" : r.message ?? "Install failed");
+      if (r.status !== "started") toast(r.message ?? "Install failed");
     } finally {
       setBusy(false);
       onChange();
     }
   };
+
+  const job = status.job;
+  if (job?.state === "running") {
+    const progress = job.phase === "download" && job.size ? Math.min(1, job.downloaded / job.size) : undefined;
+    return (
+      <PanelSectionRow>
+        <ProgressBarWithInfo
+          label="Installing OptiScaler"
+          description={
+            job.phase === "download"
+              ? `Downloading ${job.asset ?? ""} (${Math.round(job.downloaded / MB)} of ${Math.round(job.size / MB)} MB)`
+              : "Unpacking into ~/fgmod"
+          }
+          nProgress={progress === undefined ? undefined : progress * 100}
+          indeterminate={progress === undefined}
+          sOperationText={progress === undefined ? undefined : `${Math.round(progress * 100)}%`}
+        />
+      </PanelSectionRow>
+    );
+  }
 
   const uninstall = () =>
     showModal(
@@ -81,6 +113,19 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
 
   return (
     <>
+      {job?.state === "failed" && (
+        <PanelSectionRow>
+          <Field label="OptiScaler install failed" description={job.message ?? undefined} />
+        </PanelSectionRow>
+      )}
+      {status.legacy && (
+        <PanelSectionRow>
+          <Field
+            label="Older OptiScaler install found"
+            description="~/fgmod is from an earlier Decky Framegen and lacks files this plugin needs. Update it to patch games from here."
+          />
+        </PanelSectionRow>
+      )}
       <PanelSectionRow>
         <DropdownItem
           label="Default FSR4 runtime"
@@ -92,7 +137,7 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
       </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem layout="below" disabled={busy} onClick={install}>
-          {busy ? "Working…" : status.exists ? "Reinstall OptiScaler" : "Install OptiScaler"}
+          {busy ? "Starting…" : status.exists ? "Reinstall OptiScaler" : status.legacy ? "Update OptiScaler" : "Install OptiScaler"}
         </ButtonItem>
       </PanelSectionRow>
       {status.exists && (

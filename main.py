@@ -6,6 +6,7 @@ import decky
 
 from multifg import backends, steam_library
 from multifg.helixsr import HelixSR
+from multifg.opti_job import OptiInstallJob
 from multifg.optiscaler import DEFAULT_FSR4_VARIANT as OPTISCALER_DEFAULT_VARIANT, OptiScaler
 from multifg.settings import Settings
 
@@ -13,6 +14,7 @@ HOME = Path(decky.DECKY_USER_HOME)
 SETTINGS = Settings(Path(decky.DECKY_PLUGIN_SETTINGS_DIR) / "settings.json")
 HELIXSR = HelixSR(HOME, Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_LOG_DIR), decky.DECKY_USER)
 OPTISCALER = OptiScaler()
+OPTI_JOB = OptiInstallJob(OPTISCALER)
 _APPID = re.compile(r"\d{1,10}")
 
 
@@ -106,12 +108,19 @@ class Plugin:
     # --- OptiScaler (Decky Framegen) ---
 
     async def optiscaler_status(self) -> dict:
-        return await OPTISCALER.check_fgmod_path()
+        status = await OPTISCALER.check_fgmod_path()
+        status["job"] = OPTI_JOB.status()
+        # an install from an earlier Decky Framegen: the files it needs now aren't all there
+        status["legacy"] = not status.get("exists") and backends.optiscaler_status(HOME)["installed"]
+        return status
 
     async def optiscaler_install(self, fsr4_variant: str = "") -> dict:
-        return await OPTISCALER.run_install_fgmod(fsr4_variant or None)
+        """Starts the install; optiscaler_status reports its progress and result."""
+        return OPTI_JOB.start(fsr4_variant or None)
 
     async def optiscaler_uninstall(self) -> dict:
+        if OPTI_JOB.running():
+            return {"status": "error", "message": "Wait for the install to finish"}
         return await OPTISCALER.run_uninstall_fgmod()
 
     async def optiscaler_game_status(self, appid: str) -> dict:
