@@ -39,9 +39,10 @@ export type GameDetail = {
 };
 
 export const getBackends = callable<[], Backend[]>("get_backends");
-export const listInstalledGames = callable<[], { ok: boolean; message?: string; games: GameSummary[] }>(
-  "list_installed_games",
-);
+export const listInstalledGames = callable<
+  [],
+  { ok: boolean; message?: string; games: GameSummary[] }
+>("list_installed_games");
 export const getGame = callable<[appid: string], GameDetail>("get_game");
 export const setGameBackend = callable<
   [appid: string, backend: GameChoice, current_launch_options: string | null],
@@ -61,12 +62,25 @@ export const logError = callable<[message: string], void>("log_error");
 export const makoGames = callable<[], string[]>("mako_games");
 export const makoGameLaunchOptions = callable<
   [current_launch_options: string, enable: boolean],
-  { ok: boolean; error?: string; installed: boolean; launch_options?: string; enabled?: boolean; runner?: string }
+  {
+    ok: boolean;
+    error?: string;
+    installed: boolean;
+    launch_options?: string;
+    enabled?: boolean;
+    runner?: string;
+  }
 >("mako_game_launch_options");
 
 // --- HelixSR ---
 
-export type HelixRelease = { tag: string; name: string; url: string; size?: number; prerelease: boolean };
+export type HelixRelease = {
+  tag: string;
+  name: string;
+  url: string;
+  size?: number;
+  prerelease: boolean;
+};
 
 export type HelixJob = {
   state: "running" | "succeeded" | "failed";
@@ -110,19 +124,32 @@ export type HelixGame = {
 };
 
 export const helixsrStatus = callable<[], HelixStatus>("helixsr_status");
-export const helixsrInstall = callable<[tag?: string], { ok: boolean; error?: string; tag?: string }>(
-  "helixsr_install",
+export const helixsrInstall = callable<
+  [tag?: string],
+  { ok: boolean; error?: string; tag?: string }
+>("helixsr_install");
+export const helixsrRemove = callable<
+  [],
+  { ok: boolean; error?: string; removed?: string[] }
+>("helixsr_remove");
+export const helixsrGameStatus = callable<[appid: string], HelixGame>(
+  "helixsr_game_status",
 );
-export const helixsrRemove = callable<[], { ok: boolean; error?: string; removed?: string[] }>("helixsr_remove");
-export const helixsrGameStatus = callable<[appid: string], HelixGame>("helixsr_game_status");
 export const helixsrInstallGame = callable<
   [appid: string, route: string, current_launch_options: string],
   HelixGame & { removed?: string[]; base_launch_options?: string | null }
 >("helixsr_install_game");
-export const helixsrUninstallGame = callable<[appid: string], HelixGame>("helixsr_uninstall_game");
+export const helixsrUninstallGame = callable<[appid: string], HelixGame>(
+  "helixsr_uninstall_game",
+);
 
 // HelixSR as a mod inside OptiScaler (OptiScaler's FSR 3.1 upscaler is HelixSR)
-export type HelixInOptiResult = { ok: boolean; error?: string; installed?: boolean; removed?: boolean };
+export type HelixInOptiResult = {
+  ok: boolean;
+  error?: string;
+  installed?: boolean;
+  removed?: boolean;
+};
 export type HelixInOpti = {
   ok: boolean;
   error?: string;
@@ -133,9 +160,15 @@ export type HelixInOpti = {
   active?: string | null;
   runtime_log?: { lines: string[]; modified: number } | null;
 };
-export const helixsrOptiStatus = callable<[appid: string], HelixInOpti>("helixsr_opti_status");
-export const helixsrOptiAdd = callable<[appid: string], HelixInOptiResult>("helixsr_opti_add");
-export const helixsrOptiRemove = callable<[appid: string], HelixInOptiResult>("helixsr_opti_remove");
+export const helixsrOptiStatus = callable<[appid: string], HelixInOpti>(
+  "helixsr_opti_status",
+);
+export const helixsrOptiAdd = callable<[appid: string], HelixInOptiResult>(
+  "helixsr_opti_add",
+);
+export const helixsrOptiRemove = callable<[appid: string], HelixInOptiResult>(
+  "helixsr_opti_remove",
+);
 
 // --- OptiScaler (Decky Framegen) ---
 
@@ -186,10 +219,41 @@ export type OptiPatch = OptiResult & {
 
 export const optiscalerStatus = callable<[], OptiStatus>("optiscaler_status");
 export const optiscalerInstall = callable<[], OptiResult>("optiscaler_install");
-export const optiscalerUninstall = callable<[], OptiResult>("optiscaler_uninstall");
-export const optiscalerGameStatus = callable<[appid: string], OptiGame>("optiscaler_game_status");
+export const optiscalerUninstall = callable<[], OptiResult>(
+  "optiscaler_uninstall",
+);
+export const optiscalerGameStatus = callable<[appid: string], OptiGame>(
+  "optiscaler_game_status",
+);
 export const optiscalerPatchGame = callable<
   [appid: string, dll_name: string, current_launch_options: string],
   OptiPatch
 >("optiscaler_patch_game");
-export const optiscalerUnpatchGame = callable<[appid: string], OptiPatch>("optiscaler_unpatch_game");
+export const optiscalerUnpatchGame = callable<[appid: string], OptiPatch>(
+  "optiscaler_unpatch_game",
+);
+
+// --- updates ---
+
+export type PartUpdate = {
+  error?: string;
+  installed?: string | null;
+  available?: string | null;
+  update_available?: boolean;
+  latest?: string | null; // newest upstream release (Decky Framegen, MAKO)
+  newer_upstream?: boolean;
+};
+export type Updates = {
+  plugin: {
+    error?: string;
+    current?: string;
+    latest?: string | null;
+    update_available?: boolean;
+    url?: string | null;
+    sha256?: string | null;
+  };
+  optiscaler: PartUpdate;
+  helixsr: PartUpdate;
+  mako: PartUpdate;
+};
+export const checkUpdates = callable<[], Updates>("check_updates");

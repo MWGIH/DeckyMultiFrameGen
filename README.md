@@ -37,6 +37,9 @@ Early development.
 - [x] Switching a game to another backend takes the previous one out of the game and restores its launch options.
 - [x] OptiScaler + MAKO together: OptiScaler upscales in the game and MAKO's launcher goes into OptiScaler's launch
       options.
+- [x] Check for updates (Backends): updates this plugin through Decky's own installer, OptiScaler and MAKO to the
+      versions this plugin brings, and HelixSR to its newest release. Newer Decky Framegen or MAKO releases are
+      listed too; they arrive with the next MultiFrameGen release.
 - [x] OptiScaler + HelixSR: HelixSR goes in as OptiScaler's FSR 3.X upscaler (OptiScaler.ini points FfxDx12Path at
       it), so the game's own files stay untouched. Use it in games whose anti-cheat blocks HelixSR's FSR drop-in
       (Easy Anti-Cheat in Gears of War: E-Day). Can be combined with MAKO.

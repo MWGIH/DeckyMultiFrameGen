@@ -17,6 +17,7 @@ import {
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRSetup } from "./HelixSRSetup";
 import { OptiScalerSetup } from "./OptiScaler";
+import { UpdatesCheck } from "./UpdatesCheck";
 import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
 
@@ -78,6 +79,13 @@ export function BackendsSection(props: Props) {
           {collapsed ? "Show backends" : "Hide backends"}
         </ButtonItem>
       </PanelSectionRow>
+      {!collapsed && (
+        <UpdatesCheck
+          onOptiChange={onOptiChange}
+          onHelixChange={onHelixChange}
+          onMakoChange={onMakoChange}
+        />
+      )}
       {collapsed ? null : backends === null ? (
         <PanelSectionRow>
           <Field label="Checking…" />

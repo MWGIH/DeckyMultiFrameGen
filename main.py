@@ -8,10 +8,10 @@ import decky
 
 from mako_plugin.plugin import Plugin as MakoPlugin
 
-from multifg import backends, helix_opti, mako_payload, steam_library
+from multifg import backends, helix_opti, mako_payload, steam_library, updates
 from multifg.helixsr import HelixSR
 from multifg.opti_job import OptiInstallJob
-from multifg.optiscaler import OptiScaler
+from multifg.optiscaler import OPTISCALER_ARCHIVE_ASSET, OptiScaler
 from multifg.settings import Settings
 
 HOME = Path(decky.DECKY_USER_HOME)
@@ -331,6 +331,46 @@ class Plugin:
                 and Path(_mako_runner()).is_file():
             result["launch_options"] = _with_mako(result.get("launch_options") or "")
         return result
+
+    # --- updates ---
+
+    async def check_updates(self) -> dict:
+        """What can be updated: this plugin (a new release), and each installed backend (the version this plugin
+        brings, or for HelixSR its newest release). Upstream releases of Decky Framegen and MAKO newer than the ones
+        vendored here are reported too: they reach the plugin through its own next release."""
+        async def guard(work):
+            try:
+                return await work()
+            except Exception as exc:
+                decky.logger.warning(f"update check: {exc}")
+                return {"error": str(exc)}
+
+        async def plugin():
+            return await asyncio.to_thread(updates.self_update, decky.DECKY_PLUGIN_VERSION)
+
+        async def optiscaler():
+            installed = backends.optiscaler_status(HOME)["version"]
+            bundled = OPTISCALER_ARCHIVE_ASSET["version"]
+            up = await asyncio.to_thread(updates.upstream, updates.FRAMEGEN_REPO, updates.FRAMEGEN_VENDORED)
+            return {"installed": installed, "available": bundled,
+                    "update_available": bool(installed) and installed != bundled, **up}
+
+        async def helixsr():
+            await asyncio.to_thread(HELIXSR.releases, True)
+            st = await asyncio.to_thread(HELIXSR.status)
+            return {"installed": st["active"], "available": (st["latest"] or {}).get("tag"),
+                    "update_available": bool(st["active"]) and st["update_available"]}
+
+        async def mako():
+            check = await MAKO.check_mako_installed()
+            up = await asyncio.to_thread(updates.upstream, updates.MAKO_REPO, updates.MAKO_VENDORED, "plugin-v")
+            return {"installed": check.get("installed_engine_version") if check.get("installed") else None,
+                    "available": check.get("expected_engine_version"),
+                    "update_available": bool(check.get("installed")) and bool(check.get("engine_update_required")),
+                    **up}
+
+        results = await asyncio.gather(guard(plugin), guard(optiscaler), guard(helixsr), guard(mako))
+        return dict(zip(("plugin", "optiscaler", "helixsr", "mako"), results))
 
     async def log_error(self, message: str) -> None:
         decky.logger.error(f"frontend: {message}")
