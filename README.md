@@ -61,7 +61,7 @@ Reports so far:
 | Game | Way | Result | Source |
 | --- | --- | --- | --- |
 | Gears of War: E-Day | FSR drop-in | ❌ Easy Anti-Cheat splash, then a black screen | Steam Deck test for this plugin |
-| Gears of War: E-Day | OptiScaler + HelixSR | Not tested yet (OptiScaler alone works) | Steam Deck test for this plugin |
+| Gears of War: E-Day | OptiScaler + HelixSR | ✅ Works, gets past Easy Anti-Cheat (select DLSS in the game, FSR 3.X in OptiScaler) | Steam Deck test for this plugin |
 | Enshrouded | FSR drop-in, OptiScaler | ❌ HelixSR never loads (the game runs on Vulkan) | Steam Deck test for this plugin |
 | Pragmata | not stated | ✅ 34 to 40 FPS, Steam Deck, performance mode | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | CONTROL Resonant | not stated | ✅ 35 to 40 FPS at 1080p, locked 60 at 720p, ROG Ally X | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
