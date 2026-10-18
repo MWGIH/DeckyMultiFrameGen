@@ -98,23 +98,23 @@ export function HelixInOptiGame({
           missing="HelixSR writes a log when OptiScaler loads it. If there is none after playing, check that OptiScaler's upscaler is FSR 3.X."
         />
       )}
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          disabled={busy}
-          onClick={() =>
-            run(() => helixsrOptiAdd(appid), "HelixSR added to OptiScaler")
-          }
-        >
-          {!st.installed
-            ? "Add HelixSR to OptiScaler"
-            : outdated
-              ? `Update HelixSR to ${st.active}`
-              : !st.ini_ok
-                ? "Add HelixSR again"
-                : "Reinstall HelixSR"}
-        </ButtonItem>
-      </PanelSectionRow>
+      {(!st.installed || outdated || !st.ini_ok) && (
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            disabled={busy}
+            onClick={() =>
+              run(() => helixsrOptiAdd(appid), "HelixSR added to OptiScaler")
+            }
+          >
+            {!st.installed
+              ? "Add HelixSR to OptiScaler"
+              : outdated
+                ? `Update HelixSR to ${st.active}`
+                : "Add HelixSR again"}
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
       {st.installed && (
         <PanelSectionRow>
           <ButtonItem

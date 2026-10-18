@@ -249,7 +249,7 @@ export function HelixSRGame({
           />
         </PanelSectionRow>
       )}
-      {ways.length > 0 && (
+      {ways.length > 0 && !(game.installed && game.current === chosen) && (
         <PanelSectionRow>
           <ButtonItem
             layout="below"
@@ -259,9 +259,7 @@ export function HelixSRGame({
             {!ready
               ? "Waiting for HelixSR's setup"
               : game.installed
-                ? game.current === chosen
-                  ? `Update HelixSR in this game (${helix.active})`
-                  : `Switch to ${WAYS[chosen ?? ""] ?? chosen}`
+                ? `Switch to ${WAYS[chosen ?? ""] ?? chosen}`
                 : `Install HelixSR (${WAYS[chosen ?? ""] ?? chosen})`}
           </ButtonItem>
         </PanelSectionRow>

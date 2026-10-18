@@ -123,11 +123,13 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
       <PanelSectionRow>
         <Field label="FSR4 runtime" description={FSR4_RUNTIME_LABEL} />
       </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" disabled={busy} onClick={install}>
-          {busy ? "Starting…" : status.exists ? "Reinstall OptiScaler" : status.legacy ? "Update OptiScaler" : "Install OptiScaler"}
-        </ButtonItem>
-      </PanelSectionRow>
+      {!status.exists && (
+        <PanelSectionRow>
+          <ButtonItem layout="below" disabled={busy} onClick={install}>
+            {busy ? "Starting…" : status.legacy ? "Update OptiScaler" : "Install OptiScaler"}
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
       {status.exists && (
         <PanelSectionRow>
           <ButtonItem layout="below" disabled={busy} onClick={uninstall}>

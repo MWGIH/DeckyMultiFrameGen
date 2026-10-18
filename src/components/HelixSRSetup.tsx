@@ -159,13 +159,6 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
           </ButtonItem>
         </PanelSectionRow>
       )}
-      {status.active_ready && status.active && (
-        <PanelSectionRow>
-          <ButtonItem layout="below" onClick={() => start(status.active!)}>
-            Run HelixSR's setup again
-          </ButtonItem>
-        </PanelSectionRow>
-      )}
       {(status.active || status.local.length > 0) && (
         <PanelSectionRow>
           <ButtonItem layout="below" onClick={remove}>
