@@ -10,5 +10,12 @@ export const PROXY_DLL_OPTIONS = [
   { value: "OptiScaler.asi", label: "OptiScaler.asi", hint: "Needs an ASI loader already installed in the game." },
 ] as const;
 
+// Games where the default dxgi.dll doesn't work, by Steam app id: the proxy DLL that does (see the README)
+const PROXY_DLL_BY_GAME: Record<string, string> = {
+  "1203620": "dbghelp.dll", // Enshrouded: won't start with dxgi.dll; winmm.dll and version.dll don't load OptiScaler
+};
+
+export const defaultProxyDll = (appid: string) => PROXY_DLL_BY_GAME[appid] ?? "dxgi.dll";
+
 // The Steam Deck's GPU is RDNA2, so OptiScaler always uses Decky Framegen's "4.1.1 | Valve RDNA2 Compatibility" runtime.
 export const FSR4_RUNTIME_LABEL = "FSR 4.1.1 (Valve RDNA2 compatibility)";

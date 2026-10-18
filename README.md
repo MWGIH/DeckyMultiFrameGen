@@ -63,7 +63,7 @@ menu never appears, the game doesn't load that name: try the next one too. If no
 game; MAKO still can, since it works outside the game.
 
 OptiScaler mainly targets DirectX 11/12 games. A Vulkan game may not start with OptiScaler as `dxgi.dll`.
-Enshrouded is one: only `dbghelp.dll` worked there (`winmm.dll` and `version.dll` started the game without loading
+Enshrouded is one: only `dbghelp.dll` worked there (the plugin picks it for Enshrouded by default) (`winmm.dll` and `version.dll` started the game without loading
 OptiScaler). Source: OptiScaler's
 [Manual Installation](https://github.com/optiscaler/OptiScaler/wiki/Manual-Installation) guide (it lists the supported
 names and prefers `dxgi.dll`); the fallback order is this plugin's advice.

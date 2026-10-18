@@ -11,7 +11,7 @@ import {
   type OptiGame,
   type OptiStatus,
 } from "../api";
-import { FSR4_RUNTIME_LABEL, PROXY_DLL_OPTIONS } from "../optiscalerOptions";
+import { defaultProxyDll, FSR4_RUNTIME_LABEL, PROXY_DLL_OPTIONS } from "../optiscalerOptions";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 
 const POLL_MS = 5000;
@@ -149,13 +149,13 @@ export function OptiScalerGame({
   onChange?: () => void;
 }) {
   const [game, setGame] = useState<OptiGame | null>(null);
-  const [dll, setDll] = useState<string>("dxgi.dll");
+  const [dll, setDll] = useState<string>(defaultProxyDll(appid));
   const [busy, setBusy] = useState(false);
 
   const load = () =>
     optiscalerGameStatus(appid).then((g) => {
       setGame(g);
-      if (g.dll_name) setDll(g.dll_name);
+      setDll(g.dll_name || defaultProxyDll(appid));
     });
   useEffect(() => {
     setGame(null);
