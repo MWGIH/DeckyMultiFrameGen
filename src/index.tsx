@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { staticClasses } from "@decky/ui";
+import { ButtonItem, PanelSection, PanelSectionRow, staticClasses } from "@decky/ui";
 import { definePlugin } from "@decky/api";
 import { MdOutlineAutoAwesomeMotion } from "react-icons/md";
 import { getBackends, listInstalledGames, logError, type Backend, type GameSummary } from "./api";
@@ -13,6 +13,29 @@ import { Content as MakoContent } from "./mako/components/Content";
 
 const PICKED_KEY = "multifg:picked";
 const SHOW_MAKO_KEY = "multifg:showMako";
+const MAKO_HIDDEN_KEY = "multifg:makoHidden";
+const MAKO_FULL_KEY = "multifg:makoFull";
+
+// A boolean kept in localStorage, so the panel opens the way it was left
+function usePersisted(key: string, initial: boolean) {
+  const [value, setValue] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved === null ? initial : saved === "1";
+    } catch {
+      return initial;
+    }
+  });
+  const set = (next: boolean) => {
+    setValue(next);
+    try {
+      localStorage.setItem(key, next ? "1" : "0");
+    } catch {
+      // just not remembered
+    }
+  };
+  return [value, set] as const;
+}
 const BACKEND_POLL_MS = 5000;
 
 function readPicked(): string | null {
@@ -33,19 +56,18 @@ function Content() {
   const [opti, setOpti] = useOptiStatus();
   const [choice, setChoice] = useState<GameChoice | null>(null);
   const makoGame = Boolean(choice?.split("+").includes("mako"));
-  const [showMako, setShowMako] = useState(() => {
-    try {
-      return localStorage.getItem(SHOW_MAKO_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
+  // MAKO's controls: shown for a MAKO game unless hidden, or when opened from Backends; light or full
+  const [showMako, setShowMako] = usePersisted(SHOW_MAKO_KEY, false);
+  const [makoHidden, setMakoHidden] = usePersisted(MAKO_HIDDEN_KEY, false);
+  const [makoFull, setMakoFull] = usePersisted(MAKO_FULL_KEY, false);
+  const makoShown = (makoGame && !makoHidden) || showMako;
   const toggleMako = () => {
-    setShowMako(!showMako);
-    try {
-      localStorage.setItem(SHOW_MAKO_KEY, showMako ? "0" : "1");
-    } catch {
-      // just not remembered
+    if (makoShown) {
+      setShowMako(false);
+      if (makoGame) setMakoHidden(true);
+    } else {
+      setMakoHidden(false);
+      if (!makoGame) setShowMako(true);
     }
   };
   const refreshOpti = () => optiscalerStatus().then(setOpti);
@@ -80,8 +102,7 @@ function Content() {
         onHelixChange={refreshHelix}
         opti={opti}
         onOptiChange={refreshOpti}
-        makoShown={makoGame || showMako}
-        makoPinned={makoGame}
+        makoShown={makoShown}
         onToggleMako={toggleMako}
       />
       <GameSection
@@ -94,7 +115,23 @@ function Content() {
         onChoice={setChoice}
       />
       {/* MAKO Decky's own controls (vendored, GPL-3.0), shown for a MAKO game or when opened from Backends */}
-      {(makoGame || showMako) && <MakoContent />}
+      {(makoGame || showMako) && (
+        <PanelSection title="MAKO">
+          {makoShown && (
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={() => setMakoFull(!makoFull)}>
+                {makoFull ? "Show fewer MAKO settings" : "Show all MAKO settings"}
+              </ButtonItem>
+            </PanelSectionRow>
+          )}
+          <PanelSectionRow>
+            <ButtonItem layout="below" onClick={toggleMako}>
+              {makoShown ? "Hide MAKO" : "Show MAKO"}
+            </ButtonItem>
+          </PanelSectionRow>
+        </PanelSection>
+      )}
+      {makoShown && <MakoContent variant={makoFull ? "full" : "light"} />}
     </>
   );
 }

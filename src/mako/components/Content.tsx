@@ -41,7 +41,8 @@ import {
   reloadProfileShaders,
 } from "../api/makoApi";
 
-export function Content() {
+// Decky MultiFrameGen: variant "light" shows only Live Status and Image Processing (and the install button).
+export function Content({ variant = "full" }: { variant?: "light" | "full" }) {
   const [profileRevision, setProfileRevision] = useState(0);
   const {
     isInstalled,
@@ -197,6 +198,69 @@ export function Content() {
     hasDevelopmentNotice ||
     hasRunningAppNotice ||
     hasEngineUpdateNotice;
+
+  if (variant === "light") {
+    return (
+      <InfoVisibility>
+        <MakoButtonTheme />
+        <PanelSection>
+          {!isInstalled && (
+            <>
+              <InstallationButton
+                isInstalled={isInstalled}
+                isInstalling={isInstalling}
+                isInstallCompletionVisible={isInstallCompletionVisible}
+                isUninstalling={isUninstalling}
+                hostArchitectureSupported={hostArchitectureSupported}
+                onInstall={onInstall}
+                onUninstall={onUninstall}
+              />
+              <StatusDisplay
+                dllDetected={dllDetected}
+                dllDetectionStatus={dllDetectionStatus}
+                isInstalled={isInstalled}
+                installationStatus={installationStatus}
+                topMargin="16px"
+              />
+            </>
+          )}
+          {isInstalled && (mainRunningApp || remotePlayRunning) && (
+            <RuntimeStatusCard
+              runtimeState={scalingRuntimeState}
+              activeConfig={
+                !isConfigLoading &&
+                (!separatePowerModes ||
+                  powerMode === (currentPowerSource ?? powerSource))
+                  ? config
+                  : undefined
+              }
+            />
+          )}
+          {isInstalled && isConfigLoading && (
+            <PanelSectionRow>
+              {t("POWER_LOADING", "Loading profile settings...")}
+            </PanelSectionRow>
+          )}
+          {isInstalled && (
+            <div hidden={isConfigLoading}>
+              <FeatureSettings
+                config={config}
+                runtimeState={scalingRuntimeState}
+                profileName={editingProfile}
+                vkBasaltConfigPath={vkBasaltConfigPath}
+                customShaderEffects={customShaderEffects}
+                onAddShader={addShader}
+                onRefreshShaders={refreshShaders}
+                onDeleteShaders={deleteShaders}
+                onConfigChange={handleConfigChange}
+                onConfigUpdate={handleConfigChanges}
+              />
+            </div>
+          )}
+        </PanelSection>
+      </InfoVisibility>
+    );
+  }
 
   return (
     <InfoVisibility>

@@ -17,7 +17,6 @@ type Props = {
   opti: OptiStatus | null;
   onOptiChange: () => void;
   makoShown: boolean;
-  makoPinned: boolean;
   onToggleMako: () => void;
 };
 
@@ -39,7 +38,7 @@ function summary(backends: Backend[]): string {
 }
 
 export function BackendsSection(props: Props) {
-  const { backends, helix, onHelixChange, opti, onOptiChange, makoShown, makoPinned, onToggleMako } = props;
+  const { backends, helix, onHelixChange, opti, onOptiChange, makoShown, onToggleMako } = props;
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const toggle = () => {
     setCollapsed(!collapsed);
@@ -70,7 +69,7 @@ export function BackendsSection(props: Props) {
             </PanelSectionRow>
             {b.id === "helixsr" && <HelixSRSetup status={helix} onChange={onHelixChange} />}
             {b.id === "optiscaler" && <OptiScalerSetup status={opti} onChange={onOptiChange} />}
-            {b.id === "mako" && !makoPinned && (
+            {b.id === "mako" && (
               <PanelSectionRow>
                 <ButtonItem layout="below" onClick={onToggleMako}>
                   {makoShown ? "Hide MAKO's controls" : b.installed ? "Show MAKO's controls" : "Set up MAKO"}
