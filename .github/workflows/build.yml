@@ -36,4 +36,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" out/Decky-MultiFrameGen.zip --title "$GITHUB_REF_NAME" --generate-notes
+        # works whether the tag was pushed on its own or created with a release on GitHub
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" out/Decky-MultiFrameGen.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" out/Decky-MultiFrameGen.zip --title "$GITHUB_REF_NAME" --generate-notes
+          fi
