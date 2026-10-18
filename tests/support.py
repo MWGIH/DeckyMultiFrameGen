@@ -7,6 +7,9 @@ from pathlib import Path
 
 ROOT = Path(tempfile.mkdtemp(prefix="multifg-test-"))
 os.environ["MULTIFG_TEST_ROOT"] = str(ROOT)
+os.environ["DECKY_PLUGIN_RUNTIME_DIR"] = str(ROOT / "runtime")  # Decky sets these for the plugin's process
+os.environ["DECKY_USER_HOME"] = str(ROOT / "home")
+os.environ["DECKY_HOME"] = str(ROOT / "homebrew")
 HOME = ROOT / "home"
 
 REPO = Path(__file__).resolve().parent.parent

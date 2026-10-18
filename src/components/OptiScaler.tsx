@@ -11,7 +11,7 @@ import {
   type OptiGame,
   type OptiStatus,
 } from "../api";
-import { DEFAULT_FSR4_VARIANT, FSR4_VARIANT_OPTIONS, PROXY_DLL_OPTIONS } from "../optiscalerOptions";
+import { FSR4_RUNTIME_LABEL, PROXY_DLL_OPTIONS } from "../optiscalerOptions";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 
 const POLL_MS = 5000;
@@ -20,8 +20,6 @@ const POLL_RUNNING_MS = 1000;
 function toast(body: string) {
   toaster.toast({ title: "OptiScaler", body });
 }
-
-const variantHint = (v: string) => FSR4_VARIANT_OPTIONS.find((o) => o.value === v)?.hint;
 
 export function useOptiStatus() {
   const [status, setStatus] = useState<OptiStatus | null>(null);
@@ -54,17 +52,13 @@ const MB = 1024 * 1024;
 
 // Installing OptiScaler into ~/fgmod, the way Decky Framegen does (and where it finds an install Decky Framegen made).
 export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | null; onChange: () => void }) {
-  const [variant, setVariant] = useState<string>(DEFAULT_FSR4_VARIANT);
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (status?.selected_fsr4_variant) setVariant(status.selected_fsr4_variant);
-  }, [status?.selected_fsr4_variant]);
   if (!status) return null;
 
   const install = async () => {
     setBusy(true);
     try {
-      const r = await optiscalerInstall(variant);
+      const r = await optiscalerInstall();
       if (r.status !== "started") toast(r.message ?? "Install failed");
     } finally {
       setBusy(false);
@@ -127,13 +121,7 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
         </PanelSectionRow>
       )}
       <PanelSectionRow>
-        <DropdownItem
-          label="Default FSR4 runtime"
-          description={variantHint(variant)}
-          rgOptions={FSR4_VARIANT_OPTIONS.map((o) => ({ data: o.value, label: o.label }))}
-          selectedOption={variant}
-          onChange={(o) => setVariant(String(o.data))}
-        />
+        <Field label="FSR4 runtime" description={FSR4_RUNTIME_LABEL} />
       </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem layout="below" disabled={busy} onClick={install}>
@@ -154,22 +142,17 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
 export function OptiScalerGame({ appid, status }: { appid: string; status: OptiStatus | null }) {
   const [game, setGame] = useState<OptiGame | null>(null);
   const [dll, setDll] = useState<string>("dxgi.dll");
-  const [variant, setVariant] = useState<string>(DEFAULT_FSR4_VARIANT);
   const [busy, setBusy] = useState(false);
 
   const load = () =>
     optiscalerGameStatus(appid).then((g) => {
       setGame(g);
       if (g.dll_name) setDll(g.dll_name);
-      if (g.fsr4_variant) setVariant(g.fsr4_variant);
     });
   useEffect(() => {
     setGame(null);
     load();
   }, [appid]);
-  useEffect(() => {
-    if (status?.selected_fsr4_variant && !game?.patched) setVariant(status.selected_fsr4_variant);
-  }, [status?.selected_fsr4_variant]);
 
   if (!status?.exists) {
     return (
@@ -191,7 +174,7 @@ export function OptiScalerGame({ appid, status }: { appid: string; status: OptiS
     setBusy(true);
     try {
       const current = (await readLaunchOptions(id)) ?? "";
-      const r = await optiscalerPatchGame(appid, dll, current, variant);
+      const r = await optiscalerPatchGame(appid, dll, current);
       if (r.status === "success") {
         if (r.launch_options && !writeLaunchOptions(id, r.launch_options)) {
           toast(`Patched, but couldn't set the launch options. Set them in Steam: ${r.launch_options}`);
@@ -242,15 +225,6 @@ export function OptiScalerGame({ appid, status }: { appid: string; status: OptiS
           rgOptions={PROXY_DLL_OPTIONS.map((o) => ({ data: o.value, label: o.label }))}
           selectedOption={dll}
           onChange={(o) => setDll(String(o.data))}
-        />
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <DropdownItem
-          label="FSR4 runtime"
-          description={variantHint(variant)}
-          rgOptions={FSR4_VARIANT_OPTIONS.map((o) => ({ data: o.value, label: o.label }))}
-          selectedOption={variant}
-          onChange={(o) => setVariant(String(o.data))}
         />
       </PanelSectionRow>
       <PanelSectionRow>

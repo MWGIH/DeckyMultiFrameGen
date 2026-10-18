@@ -138,11 +138,11 @@ export type OptiGame = {
 export type OptiPatch = OptiResult & { launch_options?: string; original_launch_options?: string };
 
 export const optiscalerStatus = callable<[], OptiStatus>("optiscaler_status");
-export const optiscalerInstall = callable<[fsr4_variant?: string], OptiResult>("optiscaler_install");
+export const optiscalerInstall = callable<[], OptiResult>("optiscaler_install");
 export const optiscalerUninstall = callable<[], OptiResult>("optiscaler_uninstall");
 export const optiscalerGameStatus = callable<[appid: string], OptiGame>("optiscaler_game_status");
 export const optiscalerPatchGame = callable<
-  [appid: string, dll_name: string, current_launch_options: string, fsr4_variant: string],
+  [appid: string, dll_name: string, current_launch_options: string],
   OptiPatch
 >("optiscaler_patch_game");
 export const optiscalerUnpatchGame = callable<[appid: string], OptiPatch>("optiscaler_unpatch_game");

@@ -7,7 +7,7 @@ import decky
 from multifg import backends, steam_library
 from multifg.helixsr import HelixSR
 from multifg.opti_job import OptiInstallJob
-from multifg.optiscaler import DEFAULT_FSR4_VARIANT as OPTISCALER_DEFAULT_VARIANT, OptiScaler
+from multifg.optiscaler import OptiScaler
 from multifg.settings import Settings
 
 HOME = Path(decky.DECKY_USER_HOME)
@@ -15,6 +15,8 @@ SETTINGS = Settings(Path(decky.DECKY_PLUGIN_SETTINGS_DIR) / "settings.json")
 HELIXSR = HelixSR(HOME, Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_LOG_DIR), decky.DECKY_USER)
 OPTISCALER = OptiScaler()
 OPTI_JOB = OptiInstallJob(OPTISCALER)
+# The Steam Deck's GPU is RDNA2: always Valve's FSR 4.1.1 build with RDNA2 settings, no choice offered
+FSR4_VARIANT = "rdna2-valve-411-pre10"
 _APPID = re.compile(r"\d{1,10}")
 
 
@@ -116,7 +118,7 @@ class Plugin:
 
     async def optiscaler_install(self, fsr4_variant: str = "") -> dict:
         """Starts the install; optiscaler_status reports its progress and result."""
-        return OPTI_JOB.start(fsr4_variant or None)
+        return OPTI_JOB.start(FSR4_VARIANT)
 
     async def optiscaler_uninstall(self) -> dict:
         if OPTI_JOB.running():
@@ -141,7 +143,7 @@ class Plugin:
                 return {"status": "error",
                         "message": "HelixSR is in this game. Remove it first: both use the same DLL slot."}
         return await OPTISCALER.patch_game(str(appid), dll_name, current_launch_options or "",
-                                           fsr4_variant or OPTISCALER_DEFAULT_VARIANT)
+                                           FSR4_VARIANT)
 
     async def optiscaler_unpatch_game(self, appid: str) -> dict:
         try:
