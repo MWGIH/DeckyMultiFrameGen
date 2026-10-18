@@ -6,11 +6,13 @@ import decky
 
 from multifg import backends, steam_library
 from multifg.helixsr import HelixSR
+from multifg.optiscaler import DEFAULT_FSR4_VARIANT as OPTISCALER_DEFAULT_VARIANT, OptiScaler
 from multifg.settings import Settings
 
 HOME = Path(decky.DECKY_USER_HOME)
 SETTINGS = Settings(Path(decky.DECKY_PLUGIN_SETTINGS_DIR) / "settings.json")
 HELIXSR = HelixSR(HOME, Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_LOG_DIR), decky.DECKY_USER)
+OPTISCALER = OptiScaler()
 _APPID = re.compile(r"\d{1,10}")
 
 
@@ -91,10 +93,52 @@ class Plugin:
         return await _for_game(appid, HELIXSR.game_status)
 
     async def helixsr_install_game(self, appid: str, route: str = "") -> dict:
+        try:
+            if (await OPTISCALER.get_game_status(_valid_appid(appid))).get("patched"):
+                return {"ok": False, "error": "OptiScaler is in this game. Remove it first: both use the same DLL slot."}
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
         return await _for_game(appid, lambda folder: HELIXSR.install_game(folder, route or None))
 
     async def helixsr_uninstall_game(self, appid: str) -> dict:
         return await _for_game(appid, HELIXSR.uninstall_game)
+
+    # --- OptiScaler (Decky Framegen) ---
+
+    async def optiscaler_status(self) -> dict:
+        return await OPTISCALER.check_fgmod_path()
+
+    async def optiscaler_install(self, fsr4_variant: str = "") -> dict:
+        return await OPTISCALER.run_install_fgmod(fsr4_variant or None)
+
+    async def optiscaler_uninstall(self) -> dict:
+        return await OPTISCALER.run_uninstall_fgmod()
+
+    async def optiscaler_game_status(self, appid: str) -> dict:
+        try:
+            return await OPTISCALER.get_game_status(_valid_appid(appid))
+        except ValueError as exc:
+            return {"status": "error", "message": str(exc)}
+
+    async def optiscaler_patch_game(self, appid: str, dll_name: str, current_launch_options: str,
+                                    fsr4_variant: str = "") -> dict:
+        try:
+            folder = _game_folder(appid)
+        except ValueError as exc:
+            return {"status": "error", "message": str(exc)}
+        if HELIXSR.active():
+            helix = await asyncio.to_thread(HELIXSR.game_status, folder)
+            if helix.get("installed"):
+                return {"status": "error",
+                        "message": "HelixSR is in this game. Remove it first: both use the same DLL slot."}
+        return await OPTISCALER.patch_game(str(appid), dll_name, current_launch_options or "",
+                                           fsr4_variant or OPTISCALER_DEFAULT_VARIANT)
+
+    async def optiscaler_unpatch_game(self, appid: str) -> dict:
+        try:
+            return await OPTISCALER.unpatch_game(_valid_appid(appid))
+        except ValueError as exc:
+            return {"status": "error", "message": str(exc)}
 
     async def log_error(self, message: str) -> None:
         decky.logger.error(f"frontend: {message}")

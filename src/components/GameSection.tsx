@@ -9,9 +9,11 @@ import {
   type GameDetail,
   type GameSummary,
   type HelixStatus,
+  type OptiStatus,
 } from "../api";
 import type { SelectedGame } from "../hooks/useSelectedGame";
 import { HelixSRGame } from "./HelixSRGame";
+import { OptiScalerGame } from "./OptiScaler";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
   none: "Off",
@@ -39,13 +41,14 @@ type Props = {
   games: GameSummary[];
   backends: Backend[] | null;
   helix: HelixStatus | null;
+  opti: OptiStatus | null;
   onPick: (appid: string) => void;
 };
 
 // Choices whose per-game controls aren't built yet
-const COMING: GameChoice[] = ["optiscaler", "mako"];
+const COMING: GameChoice[] = ["mako"];
 
-export function GameSection({ selected, games, backends, helix, onPick }: Props) {
+export function GameSection({ selected, games, backends, helix, opti, onPick }: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
 
   useEffect(() => {
@@ -100,7 +103,7 @@ export function GameSection({ selected, games, backends, helix, onPick }: Props)
               <DropdownItem
                 label="Use"
                 description={
-                  detail.backend && detail.backend !== "helixsr" && missing(detail.backend).length
+                  detail.backend && COMING.includes(detail.backend) && missing(detail.backend).length
                     ? `Needs ${missing(detail.backend).join(" and ")} installed first`
                     : detail.backend && COMING.includes(detail.backend)
                       ? "Applying this choice to the game comes in a later version"
@@ -114,6 +117,9 @@ export function GameSection({ selected, games, backends, helix, onPick }: Props)
           )}
           {detail?.ok && detail.installed && detail.backend === "helixsr" && (
             <HelixSRGame appid={selected.appid} helix={helix} />
+          )}
+          {detail?.ok && detail.installed && detail.backend === "optiscaler" && (
+            <OptiScalerGame appid={selected.appid} status={opti} />
           )}
         </>
       )}

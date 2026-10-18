@@ -1,5 +1,5 @@
 // Builds out/Decky-MultiFrameGen.zip in the layout Decky's "Install plugin from ZIP" expects:
-// one top folder with plugin.json, package.json, main.py, py_modules/, dist/index.js and the licenses.
+// one top folder with plugin.json, package.json, main.py, py_modules/, assets/, dist/index.js and the licenses.
 // Adapted from HelixSR Manager's package script (Unlicense, PeroTuncay).
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, rmSync } from "node:fs";
@@ -41,5 +41,6 @@ cpSync("py_modules", `out/${name}/py_modules`, {
   filter: (src) => !src.includes("__pycache__"),
 });
 cpSync("licenses", `out/${name}/licenses`, { recursive: true });
+cpSync("assets", `out/${name}/assets`, { recursive: true });
 execFileSync("zip", ["-qr", `${name}.zip`, name], { cwd: "out", stdio: "inherit" });
 console.log(`out/${name}.zip`);

@@ -7,7 +7,8 @@ import { useSelectedGame } from "./hooks/useSelectedGame";
 import { BackendsSection } from "./components/BackendsSection";
 import { GameSection } from "./components/GameSection";
 import { useHelixStatus } from "./components/HelixSRSetup";
-import { helixsrStatus } from "./api";
+import { useOptiStatus } from "./components/OptiScaler";
+import { helixsrStatus, optiscalerStatus } from "./api";
 
 const PICKED_KEY = "multifg:picked";
 const BACKEND_POLL_MS = 5000;
@@ -27,6 +28,8 @@ function Content() {
   const selected = useSelectedGame(picked);
   const [helix, setHelix] = useHelixStatus();
   const refreshHelix = () => helixsrStatus().then(setHelix);
+  const [opti, setOpti] = useOptiStatus();
+  const refreshOpti = () => optiscalerStatus().then(setOpti);
 
   useEffect(() => {
     const load = () =>
@@ -52,8 +55,14 @@ function Content() {
 
   return (
     <>
-      <GameSection selected={selected} games={games} backends={backends} helix={helix} onPick={pick} />
-      <BackendsSection backends={backends} helix={helix} onHelixChange={refreshHelix} />
+      <GameSection selected={selected} games={games} backends={backends} helix={helix} opti={opti} onPick={pick} />
+      <BackendsSection
+        backends={backends}
+        helix={helix}
+        onHelixChange={refreshHelix}
+        opti={opti}
+        onOptiChange={refreshOpti}
+      />
     </>
   );
 }

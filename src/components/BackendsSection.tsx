@@ -1,6 +1,7 @@
 import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
-import type { Backend, HelixStatus } from "../api";
+import type { Backend, HelixStatus, OptiStatus } from "../api";
 import { HelixSRSetup } from "./HelixSRSetup";
+import { OptiScalerSetup } from "./OptiScaler";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -8,9 +9,15 @@ function statusLine(b: Backend): string {
   return b.version ? `Installed (${b.version})` : "Installed";
 }
 
-type Props = { backends: Backend[] | null; helix: HelixStatus | null; onHelixChange: () => void };
+type Props = {
+  backends: Backend[] | null;
+  helix: HelixStatus | null;
+  onHelixChange: () => void;
+  opti: OptiStatus | null;
+  onOptiChange: () => void;
+};
 
-export function BackendsSection({ backends, helix, onHelixChange }: Props) {
+export function BackendsSection({ backends, helix, onHelixChange, opti, onOptiChange }: Props) {
   return (
     <PanelSection title="Backends">
       {backends === null ? (
@@ -26,6 +33,7 @@ export function BackendsSection({ backends, helix, onHelixChange }: Props) {
               </Field>
             </PanelSectionRow>
             {b.id === "helixsr" && <HelixSRSetup status={helix} onChange={onHelixChange} />}
+            {b.id === "optiscaler" && <OptiScalerSetup status={opti} onChange={onOptiChange} />}
           </div>
         ))
       )}

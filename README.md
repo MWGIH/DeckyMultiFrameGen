@@ -26,7 +26,8 @@ Early development.
 - [x] HelixSR: downloads the official release, runs HelixSR's own setup from the plugin (no Konsole), and installs
       or removes it per game with HelixSR's own installer (FSR drop-in or HelixSR Scaler), setting launch options
       when needed.
-- [ ] OptiScaler: install and per-game patching.
+- [x] OptiScaler: installs Decky Framegen's OptiScaler bundle (downloaded from the same upstream releases) and
+      patches or unpatches games with Decky Framegen's own logic, setting launch options.
 - [ ] MAKO: install and per-game profiles.
 
 ## Install
@@ -52,6 +53,8 @@ pnpm install
 pnpm package        # builds out/Decky-MultiFrameGen.zip
 pnpm typecheck
 python3 -m unittest discover -s tests
+# optional: HELIXSR_RELEASE_DIR=<extracted HelixSR release> runs HelixSR's real installer against test games,
+# MULTIFG_NETWORK_TESTS=1 installs and patches OptiScaler end to end (downloads from upstream, needs 7z)
 ```
 
 ## License

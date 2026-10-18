@@ -92,3 +92,44 @@ export const helixsrInstall = callable<[tag?: string], { ok: boolean; error?: st
 export const helixsrGameStatus = callable<[appid: string], HelixGame>("helixsr_game_status");
 export const helixsrInstallGame = callable<[appid: string, route?: string], HelixGame>("helixsr_install_game");
 export const helixsrUninstallGame = callable<[appid: string], HelixGame>("helixsr_uninstall_game");
+
+// --- OptiScaler (Decky Framegen) ---
+
+export type OptiStatus = {
+  exists: boolean;
+  version?: string | null;
+  selected_fsr4_variant?: string | null;
+  selected_fsr4_variant_label?: string | null;
+  install_manifest_present?: boolean;
+};
+
+export type OptiResult = {
+  status: string;
+  message?: string;
+  output?: string;
+  version?: string;
+};
+
+export type OptiGame = {
+  status: string;
+  message?: string;
+  name?: string;
+  install_found?: boolean;
+  patched?: boolean;
+  dll_name?: string | null;
+  fsr4_variant?: string | null;
+  fsr4_variant_label?: string | null;
+  optiscaler_version?: string | null;
+};
+
+export type OptiPatch = OptiResult & { launch_options?: string; original_launch_options?: string };
+
+export const optiscalerStatus = callable<[], OptiStatus>("optiscaler_status");
+export const optiscalerInstall = callable<[fsr4_variant?: string], OptiResult>("optiscaler_install");
+export const optiscalerUninstall = callable<[], OptiResult>("optiscaler_uninstall");
+export const optiscalerGameStatus = callable<[appid: string], OptiGame>("optiscaler_game_status");
+export const optiscalerPatchGame = callable<
+  [appid: string, dll_name: string, current_launch_options: string, fsr4_variant: string],
+  OptiPatch
+>("optiscaler_patch_game");
+export const optiscalerUnpatchGame = callable<[appid: string], OptiPatch>("optiscaler_unpatch_game");
