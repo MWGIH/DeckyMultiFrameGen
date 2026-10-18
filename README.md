@@ -28,8 +28,19 @@ Early development. Version 0.1 is the skeleton:
 
 ## Install
 
-1. Download `Decky-MultiFrameGen.zip` from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases).
-2. In Decky's settings, turn on **Developer mode**, then under **Developer** choose **Install Plugin from ZIP**.
+On your Deck, in Decky's settings turn on **Developer mode**, then under **Developer** choose **Install Plugin from
+URL** and enter:
+
+```
+https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
+```
+
+Or download `Decky-MultiFrameGen.zip` from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
+and use **Install Plugin from ZIP**.
+
+## Releasing
+
+Bump `version` in `package.json` and push to `main`: the build publishes release `v<version>` with the ZIP attached.
 
 ## Build
 
