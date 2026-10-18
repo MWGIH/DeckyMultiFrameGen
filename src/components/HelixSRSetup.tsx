@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ButtonItem, ConfirmModal, Field, PanelSectionRow, ProgressBarWithInfo, showModal } from "@decky/ui";
 import { toaster } from "@decky/api";
-import { helixsrInstall, helixsrStatus, type HelixStatus } from "../api";
+import { helixsrInstall, helixsrRemove, helixsrStatus, type HelixStatus } from "../api";
 
 const POLL_RUNNING_MS = 1500;
 const POLL_IDLE_MS = 10000;
@@ -91,9 +91,46 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
     );
   }
 
+  const remove = () =>
+    showModal(
+      <ConfirmModal
+        strTitle="Remove HelixSR"
+        strDescription={
+          "Takes HelixSR out of every game it's in (their own files go back), then deletes HelixSR and the network " +
+          "its setup built. Close your games first."
+        }
+        strOKButtonText="Remove"
+        onOK={async () => {
+          toaster.toast({ title: "HelixSR", body: "Removing HelixSR…" });
+          const r = await helixsrRemove();
+          toaster.toast({
+            title: "HelixSR",
+            body: r.ok
+              ? `Removed${r.removed?.length ? ` (also from ${r.removed.join(", ")})` : ""}.`
+              : r.error ?? "Removing failed",
+          });
+          onChange();
+        }}
+      />,
+    );
+
   const latest = status.latest;
   return (
     <>
+      {status.active_ready && (
+        <PanelSectionRow>
+          <Field
+            label={`HelixSR ${status.active} is set up`}
+            description={
+              status.update_available && latest
+                ? `${latest.tag} is available.`
+                : latest
+                  ? "Up to date. Pick HelixSR for a game above to add it there."
+                  : "Pick HelixSR for a game above to add it there."
+            }
+          />
+        </PanelSectionRow>
+      )}
       {job?.state === "failed" && (
         <PanelSectionRow>
           <Field
@@ -119,6 +156,20 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
               : status.local.includes(latest.tag)
                 ? `Run HelixSR ${latest.tag} setup`
                 : `Install HelixSR ${latest.tag}`}
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
+      {status.active_ready && status.active && (
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={() => start(status.active!)}>
+            Run HelixSR's setup again
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
+      {(status.active || status.local.length > 0) && (
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={remove}>
+            Remove HelixSR
           </ButtonItem>
         </PanelSectionRow>
       )}

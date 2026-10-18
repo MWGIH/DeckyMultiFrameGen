@@ -163,7 +163,10 @@ class HelixSR:
             job = self.status()["job"]
             if job and job.get("state") == "running":
                 return {"ok": False, "error": "HelixSR is already being installed."}
-            rel = next((r for r in self.releases(refresh=True) if r["tag"] == tag), None) if tag else self.latest()
+            if tag and (self.release_dir(tag) / "helixsr-setup.sh").exists():
+                rel = {"tag": tag, "name": f"{tag}.zip"}   # already downloaded: only its setup runs again
+            else:
+                rel = next((r for r in self.releases(refresh=True) if r["tag"] == tag), None) if tag else self.latest()
             if not rel:
                 return {"ok": False, "error": "Couldn't get HelixSR's releases from GitHub. Check the connection."}
             job = {"state": "running", "phase": "download", "tag": rel["tag"], "size": rel.get("size"),
@@ -258,6 +261,33 @@ class HelixSR:
             out = {"ok": False, "error": (p.stderr.decode(errors="replace") or "HelixSR's installer failed")[-400:]}
         out["release"] = tag
         return out
+
+    def remove(self, game_folders: list[str]) -> dict:
+        """Takes HelixSR out of every game (putting their files back) with HelixSR's own installer, then deletes the
+        downloaded releases and what HelixSR's setup built or downloaded (~/.local/share/HelixSR)."""
+        job = self.status().get("job") or {}
+        if job.get("state") == "running":
+            return {"ok": False, "error": "Wait for HelixSR's setup to finish"}
+        removed = []
+        if self.active():
+            r = self.bridge("remove_all", *game_folders, timeout=900)
+            if not r.get("ok"):
+                return r
+            if r["left"]:
+                return {"ok": False, "removed": r["removed"],
+                        "error": f"HelixSR couldn't be removed from {', '.join(r['left'])}. Close the game and try again."}
+            removed = r["removed"]
+        for d in self.base.iterdir() if self.base.is_dir() else []:
+            if d.is_dir() and _TAG.fullmatch(d.name.removesuffix(".partial")):
+                shutil.rmtree(d, ignore_errors=True)
+        try:
+            self.base.rmdir()   # only when nothing else is in it
+        except OSError:
+            pass
+        shutil.rmtree(self.home / ".local" / "share" / "HelixSR", ignore_errors=True)
+        self.job_file.unlink(missing_ok=True)
+        self._log(f"removed HelixSR (games: {', '.join(removed) or 'none'})")
+        return {"ok": True, "removed": removed}
 
     def game_status(self, folder: str) -> dict:
         return self.bridge("status", folder)

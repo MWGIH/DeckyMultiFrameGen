@@ -189,6 +189,17 @@ class InstallerBridgeTests(unittest.TestCase):
         r = asyncio.run(p.set_game_backend("123", "none", "-dx12"))
         self.assertEqual((r["removed"], r["launch_options"]), ([], None))
 
+    def test_remove_takes_helixsr_out_of_games_then_deletes_it(self):
+        self.assertTrue(self.h.install_game(str(self.fsr))["ok"])
+        (self.home / ".local" / "share" / "HelixSR").mkdir(parents=True)
+        r = self.h.remove([str(self.fsr), str(self.dlss)])
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["removed"], ["FSR Game"])
+        self.assertEqual((self.fsr / "Bin" / "amd_fidelityfx_upscaler_dx12.dll").read_bytes(), b"ORIGINAL")
+        self.assertFalse((self.home / "HelixSR").exists())
+        self.assertFalse((self.home / ".local" / "share" / "HelixSR").exists())
+        self.assertIsNone(self.h.active())
+
     def test_not_ready_refuses_to_install(self):
         dll = self.home / "HelixSR" / "v1.9.3" / helixsr.DLL
         dll.write_bytes(dll.read_bytes()[:-32])

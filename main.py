@@ -185,6 +185,15 @@ class Plugin:
     async def helixsr_install(self, tag: str = "") -> dict:
         return await asyncio.to_thread(HELIXSR.start_install, tag or None)
 
+    async def helixsr_remove(self) -> dict:
+        """HelixSR out of every game, then its files deleted."""
+        try:
+            folders = [g["install_path"] for g in steam_library.installed_games(HOME) if g["install_found"]]
+            return await asyncio.to_thread(HELIXSR.remove, folders)
+        except Exception as exc:
+            decky.logger.exception("helixsr_remove")
+            return {"ok": False, "error": str(exc)}
+
     async def helixsr_game_status(self, appid: str) -> dict:
         return await _for_game(appid, HELIXSR.game_status)
 

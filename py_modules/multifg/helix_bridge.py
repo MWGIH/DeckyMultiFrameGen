@@ -7,6 +7,7 @@ library. HelixSR's files are imported and called as they are, never changed. Pri
     helix_bridge.py HELIXSR_FOLDER install GAME_FOLDER [direct|scaler]
     helix_bridge.py HELIXSR_FOLDER uninstall GAME_FOLDER
     helix_bridge.py HELIXSR_FOLDER ready
+    helix_bridge.py HELIXSR_FOLDER remove_all [GAME_FOLDER]..   (every game HelixSR's scan finds, plus these)
 """
 import contextlib
 import io
@@ -80,6 +81,16 @@ def main():
 
             if cmd == "ready":
                 result = {"ok": True, "ready": h.network_ready(here), "version": h.version_of(here / h.DLL)}
+            elif cmd == "remove_all":
+                # what helixsr-uninstall does without its questions: HelixSR out of every game, originals put back
+                found = h.games([])
+                found += h.games_from(sys.argv[3:], found)
+                removed = []
+                for g in found:
+                    if g.installed():
+                        h.uninstall_safe(g)
+                        removed.append(g.name)
+                result = {"ok": True, "removed": removed, "left": [g.name for g in found if g.installed()]}
             else:
                 folder = sys.argv[3]
                 found = h.games_from([folder])

@@ -98,6 +98,7 @@ export const helixsrStatus = callable<[], HelixStatus>("helixsr_status");
 export const helixsrInstall = callable<[tag?: string], { ok: boolean; error?: string; tag?: string }>(
   "helixsr_install",
 );
+export const helixsrRemove = callable<[], { ok: boolean; error?: string; removed?: string[] }>("helixsr_remove");
 export const helixsrGameStatus = callable<[appid: string], HelixGame>("helixsr_game_status");
 export const helixsrInstallGame = callable<
   [appid: string, route: string, current_launch_options: string],
