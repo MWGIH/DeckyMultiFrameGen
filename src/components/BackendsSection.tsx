@@ -3,6 +3,8 @@ import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import type { Backend, HelixStatus, OptiStatus } from "../api";
 import { HelixSRSetup } from "./HelixSRSetup";
 import { OptiScalerSetup } from "./OptiScaler";
+import { installMako } from "../mako/api/makoApi";
+import { toaster } from "@decky/api";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -16,8 +18,7 @@ type Props = {
   onHelixChange: () => void;
   opti: OptiStatus | null;
   onOptiChange: () => void;
-  makoShown: boolean;
-  onToggleMako: () => void;
+  onMakoChange: () => void;
 };
 
 const COLLAPSED_KEY = "multifg:backendsCollapsed";
@@ -38,7 +39,7 @@ function summary(backends: Backend[]): string {
 }
 
 export function BackendsSection(props: Props) {
-  const { backends, helix, onHelixChange, opti, onOptiChange, makoShown, onToggleMako } = props;
+  const { backends, helix, onHelixChange, opti, onOptiChange, onMakoChange } = props;
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const toggle = () => {
     setCollapsed(!collapsed);
@@ -69,16 +70,35 @@ export function BackendsSection(props: Props) {
             </PanelSectionRow>
             {b.id === "helixsr" && <HelixSRSetup status={helix} onChange={onHelixChange} />}
             {b.id === "optiscaler" && <OptiScalerSetup status={opti} onChange={onOptiChange} />}
-            {b.id === "mako" && (
-              <PanelSectionRow>
-                <ButtonItem layout="below" onClick={onToggleMako}>
-                  {makoShown ? "Hide MAKO's controls" : b.installed ? "Show MAKO's controls" : "Set up MAKO"}
-                </ButtonItem>
-              </PanelSectionRow>
-            )}
+            {b.id === "mako" && !b.installed && <MakoInstall onChange={onMakoChange} />}
           </div>
         ))
       )}
     </PanelSection>
+  );
+}
+
+// MAKO's own install (the MAKO Renderer, downloaded from MAKO's releases); its controls appear for games set to MAKO
+function MakoInstall({ onChange }: { onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const install = async () => {
+    setBusy(true);
+    try {
+      const r = await installMako();
+      toaster.toast({
+        title: "MAKO",
+        body: r.success ? "Installed. Set a game to MAKO to use it." : r.error || "Install failed",
+      });
+    } finally {
+      setBusy(false);
+      onChange();
+    }
+  };
+  return (
+    <PanelSectionRow>
+      <ButtonItem layout="below" disabled={busy} onClick={install}>
+        {busy ? "Installing MAKO…" : "Install MAKO"}
+      </ButtonItem>
+    </PanelSectionRow>
   );
 }

@@ -12,7 +12,6 @@ import { helixsrStatus, optiscalerStatus, type GameChoice } from "./api";
 import { Content as MakoContent } from "./mako/components/Content";
 
 const PICKED_KEY = "multifg:picked";
-const SHOW_MAKO_KEY = "multifg:showMako";
 const MAKO_HIDDEN_KEY = "multifg:makoHidden";
 const MAKO_FULL_KEY = "multifg:makoFull";
 
@@ -56,29 +55,20 @@ function Content() {
   const [opti, setOpti] = useOptiStatus();
   const [choice, setChoice] = useState<GameChoice | null>(null);
   const makoGame = Boolean(choice?.split("+").includes("mako"));
-  // MAKO's controls: shown for a MAKO game unless hidden, or when opened from Backends; light or full
-  const [showMako, setShowMako] = usePersisted(SHOW_MAKO_KEY, false);
+  // MAKO's controls: shown for a MAKO game unless hidden; light or full
   const [makoHidden, setMakoHidden] = usePersisted(MAKO_HIDDEN_KEY, false);
   const [makoFull, setMakoFull] = usePersisted(MAKO_FULL_KEY, false);
-  const makoShown = (makoGame && !makoHidden) || showMako;
-  const toggleMako = () => {
-    if (makoShown) {
-      setShowMako(false);
-      if (makoGame) setMakoHidden(true);
-    } else {
-      setMakoHidden(false);
-      if (!makoGame) setShowMako(true);
-    }
-  };
+  const makoShown = makoGame && !makoHidden;
+  const toggleMako = () => setMakoHidden(!makoHidden);
   const refreshOpti = () => optiscalerStatus().then(setOpti);
 
+  const refreshBackends = () =>
+    getBackends()
+      .then(setBackends)
+      .catch((e) => logError(`get_backends: ${e}`));
   useEffect(() => {
-    const load = () =>
-      getBackends()
-        .then(setBackends)
-        .catch((e) => logError(`get_backends: ${e}`));
-    load();
-    const id = setInterval(load, BACKEND_POLL_MS);
+    refreshBackends();
+    const id = setInterval(refreshBackends, BACKEND_POLL_MS);
     listInstalledGames()
       .then((r) => setGames(r.games))
       .catch((e) => logError(`list_installed_games: ${e}`));
@@ -102,8 +92,7 @@ function Content() {
         onHelixChange={refreshHelix}
         opti={opti}
         onOptiChange={refreshOpti}
-        makoShown={makoShown}
-        onToggleMako={toggleMako}
+        onMakoChange={refreshBackends}
       />
       <GameSection
         selected={selected}
@@ -115,7 +104,7 @@ function Content() {
         onChoice={setChoice}
       />
       {/* MAKO Decky's own controls (vendored, GPL-3.0), shown for a MAKO game or when opened from Backends */}
-      {(makoGame || showMako) && (
+      {makoGame && (
         <PanelSection title="MAKO">
           {makoShown && (
             <PanelSectionRow>
