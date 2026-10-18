@@ -139,7 +139,15 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
   );
 }
 
-export function OptiScalerGame({ appid, status }: { appid: string; status: OptiStatus | null }) {
+export function OptiScalerGame({
+  appid,
+  status,
+  onChange,
+}: {
+  appid: string;
+  status: OptiStatus | null;
+  onChange?: () => void;
+}) {
   const [game, setGame] = useState<OptiGame | null>(null);
   const [dll, setDll] = useState<string>("dxgi.dll");
   const [busy, setBusy] = useState(false);
@@ -182,12 +190,14 @@ export function OptiScalerGame({ appid, status }: { appid: string; status: OptiS
           const removed = r.removed?.length ? `Removed ${r.removed.join(" and ")}. ` : "";
           toast(`${removed}${r.message ?? "Patched"} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`);
         }
+        if (r.helix_in_opti && !r.helix_in_opti.ok) toast(`HelixSR wasn't added: ${r.helix_in_opti.error}`);
       } else {
         toast(r.message ?? "Patching failed");
       }
     } finally {
       setBusy(false);
       load();
+      onChange?.();
     }
   };
 
@@ -204,6 +214,7 @@ export function OptiScalerGame({ appid, status }: { appid: string; status: OptiS
     } finally {
       setBusy(false);
       load();
+      onChange?.();
     }
   };
 

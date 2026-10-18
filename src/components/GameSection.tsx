@@ -16,6 +16,7 @@ import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRGame } from "./HelixSRGame";
 import { OptiScalerGame } from "./OptiScaler";
 import { MakoGame } from "./MakoGame";
+import { HelixInOptiGame } from "./HelixInOpti";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
   none: "Off",
@@ -23,6 +24,8 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   helixsr: "HelixSR",
   mako: "MAKO",
   "optiscaler+mako": "OptiScaler + MAKO",
+  "optiscaler+helixsr": "OptiScaler + HelixSR",
+  "optiscaler+helixsr+mako": "OptiScaler + HelixSR + MAKO",
 };
 
 const parts = (choice: GameChoice | null | undefined) => (choice ? choice.split("+") : []);
@@ -63,6 +66,7 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
   useEffect(() => onChoice(detail?.ok && detail.installed ? (detail.backend ?? null) : null), [detail]);
 
   const [switching, setSwitching] = useState(false);
+  const [optiChanged, setOptiChanged] = useState(0);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
   const choose = async (choice: GameChoice) => {
     if (!selected || choice === detail?.backend) return;
@@ -77,6 +81,10 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
           toast(`Couldn't update the launch options. Set them in Steam: ${r.launch_options || "(empty)"}`);
         }
         if (r.removed?.length) toast(`Removed ${r.removed.join(" and ")} from this game.`);
+        if (r.helix_in_opti) {
+          toast(r.helix_in_opti.ok ? "HelixSR added to OptiScaler" : `HelixSR wasn't added: ${r.helix_in_opti.error}`);
+        }
+        setOptiChanged((n) => n + 1);
       } else {
         toast(r.message ?? "Couldn't save the choice");
       }
@@ -128,8 +136,12 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
             <HelixSRGame appid={selected.appid} helix={helix} />
           )}
           {detail?.ok && detail.installed && parts(detail.backend).includes("optiscaler") && (
-            <OptiScalerGame appid={selected.appid} status={opti} />
+            <OptiScalerGame appid={selected.appid} status={opti} onChange={() => setOptiChanged((n) => n + 1)} />
           )}
+          {detail?.ok && detail.installed && parts(detail.backend).includes("optiscaler") &&
+            parts(detail.backend).includes("helixsr") && (
+              <HelixInOptiGame appid={selected.appid} helix={helix} refresh={optiChanged} />
+            )}
           {detail?.ok && detail.installed && parts(detail.backend).includes("mako") && (
             <MakoGame
               appid={selected.appid}

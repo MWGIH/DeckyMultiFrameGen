@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ButtonItem, DropdownItem, Field, PanelSectionRow } from "@decky/ui";
+import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, showModal } from "@decky/ui";
 import { toaster } from "@decky/api";
 import {
   helixsrGameStatus,
@@ -90,6 +90,25 @@ export function HelixSRGame({ appid, helix }: { appid: string; helix: HelixStatu
   const ways = game.ways ?? [];
   const chosen: HelixRoute | undefined = route === "auto" ? (game.route as HelixRoute) : route;
 
+  const eac = (game.anticheat ?? []).some((a) => /easy\s*anti-?cheat/i.test(a));
+  const EAC_WARNING =
+    "Easy Anti-Cheat checks the game's FSR file and stops the game when HelixSR has replaced it: you get the anti-cheat splash, then a black screen (seen in Gears of War: E-Day). Choose OptiScaler + HelixSR for this game instead: it leaves the game's files alone, and OptiScaler ran fine in Gears of War: E-Day.";
+
+  const askInstall = () => {
+    if (!eac || game.installed) {
+      install();
+      return;
+    }
+    showModal(
+      <ConfirmModal
+        strTitle="This game uses Easy Anti-Cheat"
+        strDescription={`${EAC_WARNING} Install HelixSR anyway?`}
+        strOKButtonText="Install anyway"
+        onOK={install}
+      />,
+    );
+  };
+
   const install = async () => {
     setBusy(true);
     try {
@@ -162,7 +181,12 @@ export function HelixSRGame({ appid, helix }: { appid: string; helix: HelixStatu
           />
         </PanelSectionRow>
       )}
-      {(game.anticheat?.length ?? 0) > 0 && (
+      {eac && (
+        <PanelSectionRow>
+          <Field label="HelixSR won't work with Easy Anti-Cheat" description={EAC_WARNING} />
+        </PanelSectionRow>
+      )}
+      {!eac && (game.anticheat?.length ?? 0) > 0 && (
         <PanelSectionRow>
           <Field
             label="Anti-cheat found"
@@ -185,7 +209,7 @@ export function HelixSRGame({ appid, helix }: { appid: string; helix: HelixStatu
       )}
       {ways.length > 0 && (
         <PanelSectionRow>
-          <ButtonItem layout="below" disabled={busy || !ready} onClick={install}>
+          <ButtonItem layout="below" disabled={busy || !ready} onClick={askInstall}>
             {!ready
               ? "Waiting for HelixSR's setup"
               : game.installed

@@ -1,7 +1,14 @@
 import { callable } from "@decky/api";
 
 export type BackendId = "optiscaler" | "helixsr" | "mako";
-export type GameChoice = "none" | "optiscaler" | "helixsr" | "mako" | "optiscaler+mako";
+export type GameChoice =
+  | "none"
+  | "optiscaler"
+  | "helixsr"
+  | "mako"
+  | "optiscaler+mako"
+  | "optiscaler+helixsr"
+  | "optiscaler+helixsr+mako";
 
 export type Backend = {
   id: BackendId;
@@ -38,7 +45,14 @@ export const listInstalledGames = callable<[], { ok: boolean; message?: string; 
 export const getGame = callable<[appid: string], GameDetail>("get_game");
 export const setGameBackend = callable<
   [appid: string, backend: GameChoice, current_launch_options: string | null],
-  { ok: boolean; message?: string; backend?: GameChoice; removed?: string[]; launch_options?: string | null }
+  {
+    ok: boolean;
+    message?: string;
+    backend?: GameChoice;
+    removed?: string[];
+    launch_options?: string | null;
+    helix_in_opti?: HelixInOptiResult | null;
+  }
 >("set_game_backend");
 export const logError = callable<[message: string], void>("log_error");
 
@@ -106,6 +120,22 @@ export const helixsrInstallGame = callable<
 >("helixsr_install_game");
 export const helixsrUninstallGame = callable<[appid: string], HelixGame>("helixsr_uninstall_game");
 
+// HelixSR as a mod inside OptiScaler (OptiScaler's FSR 3.1 upscaler is HelixSR)
+export type HelixInOptiResult = { ok: boolean; error?: string; installed?: boolean; removed?: boolean };
+export type HelixInOpti = {
+  ok: boolean;
+  error?: string;
+  patched?: boolean;
+  installed?: boolean;
+  ini_ok?: boolean;
+  helixsr?: string | null;
+  active?: string | null;
+  runtime_log?: { lines: string[]; modified: number } | null;
+};
+export const helixsrOptiStatus = callable<[appid: string], HelixInOpti>("helixsr_opti_status");
+export const helixsrOptiAdd = callable<[appid: string], HelixInOptiResult>("helixsr_opti_add");
+export const helixsrOptiRemove = callable<[appid: string], HelixInOptiResult>("helixsr_opti_remove");
+
 // --- OptiScaler (Decky Framegen) ---
 
 export type OptiStatus = {
@@ -146,7 +176,12 @@ export type OptiGame = {
   optiscaler_version?: string | null;
 };
 
-export type OptiPatch = OptiResult & { launch_options?: string; original_launch_options?: string; removed?: string[] };
+export type OptiPatch = OptiResult & {
+  launch_options?: string;
+  original_launch_options?: string;
+  removed?: string[];
+  helix_in_opti?: HelixInOptiResult;
+};
 
 export const optiscalerStatus = callable<[], OptiStatus>("optiscaler_status");
 export const optiscalerInstall = callable<[], OptiResult>("optiscaler_install");
