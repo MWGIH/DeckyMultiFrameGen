@@ -41,6 +41,36 @@ Early development.
 If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
 Renderer install.
 
+## HelixSR game compatibility
+
+HelixSR has no official compatibility list (its README says only that other GPUs, drivers and games are untested), so
+this one collects what is known. The plugin checks each game itself and says in the game's panel when HelixSR can't
+work there (Vulkan, no FSR / DLSS / XeSS files, anti-cheat).
+
+What decides whether a game can use HelixSR:
+
+| Game | HelixSR |
+| --- | --- |
+| DirectX 12 with FSR 3.1 | FSR drop-in (select AMD FSR in the game) |
+| DirectX 12 with DLSS, XeSS or FSR 2 | HelixSR Scaler, or OptiScaler + HelixSR |
+| DirectX 12 with anti-cheat that checks game files (Easy Anti-Cheat) | OptiScaler + HelixSR only; the drop-in stops the game |
+| Vulkan, DirectX 11 or older, native Linux | Not supported |
+
+Reports so far:
+
+| Game | Way | Result | Source |
+| --- | --- | --- | --- |
+| Gears of War: E-Day | FSR drop-in | ❌ Easy Anti-Cheat splash, then a black screen | Steam Deck test for this plugin |
+| Gears of War: E-Day | OptiScaler + HelixSR | Not tested yet (OptiScaler alone works) | Steam Deck test for this plugin |
+| Enshrouded | FSR drop-in, OptiScaler | ❌ HelixSR never loads (the game runs on Vulkan) | Steam Deck test for this plugin |
+| Pragmata | not stated | ✅ 34 to 40 FPS, Steam Deck, performance mode | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
+| CONTROL Resonant | not stated | ✅ 35 to 40 FPS at 1080p, locked 60 at 720p, ROG Ally X | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
+| Hitman: World of Assassination | not stated | ✅ 35 FPS with DLSS Quality vs 17 with FSR 4, BC-250 at 4K | via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
+| Diablo IV | FSR drop-in | ❌ Crashes on load | [HelixSR issue #1](https://github.com/lonewolf0622/HelixSR/issues/1) |
+
+Tried a game? Open an issue in this repository with the game, the way (FSR drop-in, HelixSR Scaler or OptiScaler +
+HelixSR), the result, and the HelixSR log line from the game's panel.
+
 ## Install
 
 On your Deck, in Decky's settings turn on **Developer mode**, then under **Developer** choose **Install Plugin from
