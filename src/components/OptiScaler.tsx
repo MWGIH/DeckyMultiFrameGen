@@ -233,6 +233,12 @@ export function OptiScalerGame({
         />
       </PanelSectionRow>
       <PanelSectionRow>
+        <Field
+          label="Tip: bind Insert to a back button"
+          description="OptiScaler's menu opens with the keyboard's Insert key. In the game's controller settings (Steam button, then Controller), set a back button (L4, L5, R4 or R5) to the keyboard key Insert to open the menu in game."
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
         <DropdownItem
           label="Proxy DLL"
           description={PROXY_DLL_OPTIONS.find((o) => o.value === dll)?.hint}
