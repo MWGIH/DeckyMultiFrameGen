@@ -58,6 +58,7 @@ export const logError = callable<[message: string], void>("log_error");
 
 // --- MAKO (its own panel calls mako_* through src/mako/api/makoApi.ts) ---
 
+export const makoGames = callable<[], string[]>("mako_games");
 export const makoGameLaunchOptions = callable<
   [current_launch_options: string, enable: boolean],
   { ok: boolean; error?: string; installed: boolean; launch_options?: string; enabled?: boolean; runner?: string }

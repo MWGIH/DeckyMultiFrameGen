@@ -196,6 +196,10 @@ class Plugin:
 
     # --- MAKO (its own controls are the mako_* methods at the end) ---
 
+    async def mako_games(self) -> list[str]:
+        """Games set to a choice with MAKO (their launch options carry MAKO's launcher)."""
+        return SETTINGS.games_using("mako")
+
     async def mako_game_launch_options(self, current_launch_options: str, enable: bool) -> dict:
         """The launch options with MAKO's launcher added or taken out."""
         installed = Path(_mako_runner()).is_file()

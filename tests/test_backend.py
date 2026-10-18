@@ -105,3 +105,15 @@ class PluginTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GamesUsingTests(unittest.TestCase):
+    def test_lists_games_whose_choice_includes_the_part(self):
+        import tempfile
+        from pathlib import Path
+        from multifg.settings import Settings
+        s = Settings(Path(tempfile.mkdtemp()) / "settings.json")
+        s.set_game_choice("1", "mako")
+        s.set_game_choice("2", "optiscaler+helixsr+mako")
+        s.set_game_choice("3", "optiscaler")
+        self.assertEqual(sorted(s.games_using("mako")), ["1", "2"])

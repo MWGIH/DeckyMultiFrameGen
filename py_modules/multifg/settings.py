@@ -24,6 +24,11 @@ class Settings:
     def game_choice(self, appid: str) -> str:
         return self.load().get("games", {}).get(appid, {}).get("backend", "none")
 
+    def games_using(self, part: str) -> list[str]:
+        """App ids of the games whose choice includes part (e.g. "mako")."""
+        games = self.load().get("games", {})
+        return [a for a, g in games.items() if part in str(g.get("backend", "")).split("+")]
+
     def set_game_choice(self, appid: str, backend: str) -> None:
         data = self.load()
         games = data.setdefault("games", {})
