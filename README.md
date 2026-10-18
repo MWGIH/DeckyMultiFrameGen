@@ -16,6 +16,9 @@ without juggling several plugins:
 
 See [CREDITS.md](CREDITS.md) for who made what.
 
+**See it in action:** the [Gaming On Steam](https://www.youtube.com/@gaming_onsteam) YouTube channel tests this plugin on
+the Steam Deck, with game-by-game results and performance updates as it develops.
+
 ## Status
 
 Early development.
