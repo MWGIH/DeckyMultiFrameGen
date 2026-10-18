@@ -74,6 +74,16 @@ function Content() {
 
   return (
     <>
+      <BackendsSection
+        backends={backends}
+        helix={helix}
+        onHelixChange={refreshHelix}
+        opti={opti}
+        onOptiChange={refreshOpti}
+        makoShown={makoGame || showMako}
+        makoPinned={makoGame}
+        onToggleMako={toggleMako}
+      />
       <GameSection
         selected={selected}
         games={games}
@@ -85,16 +95,6 @@ function Content() {
       />
       {/* MAKO Decky's own controls (vendored, GPL-3.0), shown for a MAKO game or when opened from Backends */}
       {(makoGame || showMako) && <MakoContent />}
-      <BackendsSection
-        backends={backends}
-        helix={helix}
-        onHelixChange={refreshHelix}
-        opti={opti}
-        onOptiChange={refreshOpti}
-        makoShown={makoGame || showMako}
-        makoPinned={makoGame}
-        onToggleMako={toggleMako}
-      />
     </>
   );
 }

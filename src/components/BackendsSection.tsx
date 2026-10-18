@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ButtonItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import type { Backend, HelixStatus, OptiStatus } from "../api";
 import { HelixSRSetup } from "./HelixSRSetup";
@@ -20,11 +21,42 @@ type Props = {
   onToggleMako: () => void;
 };
 
+const COLLAPSED_KEY = "multifg:backendsCollapsed";
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// One line per backend while the section is hidden, e.g. "OptiScaler 0.9.4 · HelixSR v1.9.3 · MAKO not installed"
+function summary(backends: Backend[]): string {
+  return backends
+    .map((b) => `${b.name} ${b.installed ? (b.version ?? "installed") : "not installed"}`)
+    .join(" · ");
+}
+
 export function BackendsSection(props: Props) {
   const { backends, helix, onHelixChange, opti, onOptiChange, makoShown, makoPinned, onToggleMako } = props;
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggle = () => {
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem(COLLAPSED_KEY, collapsed ? "0" : "1");
+    } catch {
+      // just not remembered
+    }
+  };
   return (
     <PanelSection title="Backends">
-      {backends === null ? (
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={toggle} description={collapsed && backends ? summary(backends) : undefined}>
+          {collapsed ? "Show backends" : "Hide backends"}
+        </ButtonItem>
+      </PanelSectionRow>
+      {collapsed ? null : backends === null ? (
         <PanelSectionRow>
           <Field label="Checking…" />
         </PanelSectionRow>
