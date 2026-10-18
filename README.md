@@ -41,6 +41,32 @@ Early development.
 If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
 Renderer install.
 
+## OptiScaler: which proxy DLL to pick
+
+A game never loads OptiScaler by itself. OptiScaler goes into the game's folder under the name of a Windows DLL the game
+already loads (the "proxy DLL"), and Proton is told to load that copy instead of its own
+(`WINEDLLOVERRIDES=<name>=n,b`, which the plugin puts in the launch options). Which name works depends on the game: it
+has to be a DLL the game loads early, and one the game or its launcher doesn't mind being replaced.
+
+| Proxy DLL | When to use it |
+| --- | --- |
+| `dxgi.dll` (default) | OptiScaler's recommended name and the one to try first. Every DirectX 11/12 game loads it. |
+| `winmm.dll` | First fallback. Nearly every Windows game loads it (sound and timers), so it also works where `dxgi.dll` is the problem: the game ships its own `dxgi.dll`, another mod already uses that name, or the game crashes or won't start with it. |
+| `version.dll` | Second fallback. Loaded by most games and launchers; a good choice when the game starts through a launcher. |
+| `dbghelp.dll` | Loaded by games with crash reporters (many Unreal Engine games). Try it when the names above don't load OptiScaler. |
+| `winhttp.dll`, `wininet.dll` | Loaded by games that go online at start (store, telemetry, news). Last resorts. |
+| `OptiScaler.asi` | Only for games that already have an ASI loader (Ultimate ASI Loader); the loader loads OptiScaler. No launch option needed. |
+
+If the game stops loading or crashes after patching, unpatch, pick the next name in this order and patch again:
+`dxgi.dll`, `winmm.dll`, `version.dll`, `dbghelp.dll`, `winhttp.dll`, `wininet.dll`. If the game starts but OptiScaler's
+menu never appears, the game doesn't load that name: try the next one too. If none works, OptiScaler can't hook the
+game; MAKO still can, since it works outside the game.
+
+OptiScaler mainly targets DirectX 11/12 games. A Vulkan game (such as Enshrouded) may not start with OptiScaler as
+`dxgi.dll`; try `winmm.dll` or `version.dll` there. Source: OptiScaler's
+[Manual Installation](https://github.com/optiscaler/OptiScaler/wiki/Manual-Installation) guide (it lists the supported
+names and prefers `dxgi.dll`); the fallback order is this plugin's advice.
+
 ## HelixSR game compatibility
 
 HelixSR has no official compatibility list (its README says only that other GPUs, drivers and games are untested), so
@@ -62,7 +88,7 @@ Reports so far:
 | --- | --- | --- | --- |
 | Gears of War: E-Day | FSR drop-in | ❌ Easy Anti-Cheat splash, then a black screen | Steam Deck test for this plugin |
 | Gears of War: E-Day | OptiScaler + HelixSR | ✅ Works, gets past Easy Anti-Cheat (select DLSS in the game, FSR 3.X in OptiScaler) | Steam Deck test for this plugin |
-| Enshrouded | FSR drop-in, OptiScaler | ❌ HelixSR never loads (the game runs on Vulkan) | Steam Deck test for this plugin |
+| Enshrouded | FSR drop-in, OptiScaler | ❌ HelixSR never loads (the game runs on Vulkan); OptiScaler as `dxgi.dll` stops the game loading | Steam Deck test for this plugin |
 | Pragmata | not stated | ✅ 34 to 40 FPS, Steam Deck, performance mode | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | CONTROL Resonant | not stated | ✅ 35 to 40 FPS at 1080p, locked 60 at 720p, ROG Ally X | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | Hitman: World of Assassination | not stated | ✅ 35 FPS with DLSS Quality vs 17 with FSR 4, BC-250 at 4K | via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |

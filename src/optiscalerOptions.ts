@@ -1,12 +1,12 @@
 // Proxy DLL names offered for OptiScaler, from Decky Framegen (BSD-3-Clause).
 
 export const PROXY_DLL_OPTIONS = [
-  { value: "dxgi.dll", label: "dxgi.dll (default)", hint: "Works for most DX12 games." },
-  { value: "winmm.dll", label: "winmm.dll", hint: "Use when dxgi.dll conflicts with an existing game file." },
-  { value: "version.dll", label: "version.dll", hint: "Common fallback; works well with many launchers." },
-  { value: "dbghelp.dll", label: "dbghelp.dll", hint: "Use for debug helper hook paths." },
-  { value: "winhttp.dll", label: "winhttp.dll", hint: "Use when other DLL names conflict." },
-  { value: "wininet.dll", label: "wininet.dll", hint: "Use when other DLL names conflict." },
+  { value: "dxgi.dll", label: "dxgi.dll (default)", hint: "Try this first. Works for most DirectX 11/12 games." },
+  { value: "winmm.dll", label: "winmm.dll", hint: "First fallback: when the game won't start with dxgi.dll, ships its own, or is a Vulkan game." },
+  { value: "version.dll", label: "version.dll", hint: "Second fallback; good for games that start through a launcher." },
+  { value: "dbghelp.dll", label: "dbghelp.dll", hint: "For games with a crash reporter (many Unreal Engine games)." },
+  { value: "winhttp.dll", label: "winhttp.dll", hint: "Last resort, for games that go online at start." },
+  { value: "wininet.dll", label: "wininet.dll", hint: "Last resort, for games that go online at start." },
   { value: "OptiScaler.asi", label: "OptiScaler.asi", hint: "Needs an ASI loader already installed in the game." },
 ] as const;
 
