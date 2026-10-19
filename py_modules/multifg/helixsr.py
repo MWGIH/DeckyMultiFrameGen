@@ -135,10 +135,10 @@ class HelixSR:
                 "succeeded" if Path(job["rc_file"]).read_text().strip() == "0" else "failed")
             if job["state"] == "succeeded" and job.get("tag") and not self.ready(job["tag"]):
                 job["state"] = "failed"
-                job["error"] = "The setup ended without building the network. See the log."
+                job["error"] = "The setup ended without building the network. See the setup log below."
             if job["state"] == "failed" and not job.get("error"):
                 errors = [l for l in _tail(self.log, 40) if "error:" in l]
-                job["error"] = errors[-1].split("error:", 1)[1].strip() if errors else "The setup stopped. See the log."
+                job["error"] = errors[-1].split("error:", 1)[1].strip() if errors else "The setup stopped. See the setup log below."
             self._write_json(self.job_file, job)
         if job.get("phase") == "download" and job.get("state") == "running" and job.get("zip"):
             try:
@@ -159,6 +159,9 @@ class HelixSR:
             "latest": latest,
             "update_available": bool(latest and latest["tag"] not in local),
         }
+
+    def setup_log(self, lines: int = 80) -> dict:
+        return {"path": str(self.log), "lines": _tail(self.log, max(1, min(int(lines), 400)))}
 
     def start_install(self, tag: str | None = None) -> dict:
         with self._lock:

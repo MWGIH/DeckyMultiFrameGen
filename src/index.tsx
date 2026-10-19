@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { ButtonItem, PanelSection, PanelSectionRow, staticClasses } from "@decky/ui";
+import {
+  ButtonItem,
+  PanelSection,
+  PanelSectionRow,
+  staticClasses,
+} from "@decky/ui";
 import { definePlugin } from "@decky/api";
 import { LuGalleryHorizontalEnd } from "react-icons/lu";
-import { getBackends, listInstalledGames, logError, type Backend, type GameSummary } from "./api";
+import {
+  getBackends,
+  listInstalledGames,
+  logError,
+  type Backend,
+  type GameSummary,
+} from "./api";
 import { useSelectedGame } from "./hooks/useSelectedGame";
 import { BackendsSection } from "./components/BackendsSection";
 import { GameSection } from "./components/GameSection";
@@ -10,6 +21,7 @@ import { useHelixStatus } from "./components/HelixSRSetup";
 import { useOptiStatus } from "./components/OptiScaler";
 import { helixsrStatus, optiscalerStatus, type GameChoice } from "./api";
 import { Content as MakoContent } from "./mako/components/Content";
+import { startDailyUpdateCheck } from "./dailyUpdateCheck";
 
 const PICKED_KEY = "multifg:picked";
 const MAKO_HIDDEN_KEY = "multifg:makoHidden";
@@ -120,7 +132,9 @@ function Content() {
           {makoShown && (
             <PanelSectionRow>
               <ButtonItem layout="below" onClick={() => setMakoFull(!makoFull)}>
-                {makoFull ? "Show fewer MAKO settings" : "Show all MAKO settings"}
+                {makoFull
+                  ? "Show fewer MAKO settings"
+                  : "Show all MAKO settings"}
               </ButtonItem>
             </PanelSectionRow>
           )}
@@ -135,10 +149,14 @@ function Content() {
   );
 }
 
-export default definePlugin(() => ({
-  name: "Decky MultiFrameGen",
-  titleView: <div className={staticClasses.Title}>MultiFrameGen</div>,
-  alwaysRender: true,
-  content: <Content />,
-  icon: <LuGalleryHorizontalEnd />,
-}));
+export default definePlugin(() => {
+  const stopUpdateCheck = startDailyUpdateCheck();
+  return {
+    name: "Decky MultiFrameGen",
+    titleView: <div className={staticClasses.Title}>MultiFrameGen</div>,
+    alwaysRender: true,
+    content: <Content />,
+    icon: <LuGalleryHorizontalEnd />,
+    onDismount: stopUpdateCheck,
+  };
+});

@@ -126,6 +126,10 @@ export type HelixGame = {
 };
 
 export const helixsrStatus = callable<[], HelixStatus>("helixsr_status");
+export const helixsrLog = callable<
+  [lines?: number],
+  { path: string; lines: string[] }
+>("helixsr_log");
 export const helixsrInstall = callable<
   [tag?: string],
   { ok: boolean; error?: string; tag?: string }

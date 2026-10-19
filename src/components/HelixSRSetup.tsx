@@ -12,12 +12,49 @@ import {
   helixsrInstall,
   helixsrRemove,
   helixsrStatus,
+  helixsrLog,
   type HelixJob,
   type HelixStatus,
 } from "../api";
 
 const POLL_RUNNING_MS = 1500;
 const POLL_IDLE_MS = 10000;
+
+// HelixSR's setup log (its own output and this plugin's steps), shown on request: it is long
+function SetupLog() {
+  const [log, setLog] = useState<{ path: string; lines: string[] } | null>(
+    null,
+  );
+  const toggle = async () => setLog(log ? null : await helixsrLog(80));
+  return (
+    <>
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={toggle}>
+          {log ? "Hide HelixSR setup log" : "Show HelixSR setup log"}
+        </ButtonItem>
+      </PanelSectionRow>
+      {log && (
+        <PanelSectionRow>
+          <Field
+            label="HelixSR setup log"
+            description={
+              <div
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: "11px",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                }}
+              >
+                {`${log.path}\n\n${log.lines.join("\n") || "(empty)"}`}
+              </div>
+            }
+          />
+        </PanelSectionRow>
+      )}
+    </>
+  );
+}
 
 // A bar with a title and a percentage above it and wrapping detail text below, all inside the panel's width
 function Stage({
@@ -247,6 +284,7 @@ export function HelixSRSetup({
           />
         </PanelSectionRow>
       )}
+      {(job?.state === "failed" || status.log.length > 0) && <SetupLog />}
       {status.active && !status.active_ready && job?.state !== "failed" && (
         <PanelSectionRow>
           <Field

@@ -8,6 +8,7 @@ import {
   type Updates,
 } from "../api";
 import { installMako } from "../mako/api/makoApi";
+import { availableUpdates } from "../dailyUpdateCheck";
 
 const PLUGIN_NAME = "Decky MultiFrameGen"; // plugin.json's name: Decky replaces the installed copy with that name
 const INSTALL_URL =
@@ -55,7 +56,17 @@ export function UpdatesCheck({
   const check = async () => {
     setChecking(true);
     try {
-      setU(await checkUpdates());
+      const r = await checkUpdates();
+      setU(r);
+      try {
+        localStorage.setItem("multifg:lastUpdateCheck", String(Date.now()));
+        localStorage.setItem(
+          "multifg:notifiedUpdates",
+          availableUpdates(r).join(", "),
+        );
+      } catch {
+        // the daily check just runs as usual
+      }
     } catch (e) {
       toast(`Couldn't check: ${e}`);
     } finally {

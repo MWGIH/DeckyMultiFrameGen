@@ -74,7 +74,14 @@ export function BackendsSection(props: Props) {
         <ButtonItem
           layout="below"
           onClick={toggle}
-          description={collapsed && backends ? summary(backends) : undefined}
+          description={
+            collapsed && backends
+              ? summary(backends) +
+                (helix?.job?.state === "failed"
+                  ? `. HelixSR ${helix.job.tag} setup failed: show backends for its log.`
+                  : "")
+              : undefined
+          }
         >
           {collapsed ? "Show backends" : "Hide backends"}
         </ButtonItem>

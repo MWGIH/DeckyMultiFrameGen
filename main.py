@@ -214,6 +214,9 @@ class Plugin:
     async def helixsr_status(self) -> dict:
         return await asyncio.to_thread(HELIXSR.status)
 
+    async def helixsr_log(self, lines: int = 80) -> dict:
+        return await asyncio.to_thread(HELIXSR.setup_log, lines)
+
     async def helixsr_install(self, tag: str = "") -> dict:
         return await asyncio.to_thread(HELIXSR.start_install, tag or None)
 
