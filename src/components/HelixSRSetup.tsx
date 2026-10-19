@@ -1,17 +1,112 @@
 import { useEffect, useState } from "react";
-import { ButtonItem, ConfirmModal, Field, PanelSectionRow, ProgressBarWithInfo, showModal } from "@decky/ui";
+import {
+  ButtonItem,
+  ConfirmModal,
+  Field,
+  PanelSectionRow,
+  ProgressBar,
+  showModal,
+} from "@decky/ui";
 import { toaster } from "@decky/api";
-import { helixsrInstall, helixsrRemove, helixsrStatus, type HelixStatus } from "../api";
+import {
+  helixsrInstall,
+  helixsrRemove,
+  helixsrStatus,
+  type HelixJob,
+  type HelixStatus,
+} from "../api";
 
 const POLL_RUNNING_MS = 1500;
 const POLL_IDLE_MS = 10000;
 
-const PHASES = {
-  download: "Downloading HelixSR",
-  verify: "Checking the download",
-  extract: "Unpacking",
-  setup: "Running HelixSR's setup (builds the upscaling network, a few minutes)",
-};
+// A bar with a title and a percentage above it and wrapping detail text below, all inside the panel's width
+function Stage({
+  title,
+  percent,
+  detail,
+}: {
+  title: string;
+  percent?: number;
+  detail?: string | null;
+}) {
+  return (
+    <PanelSectionRow>
+      <div style={{ width: "100%", overflow: "hidden" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "14px",
+            marginBottom: "4px",
+          }}
+        >
+          <span>{title}</span>
+          <span>{percent === undefined ? "" : `${Math.round(percent)}%`}</span>
+        </div>
+        <ProgressBar
+          nProgress={percent ?? 0}
+          indeterminate={percent === undefined}
+        />
+        {detail && (
+          <div
+            style={{
+              fontSize: "12px",
+              opacity: 0.7,
+              marginTop: "4px",
+              whiteSpace: "normal",
+              wordBreak: "break-word",
+            }}
+          >
+            {detail}
+          </div>
+        )}
+      </div>
+    </PanelSectionRow>
+  );
+}
+
+// Download (download, checksum, unpack) and HelixSR's own setup, each with its own bar
+function JobProgress({ job }: { job: HelixJob }) {
+  const fraction =
+    job.size && job.downloaded
+      ? Math.min(1, job.downloaded / job.size)
+      : undefined;
+  const mb = (n?: number) => `${Math.round((n ?? 0) / 1e6)} MB`;
+  const download =
+    job.phase === "download"
+      ? {
+          percent: fraction === undefined ? undefined : fraction * 100,
+          detail: job.size
+            ? `${mb(job.downloaded)} of ${mb(job.size)}`
+            : "Starting the download",
+        }
+      : job.phase === "verify"
+        ? { percent: 100, detail: "Checking the download" }
+        : job.phase === "extract"
+          ? { percent: 100, detail: "Unpacking" }
+          : { percent: 100, detail: "Done" };
+  const setup =
+    job.phase !== "setup"
+      ? { percent: 0, detail: "Waits for the download" }
+      : {
+          percent: job.setup_percent ?? undefined,
+          detail: job.setup_step ?? "Starting HelixSR's setup",
+        };
+  return (
+    <>
+      <Stage
+        title={`Download HelixSR ${job.tag}`}
+        percent={download.percent}
+        detail={download.detail}
+      />
+      <Stage
+        title="Setup (builds the upscaling network)"
+        percent={setup.percent}
+        detail={setup.detail}
+      />
+    </>
+  );
+}
 
 function confirmInstall(tag: string, onOk: () => void) {
   showModal(
@@ -49,7 +144,13 @@ export function useHelixStatus() {
   return [status, setStatus] as const;
 }
 
-export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null; onChange: () => void }) {
+export function HelixSRSetup({
+  status,
+  onChange,
+}: {
+  status: HelixStatus | null;
+  onChange: () => void;
+}) {
   if (!status) return null;
   const job = status.job;
   const running = job?.state === "running";
@@ -57,30 +158,31 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
   const start = (tag: string) =>
     confirmInstall(tag, async () => {
       const r = await helixsrInstall(tag);
-      if (!r.ok) toaster.toast({ title: "HelixSR", body: r.error ?? "Couldn't start the install" });
+      if (!r.ok)
+        toaster.toast({
+          title: "HelixSR",
+          body: r.error ?? "Couldn't start the install",
+        });
       onChange();
     });
 
   if (running && job) {
-    const progress =
-      job.phase === "download" && job.size && job.downloaded ? Math.min(1, job.downloaded / job.size) : undefined;
     return (
       <>
-        <PanelSectionRow>
-          <ProgressBarWithInfo
-            label={`HelixSR ${job.tag}`}
-            description={PHASES[job.phase]}
-            nProgress={progress === undefined ? undefined : progress * 100}
-            indeterminate={progress === undefined}
-            sOperationText={progress === undefined ? undefined : `${Math.round(progress * 100)}%`}
-          />
-        </PanelSectionRow>
+        <JobProgress job={job} />
         {status.log.length > 0 && (
           <PanelSectionRow>
             <Field
               label="Setup output"
               description={
-                <div style={{ fontFamily: "monospace", fontSize: "11px", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                <div
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: "11px",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                  }}
+                >
                   {status.log.slice(-4).join("\n")}
                 </div>
               }
@@ -107,7 +209,7 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
             title: "HelixSR",
             body: r.ok
               ? `Removed${r.removed?.length ? ` (also from ${r.removed.join(", ")})` : ""}.`
-              : r.error ?? "Removing failed",
+              : (r.error ?? "Removing failed"),
           });
           onChange();
         }}
@@ -137,7 +239,9 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
             label={`HelixSR ${job.tag}: setup failed`}
             description={
               <div style={{ whiteSpace: "pre-wrap" }}>
-                {[job.error, ...status.log.slice(-3)].filter(Boolean).join("\n")}
+                {[job.error, ...status.log.slice(-3)]
+                  .filter(Boolean)
+                  .join("\n")}
               </div>
             }
           />
@@ -145,7 +249,10 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
       )}
       {status.active && !status.active_ready && job?.state !== "failed" && (
         <PanelSectionRow>
-          <Field label={`HelixSR ${status.active}`} description="Downloaded, but its setup hasn't finished." />
+          <Field
+            label={`HelixSR ${status.active}`}
+            description="Downloaded, but its setup hasn't finished."
+          />
         </PanelSectionRow>
       )}
       {latest && (status.update_available || !status.active_ready) && (
@@ -168,7 +275,10 @@ export function HelixSRSetup({ status, onChange }: { status: HelixStatus | null;
       )}
       {!latest && !status.active_ready && (
         <PanelSectionRow>
-          <Field label="HelixSR" description="Couldn't reach GitHub to find HelixSR's releases." />
+          <Field
+            label="HelixSR"
+            description="Couldn't reach GitHub to find HelixSR's releases."
+          />
         </PanelSectionRow>
       )}
     </>

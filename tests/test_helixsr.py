@@ -97,6 +97,19 @@ class ReleaseStateTests(unittest.TestCase):
         self.assertEqual(self.h.status()["job"]["state"], "failed")
 
 
+class SetupProgressTests(unittest.TestCase):
+    def test_reads_the_steps_and_the_build_bar(self):
+        sp = helixsr.setup_progress
+        old = ["[helixsr-setup] [####################]  100%  2:42  done", "[multifg] 10:00:00 running /x/helixsr-setup.sh --yes"]
+        self.assertEqual(sp(old + ["[helixsr-setup] downloading nvngx_dlss.dll from NVIDIA"]),
+                         {"setup_percent": None, "setup_step": "downloading nvngx_dlss.dll from NVIDIA"})
+        build = old + ["[helixsr-setup] building the network (about two minutes)",
+                       "[helixsr-setup] [#####---------------]   25%  0:42  fragment tables 3/8",
+                       "[helixsr-setup] compile k1 2.0 s"]
+        self.assertEqual(sp(build), {"setup_percent": 25, "setup_step": "Building the network: fragment tables 3/8"})
+        self.assertEqual(sp(build + ["[helixsr-setup] done: the network is built"])["setup_percent"], 100)
+
+
 def fake_exe(imports):
     """A minimal 64-bit Windows .exe whose import table lists these DLLs."""
     import struct

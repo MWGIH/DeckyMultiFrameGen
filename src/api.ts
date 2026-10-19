@@ -89,6 +89,8 @@ export type HelixJob = {
   size?: number;
   downloaded?: number;
   error?: string | null;
+  setup_percent?: number | null; // HelixSR's setup: its network build bar, null before the build starts
+  setup_step?: string | null;
 };
 
 export type HelixStatus = {

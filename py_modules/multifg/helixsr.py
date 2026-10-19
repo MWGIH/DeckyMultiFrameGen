@@ -145,6 +145,8 @@ class HelixSR:
                 job["downloaded"] = Path(job["zip"]).stat().st_size
             except OSError:
                 job["downloaded"] = 0
+        if job.get("phase") == "setup" and job.get("state") == "running":
+            job.update(setup_progress(_tail(self.log, 60)))
         local = self.local_releases()
         latest = self.latest()
         active = self.active()
@@ -368,6 +370,35 @@ def _extract(zip_path: Path, target: Path) -> None:
                 mode |= 0o755
             if mode:
                 os.chmod(dest, mode)
+
+
+_BAR = re.compile(r"\[helixsr-setup\] \[[#-]+\]\s+(\d+)%\s+\S+\s*(.*)")
+_STEP = re.compile(r"\[helixsr-setup\] (?!\[)(.+)")
+
+
+def setup_progress(lines: list[str]) -> dict:
+    """How far HelixSR's setup is, from its output: the network build prints a bar line
+    ('[helixsr-setup] [#####---------------]  25%  0:42  fragment tables 3/8'); the steps before it (portable Python,
+    NVIDIA's DLL, the shader compiler) print a line each. setup_percent is None until the build starts."""
+    pct, stage, step = None, None, None
+    for line in lines:
+        if line.startswith("[multifg]") and "helixsr-setup.sh" in line:   # this run's start: earlier runs don't count
+            pct, stage, step = None, None, None
+            continue
+        m = _BAR.search(line)
+        if m:
+            pct, stage = int(m.group(1)), m.group(2).strip() or None
+            continue
+        m = _STEP.search(line)
+        if m and not m.group(1).startswith(("stage seconds", "compile ")):
+            step = m.group(1).strip()
+            if step.startswith("done"):
+                pct, stage = 100, "done"
+            elif not step.startswith("building the network"):
+                pct, stage = None, None   # a step after the build started is a new one (done, installing games)
+    if pct is not None:
+        return {"setup_percent": pct, "setup_step": f"Building the network: {stage}" if stage else "Building the network"}
+    return {"setup_percent": None, "setup_step": step}
 
 
 def _tail(p: Path, n: int) -> list[str]:
