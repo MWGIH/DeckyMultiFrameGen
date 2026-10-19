@@ -12,6 +12,9 @@ import shutil
 from pathlib import Path
 
 DLL = "amd_fidelityfx_dx12.dll"              # HelixSR's built DLL in its release folder
+# Where a release's setup leaves the built DLL: 2.0 builds it into HelixSR-fsrfg (and fsr3-drop-in), earlier
+# releases into the release folder itself
+BUILT = ("HelixSR-fsrfg/" + DLL, DLL, "fsr3-drop-in/" + DLL, "fsr3-drop-in/amd_fidelityfx_upscaler_dx12.dll")
 NETWORK = ("helixsr_weights.bin", "helixsr_kernels.pak")
 MOD_DIR = "HelixSR-OptiScaler"               # next to OptiScaler's DLL in the game
 OWN = "helixsr.dll"                          # for FfxDx12Path (FSR 3.1 in one DLL)
@@ -90,6 +93,16 @@ def _embedded_network(dll: Path) -> bool:
         return False
 
 
+def built_dll(release_dir: str | Path) -> Path | None:
+    """The release's DLL with the network the setup built: inside it (HXSRNET1) or as files next to it."""
+    d = Path(release_dir)
+    for rel in BUILT:
+        dll = d / rel
+        if dll.is_file() and (_embedded_network(dll) or all((dll.parent / n).is_file() for n in NETWORK)):
+            return dll
+    return None
+
+
 def status(target_dir: str | Path) -> dict:
     t = Path(target_dir)
     mod = t / MOD_DIR
@@ -120,19 +133,20 @@ def install(release_dir: str | Path, target_dir: str | Path, tag: str) -> dict:
     src, t = Path(release_dir), Path(target_dir)
     if not (t / INI).is_file():
         return {"ok": False, "error": "OptiScaler isn't in this game. Patch it with OptiScaler first."}
-    if not (src / DLL).is_file():
+    dll = built_dll(src)
+    if not dll:
         return {"ok": False, "error": "HelixSR isn't set up yet."}
     mod = t / MOD_DIR
     mod.mkdir(exist_ok=True)
     for name in (OWN, OWN_SR):
         tmp = mod / (name + ".multifg-new")
-        shutil.copyfile(src / DLL, tmp)
+        shutil.copyfile(dll, tmp)
         tmp.replace(mod / name)
     for n in NETWORK:
-        if _embedded_network(src / DLL):
+        if _embedded_network(dll):
             (mod / n).unlink(missing_ok=True)
         else:
-            shutil.copyfile(src / n, mod / n)
+            shutil.copyfile(dll.parent / n, mod / n)
     rec_path = mod / RECORD
     try:
         previous = json.loads(rec_path.read_text()).get("previous", {})

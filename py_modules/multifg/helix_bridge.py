@@ -80,7 +80,9 @@ def main():
             import helixsr_install as h
 
             if cmd == "ready":
-                result = {"ok": True, "ready": h.network_ready(here), "version": h.version_of(here / h.DLL)}
+                result = {"ok": True, "ready": bool(h.network_ready(here))}
+                with contextlib.suppress(Exception):
+                    result["version"] = h.version_of(here / h.DLL)
             elif cmd == "remove_all":
                 # what helixsr-uninstall does without its questions: HelixSR out of every game, originals put back
                 found = h.games([])

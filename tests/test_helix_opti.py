@@ -49,6 +49,22 @@ class ModTests(unittest.TestCase):
         self.assertEqual((self.game / "OptiScaler.ini").read_bytes().decode(), INI)
         self.assertFalse(mod.exists())
 
+    def test_helixsr_2_layout_uses_the_dll_built_into_helixsr_fsrfg(self):
+        # 2.0's setup builds the DLL into HelixSR-fsrfg; the one in the release folder has no network
+        (self.rel / helix_opti.DLL).write_bytes(b"MZunbuilt" + b"\0" * 40)
+        fsrfg = self.rel / "HelixSR-fsrfg"
+        fsrfg.mkdir()
+        built = b"MZhelix2" + b"HXSRNET1" + b"\0" * 24
+        (fsrfg / helix_opti.DLL).write_bytes(built)
+        self.assertEqual(helix_opti.built_dll(self.rel), fsrfg / helix_opti.DLL)
+        self.assertTrue(helix_opti.install(self.rel, self.game, "v2.0.0")["ok"])
+        self.assertEqual((self.game / helix_opti.MOD_DIR / helix_opti.OWN).read_bytes(), built)
+
+    def test_no_built_dll_before_the_setup(self):
+        (self.rel / helix_opti.DLL).write_bytes(b"MZunbuilt" + b"\0" * 40)
+        self.assertIsNone(helix_opti.built_dll(self.rel))
+        self.assertFalse(helix_opti.install(self.rel, self.game, "v2.0.0")["ok"])
+
     def test_needs_optiscaler_in_the_game(self):
         (self.game / "OptiScaler.ini").unlink()
         self.assertFalse(helix_opti.install(self.rel, self.game, "v1.9.3")["ok"])

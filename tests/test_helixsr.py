@@ -92,6 +92,17 @@ class ReleaseStateTests(unittest.TestCase):
         self.assertEqual(job["state"], "failed")
         self.assertIn("network", job["error"])
 
+    def test_helixsr_2_setup_recognised_and_earlier_failure_cleared(self):
+        # 2.0 builds into HelixSR-fsrfg; an earlier plugin version recorded that setup as failed
+        d = self.add_release("v2.0.0", built=False)
+        (d / "helixsr-setup.sh").write_text("")
+        (d / "HelixSR-fsrfg").mkdir()
+        (d / "HelixSR-fsrfg" / helixsr.DLL).write_bytes(b"MZ" + b"HXSRNET1" + b"\0" * 24)
+        self.h._write_json(self.h.job_file, {"state": "failed", "phase": "setup", "tag": "v2.0.0",
+                                             "error": "The setup ended without building the network."})
+        st = self.h.status()
+        self.assertEqual((st["job"]["state"], st["active"], st["active_ready"]), ("succeeded", "v2.0.0", True))
+
     def test_download_interrupted_by_a_restart_is_a_failure(self):
         self.h._write_json(self.h.job_file, {"state": "running", "phase": "download", "tag": "v1.9.3"})
         self.assertEqual(self.h.status()["job"]["state"], "failed")

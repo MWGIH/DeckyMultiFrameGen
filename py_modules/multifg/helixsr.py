@@ -16,6 +16,8 @@ import time
 import zipfile
 from pathlib import Path
 
+from . import helix_opti
+
 RELEASES_API = "https://api.github.com/repos/lonewolf0622/HelixSR/releases?per_page=20"
 RELEASES_TTL = 3600          # seconds between GitHub checks (60 unauthenticated API calls per hour)
 _TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,40}")
@@ -33,6 +35,7 @@ class HelixSR:
         self.job_file = state_dir / "helixsr-job.json"
         self.releases_cache = state_dir / "helixsr-releases.json"
         self._lock = threading.Lock()
+        self._installer_ready = {}   # tag -> (release folder's mtime, its installer's answer)
         self._job_thread = None
 
     # --- environment ---------------------------------------------------------------------------------------------
@@ -93,11 +96,12 @@ class HelixSR:
         return stable[0] if stable else None
 
     def local_releases(self) -> list[str]:
-        """Downloaded releases (~/HelixSR/<tag>/ with HelixSR's DLL and setup), newest first."""
+        """Downloaded releases (~/HelixSR/<tag>/ with HelixSR's setup), newest first."""
         tags = []
         try:
             for d in self.base.iterdir():
-                if d.is_dir() and _TAG.fullmatch(d.name) and (d / DLL).exists():
+                if (d.is_dir() and _TAG.fullmatch(d.name) and not d.name.endswith(".partial")
+                        and ((d / "helixsr-setup.sh").exists() or (d / DLL).exists())):
                     tags.append(d.name)
         except OSError:
             pass
@@ -115,16 +119,28 @@ class HelixSR:
         return (ready or local or [None])[0]
 
     def ready(self, tag: str) -> bool:
-        """The setup built the upscaling network into this release's DLL (as helixsr_install.py checks it)."""
-        dll = self.release_dir(tag) / DLL
+        """The setup built the upscaling network: found where releases so far put it, else the release's own
+        installer is asked (its layout can change between releases)."""
+        d = self.release_dir(tag)
+        if helix_opti.built_dll(d):
+            return True
         try:
-            with open(dll, "rb") as f:
-                f.seek(-32, os.SEEK_END)
-                if f.read(8) == b"HXSRNET1":
-                    return True
+            mtime = d.stat().st_mtime
         except OSError:
             return False
-        return all((dll.parent / n).exists() for n in ("helixsr_weights.bin", "helixsr_kernels.pak"))
+        cached = self._installer_ready.get(tag)
+        if cached and cached[0] == mtime:
+            return cached[1]
+        ok = False
+        if (d / "setup" / "helixsr_install.py").exists():
+            try:
+                p = subprocess.run([self.python(), "-I", str(BRIDGE), str(d), "ready"], env=self.env(),
+                                   stdin=subprocess.DEVNULL, capture_output=True, timeout=60)
+                ok = bool(json.loads(p.stdout.decode(errors="replace").strip().splitlines()[-1]).get("ready"))
+            except (OSError, subprocess.SubprocessError, IndexError, ValueError):
+                ok = False
+        self._installer_ready[tag] = (mtime, ok)
+        return ok
 
     # --- install job: download, verify, extract, run HelixSR's setup ---------------------------------------------
 
@@ -139,6 +155,11 @@ class HelixSR:
             if job["state"] == "failed" and not job.get("error"):
                 errors = [l for l in _tail(self.log, 40) if "error:" in l]
                 job["error"] = errors[-1].split("error:", 1)[1].strip() if errors else "The setup stopped. See the setup log below."
+            self._write_json(self.job_file, job)
+        if job.get("state") == "failed" and job.get("phase") == "setup" and job.get("tag") in self.local_releases() \
+                and self.ready(job["tag"]):
+            # the network was built after all (a release this plugin didn't recognise yet)
+            job.update(state="succeeded", error=None)
             self._write_json(self.job_file, job)
         if job.get("phase") == "download" and job.get("state") == "running" and job.get("zip"):
             try:
@@ -258,7 +279,7 @@ class HelixSR:
         if not tag:
             return {"ok": False, "error": "HelixSR isn't installed yet."}
         p = subprocess.run([self.python(), "-I", str(BRIDGE), str(self.release_dir(tag)), *args], env=self.env(),
-                           capture_output=True, timeout=timeout)
+                           stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
         lines = p.stdout.decode(errors="replace").strip().splitlines()
         try:
             out = json.loads(lines[-1])
