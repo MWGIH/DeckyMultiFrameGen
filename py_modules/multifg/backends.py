@@ -44,8 +44,8 @@ UPSTREAM = {
 
 # Files Decky Framegen's installer leaves in ~/fgmod; enough of them to tell a finished install apart
 _OPTISCALER_REQUIRED = ("OptiScaler.dll", "OptiScaler.ini", "fgmod")
-# HelixSR 1.5+ ships nvngx.dll, older releases amd_fidelityfx_dx12.dll
-_HELIXSR_DLLS = ("nvngx.dll", "amd_fidelityfx_dx12.dll")
+# HelixSR 1.5+ ships nvngx.dll, older releases amd_fidelityfx_dx12.dll; 2.0 has only its setup until it has run
+_HELIXSR_DLLS = ("nvngx.dll", "amd_fidelityfx_dx12.dll", "helixsr-setup.sh")
 _TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,40}")
 
 
@@ -66,7 +66,7 @@ def helixsr_releases(base: Path) -> list[str]:
     tags = []
     try:
         for d in base.iterdir():
-            if d.is_dir() and _TAG.fullmatch(d.name) and any((d / n).exists() for n in _HELIXSR_DLLS):
+            if d.is_dir() and _TAG.fullmatch(d.name) and not d.name.endswith(".partial") and any((d / n).exists() for n in _HELIXSR_DLLS):
                 tags.append(d.name)
     except OSError:
         pass

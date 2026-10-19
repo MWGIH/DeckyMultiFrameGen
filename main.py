@@ -142,7 +142,13 @@ async def _for_game(appid, work):
 
 class Plugin:
     async def get_backends(self) -> list[dict]:
-        return backends.all_status(HOME)
+        out = backends.all_status(HOME)
+        # the release games get (the newest whose setup finished), not just the newest folder that looks like one
+        active = await asyncio.to_thread(HELIXSR.active)
+        for b in out:
+            if b["id"] == backends.HELIXSR and active:
+                b.update(installed=True, version=active)
+        return out
 
     async def list_installed_games(self) -> dict:
         try:
