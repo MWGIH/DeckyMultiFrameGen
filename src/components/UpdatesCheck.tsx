@@ -100,6 +100,9 @@ export function UpdatesCheck({
   const rows: JSX.Element[] = [];
   if (u) {
     const p = u.plugin;
+    // a newer MultiFrameGen goes first: it can change how the backends are installed or updated
+    const pluginFirst = !!(p.update_available && p.url && p.latest);
+    const FIRST = " Update MultiFrameGen first, then check again.";
     if (p.error)
       rows.push(
         <Field
@@ -147,14 +150,14 @@ export function UpdatesCheck({
         <Field
           key="o"
           label={`OptiScaler ${o.available} is available`}
-          description={`You have ${o.installed}. Repatch your games afterwards: each game keeps its own copy.`}
+          description={`You have ${o.installed}. Repatch your games afterwards: each game keeps its own copy.${pluginFirst ? FIRST : ""}`}
         />,
       );
       rows.push(
         <ButtonItem
           key="ob"
           layout="below"
-          disabled={busy}
+          disabled={busy || pluginFirst}
           onClick={() =>
             run(
               optiscalerInstall,
@@ -181,14 +184,14 @@ export function UpdatesCheck({
         <Field
           key="h"
           label={`HelixSR ${h.available} is available`}
-          description={`You have ${h.installed}. Remove HelixSR from your games and add it again afterwards to use the new version.`}
+          description={`You have ${h.installed}. Remove HelixSR from your games and add it again afterwards to use the new version.${pluginFirst ? FIRST : ""}`}
         />,
       );
       rows.push(
         <ButtonItem
           key="hb"
           layout="below"
-          disabled={busy}
+          disabled={busy || pluginFirst}
           onClick={() =>
             run(
               () => helixsrInstall(h.available!),
@@ -215,14 +218,14 @@ export function UpdatesCheck({
         <Field
           key="m"
           label={`MAKO ${m.available} is available`}
-          description={`You have ${m.installed ?? "an older version"}.`}
+          description={`You have ${m.installed ?? "an older version"}.${pluginFirst ? FIRST : ""}`}
         />,
       );
       rows.push(
         <ButtonItem
           key="mb"
           layout="below"
-          disabled={busy}
+          disabled={busy || pluginFirst}
           onClick={() => run(installMako, "MAKO updated.", onMakoChange)}
         >
           Update MAKO
