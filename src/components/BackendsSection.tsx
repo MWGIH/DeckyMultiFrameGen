@@ -6,6 +6,7 @@ import {
   PanelSection,
   PanelSectionRow,
   showModal,
+  ToggleField,
 } from "@decky/ui";
 import {
   makoGameLaunchOptions,
@@ -71,9 +72,10 @@ export function BackendsSection(props: Props) {
   return (
     <PanelSection title="Backends">
       <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={toggle}
+        <ToggleField
+          label="Show backends"
+          checked={!collapsed}
+          onChange={toggle}
           description={
             collapsed && backends
               ? summary(backends) +
@@ -82,9 +84,7 @@ export function BackendsSection(props: Props) {
                   : "")
               : undefined
           }
-        >
-          {collapsed ? "Show backends" : "Hide backends"}
-        </ButtonItem>
+        />
       </PanelSectionRow>
       {!collapsed && (
         <UpdatesCheck

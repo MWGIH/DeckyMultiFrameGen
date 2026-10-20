@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
+import { Field, PanelSectionRow, ToggleField } from "@decky/ui";
 
 const KEY = "multifg:helixLogShown";
 
@@ -41,10 +41,18 @@ export function HelixLog({
   return (
     <>
       <PanelSectionRow>
-        <Field
-          label="HelixSR ran in this game"
-          description={
-            shown ? (
+        <ToggleField
+          label="Show HelixSR log"
+          checked={shown}
+          onChange={toggle}
+          description={`HelixSR last ran in this game ${new Date(log.modified * 1000).toLocaleString()}`}
+        />
+      </PanelSectionRow>
+      {shown && (
+        <PanelSectionRow>
+          <Field
+            label="HelixSR log"
+            description={
               <div
                 style={{
                   fontFamily: "monospace",
@@ -53,19 +61,12 @@ export function HelixLog({
                   wordBreak: "break-all",
                 }}
               >
-                {`${new Date(log.modified * 1000).toLocaleString()}\n${log.lines.join("\n")}`}
+                {log.lines.join("\n")}
               </div>
-            ) : (
-              `Last log: ${new Date(log.modified * 1000).toLocaleString()}`
-            )
-          }
-        />
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={toggle}>
-          {shown ? "Hide HelixSR log" : "Show HelixSR log"}
-        </ButtonItem>
-      </PanelSectionRow>
+            }
+          />
+        </PanelSectionRow>
+      )}
     </>
   );
 }

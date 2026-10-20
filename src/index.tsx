@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ButtonItem,
   PanelSection,
+  ToggleField,
   PanelSectionRow,
   staticClasses,
 } from "@decky/ui";
@@ -131,17 +131,19 @@ function Content() {
         <PanelSection title={makoShown ? undefined : "MAKO"}>
           {makoShown && (
             <PanelSectionRow>
-              <ButtonItem layout="below" onClick={() => setMakoFull(!makoFull)}>
-                {makoFull
-                  ? "Show fewer MAKO settings"
-                  : "Show all MAKO settings"}
-              </ButtonItem>
+              <ToggleField
+                label="Show all MAKO settings"
+                checked={makoFull}
+                onChange={setMakoFull}
+              />
             </PanelSectionRow>
           )}
           <PanelSectionRow>
-            <ButtonItem layout="below" onClick={toggleMako}>
-              {makoShown ? "Hide MAKO settings" : "Show MAKO settings"}
-            </ButtonItem>
+            <ToggleField
+              label="Show MAKO settings"
+              checked={makoShown}
+              onChange={toggleMako}
+            />
           </PanelSectionRow>
         </PanelSection>
       )}

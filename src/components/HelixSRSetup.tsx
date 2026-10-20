@@ -4,8 +4,9 @@ import {
   ConfirmModal,
   Field,
   PanelSectionRow,
-  ProgressBar,
+  ProgressBarWithInfo,
   showModal,
+  ToggleField,
 } from "@decky/ui";
 import { toaster } from "@decky/api";
 import {
@@ -25,13 +26,16 @@ function SetupLog() {
   const [log, setLog] = useState<{ path: string; lines: string[] } | null>(
     null,
   );
-  const toggle = async () => setLog(log ? null : await helixsrLog(80));
+  const toggle = async (on: boolean) =>
+    setLog(on ? await helixsrLog(80) : null);
   return (
     <>
       <PanelSectionRow>
-        <ButtonItem layout="below" onClick={toggle}>
-          {log ? "Hide HelixSR setup log" : "Show HelixSR setup log"}
-        </ButtonItem>
+        <ToggleField
+          label="Show HelixSR setup log"
+          checked={!!log}
+          onChange={toggle}
+        />
       </PanelSectionRow>
       {log && (
         <PanelSectionRow>
@@ -56,7 +60,7 @@ function SetupLog() {
   );
 }
 
-// A bar with a title and a percentage above it and wrapping detail text below, all inside the panel's width
+// Steam's own progress bar: the stage on the left, its percentage on the right, the detail wrapping below
 function Stage({
   title,
   percent,
@@ -68,36 +72,16 @@ function Stage({
 }) {
   return (
     <PanelSectionRow>
-      <div style={{ width: "100%", overflow: "hidden" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            fontSize: "14px",
-            marginBottom: "4px",
-          }}
-        >
-          <span>{title}</span>
-          <span>{percent === undefined ? "" : `${Math.round(percent)}%`}</span>
-        </div>
-        <ProgressBar
-          nProgress={percent ?? 0}
-          indeterminate={percent === undefined}
-        />
-        {detail && (
-          <div
-            style={{
-              fontSize: "12px",
-              opacity: 0.7,
-              marginTop: "4px",
-              whiteSpace: "normal",
-              wordBreak: "break-word",
-            }}
-          >
-            {detail}
-          </div>
-        )}
-      </div>
+      <ProgressBarWithInfo
+        layout="below"
+        sOperationText={title}
+        sTimeRemaining={
+          percent === undefined ? undefined : `${Math.round(percent)}%`
+        }
+        nProgress={percent ?? 0}
+        indeterminate={percent === undefined}
+        description={detail ?? undefined}
+      />
     </PanelSectionRow>
   );
 }
@@ -132,15 +116,11 @@ function JobProgress({ job }: { job: HelixJob }) {
   return (
     <>
       <Stage
-        title={`Download HelixSR ${job.tag}`}
+        title={`Download ${job.tag}`}
         percent={download.percent}
         detail={download.detail}
       />
-      <Stage
-        title="Setup (builds the upscaling network)"
-        percent={setup.percent}
-        detail={setup.detail}
-      />
+      <Stage title="Setup" percent={setup.percent} detail={setup.detail} />
     </>
   );
 }
