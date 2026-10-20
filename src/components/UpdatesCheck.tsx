@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
 import {
@@ -39,12 +39,17 @@ async function updatePlugin(
 }
 
 type Props = {
+  // the backends' install jobs: an update runs in the background, so the list is checked again when it ends
+  optiJobState?: string | null;
+  helixJobState?: string | null;
   onOptiChange: () => void;
   onHelixChange: () => void;
   onMakoChange: () => void;
 };
 
 export function UpdatesCheck({
+  optiJobState,
+  helixJobState,
   onOptiChange,
   onHelixChange,
   onMakoChange,
@@ -73,6 +78,15 @@ export function UpdatesCheck({
       setChecking(false);
     }
   };
+
+  // an update that ran in the background has finished: its notice goes once the list is checked again
+  const jobs = `${optiJobState ?? ""}/${helixJobState ?? ""}`;
+  const lastJobs = useRef(jobs);
+  useEffect(() => {
+    const wasRunning = lastJobs.current.includes("running");
+    lastJobs.current = jobs;
+    if (u && wasRunning && !jobs.includes("running")) check();
+  }, [jobs]);
 
   const run = async (
     work: () => Promise<{
@@ -125,11 +139,16 @@ export function UpdatesCheck({
           layout="below"
           disabled={busy}
           onClick={() =>
-            updatePlugin(p.url!, p.latest!, p.sha256).catch(() =>
-              toast(
-                `Couldn't start the update. Install it from Decky's settings with this URL: ${INSTALL_URL}`,
-              ),
-            )
+            updatePlugin(p.url!, p.latest!, p.sha256)
+              // Decky reloads the plugin with the new version; this copy's notice goes meanwhile
+              .then(() =>
+                setU({ ...u, plugin: { ...p, update_available: false } }),
+              )
+              .catch(() =>
+                toast(
+                  `Couldn't start the update. Install it from Decky's settings with this URL: ${INSTALL_URL}`,
+                ),
+              )
           }
         >
           Update MultiFrameGen

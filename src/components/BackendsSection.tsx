@@ -88,6 +88,8 @@ export function BackendsSection(props: Props) {
       </PanelSectionRow>
       {!collapsed && (
         <UpdatesCheck
+          optiJobState={opti?.job?.state}
+          helixJobState={helix?.job?.state}
           onOptiChange={onOptiChange}
           onHelixChange={onHelixChange}
           onMakoChange={onMakoChange}
