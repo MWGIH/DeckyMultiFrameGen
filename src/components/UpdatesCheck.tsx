@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
-import { toaster } from "@decky/api";
+import { toaster, useQuickAccessVisible } from "@decky/api";
 import {
   checkUpdates,
   helixsrInstall,
@@ -87,6 +87,13 @@ export function UpdatesCheck({
     lastJobs.current = jobs;
     if (u && wasRunning && !jobs.includes("running")) check();
   }, [jobs]);
+
+  // the panel stays mounted while the menu is closed: an earlier result is checked again each time it reopens,
+  // so an update installed meanwhile (or a new release) shows correctly
+  const visible = useQuickAccessVisible();
+  useEffect(() => {
+    if (visible && u && !checking) check();
+  }, [visible]);
 
   const run = async (
     work: () => Promise<{
