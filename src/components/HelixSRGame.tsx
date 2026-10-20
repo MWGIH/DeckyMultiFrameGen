@@ -237,6 +237,7 @@ export function HelixSRGame({
         <PanelSectionRow>
           <DropdownItem
             label="Method"
+            layout="below"
             rgOptions={[
               {
                 data: "auto",

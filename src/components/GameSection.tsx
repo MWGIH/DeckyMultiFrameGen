@@ -102,6 +102,7 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
         <PanelSectionRow>
           <DropdownItem
             label="Choose a game"
+            layout="below"
             description="No game is running or open in your library"
             menuLabel="Installed games"
             strDefaultLabel="Pick a game"
@@ -122,6 +123,7 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
             <PanelSectionRow>
               <DropdownItem
                 label="Use"
+                layout="below"
                 rgOptions={(detail.choices ?? [])
                   // only methods that are installed, plus whatever the game is set to now
                   .filter((c) => c === "none" || c === detail.backend || parts(c).every((id) => installed.has(id)))
