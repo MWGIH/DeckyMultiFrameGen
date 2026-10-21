@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import {
   ButtonItem,
   ConfirmModal,
-  DropdownItem,
   Field,
   PanelSectionRow,
   showModal,
 } from "@decky/ui";
+import { BelowDropdown } from "./BelowDropdown";
 import { toaster } from "@decky/api";
 import { HelixLog } from "./HelixLog";
 import {
@@ -235,9 +235,8 @@ export function HelixSRGame({
       )}
       {ways.length > 1 && (
         <PanelSectionRow>
-          <DropdownItem
+          <BelowDropdown
             label="Method"
-            layout="below"
             rgOptions={[
               {
                 data: "auto",

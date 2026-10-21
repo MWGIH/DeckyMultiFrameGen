@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { DropdownItem, Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { BelowDropdown } from "./BelowDropdown";
 import { toaster } from "@decky/api";
 import {
   getGame,
@@ -100,9 +101,8 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
     <PanelSection title="Game">
       {(!selected || selected.source === "picked") && (
         <PanelSectionRow>
-          <DropdownItem
+          <BelowDropdown
             label="Choose a game"
-            layout="below"
             description="No game is running or open in your library"
             menuLabel="Installed games"
             strDefaultLabel="Pick a game"
@@ -121,9 +121,8 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
           </PanelSectionRow>
           {detail?.ok && (
             <PanelSectionRow>
-              <DropdownItem
+              <BelowDropdown
                 label="Use"
-                layout="below"
                 rgOptions={(detail.choices ?? [])
                   // only methods that are installed, plus whatever the game is set to now
                   .filter((c) => c === "none" || c === detail.backend || parts(c).every((id) => installed.has(id)))
