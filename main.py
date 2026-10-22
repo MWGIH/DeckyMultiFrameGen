@@ -294,6 +294,15 @@ class Plugin:
             await _opti_frame_generation_off(str(appid), result)
         return {**result, "removed": cleared["removed"], "base_launch_options": cleared["launch_options"]}
 
+    async def helixsr_scaler_logging(self, appid: str, on: bool) -> dict:
+        """OptiScaler's log file on or off for HelixSR Scaler in the game (off by default: without it a game that stops
+        before HelixSR loads leaves no log at all)."""
+        game = await _for_game(appid, HELIXSR.game_status)
+        if game.get("current") != "scaler" or not game.get("exe_folder"):
+            return {"ok": False, "error": "HelixSR Scaler isn't installed in this game"}
+        logging = await asyncio.to_thread(helix_opti.opti_logging, game["exe_folder"], bool(on))
+        return {"ok": logging is not None, "logging": logging}
+
     async def helixsr_uninstall_game(self, appid: str) -> dict:
         return await _for_game(appid, HELIXSR.uninstall_game)
 

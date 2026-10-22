@@ -119,6 +119,7 @@ export type HelixGame = {
   label?: string;
   anticheat?: string[];
   scaler_name?: string | null;
+  opti_logging?: boolean | null;
   graphics?: "vulkan" | null;
   runtime_log?: { path: string; modified: number; lines: string[] } | null;
   in_game?: string;
@@ -147,6 +148,10 @@ export const helixsrInstallGame = callable<
   [appid: string, route: string, current_launch_options: string],
   HelixGame & { removed?: string[]; base_launch_options?: string | null }
 >("helixsr_install_game");
+export const helixsrScalerLogging = callable<
+  [appid: string, on: boolean],
+  { ok: boolean; logging?: boolean | null; error?: string }
+>("helixsr_scaler_logging");
 export const helixsrUninstallGame = callable<[appid: string], HelixGame>(
   "helixsr_uninstall_game",
 );

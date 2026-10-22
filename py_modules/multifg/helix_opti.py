@@ -180,6 +180,23 @@ def frame_generation_off(target_dir: str | Path) -> bool:
     return True
 
 
+def opti_logging(target_dir: str | Path, on: bool | None = None) -> bool | None:
+    """OptiScaler's log file (off by default) in target_dir's OptiScaler.ini: switched when on is given, then read.
+    On, it writes OptiScaler.log next to OptiScaler.ini at the Info level. None when there is no OptiScaler.ini."""
+    p = Path(target_dir) / INI
+    if not p.is_file():
+        return None
+    text = _read(p)
+    if on is not None:
+        new = ini_set(text, "Log", "LogToFile", "true" if on else "auto")
+        new = ini_set(new, "Log", "LogLevel", "2" if on else "auto")
+        new = ini_set(new, "Log", "LogFileName", win_path(Path(target_dir) / "OptiScaler.log") if on else "auto")
+        if new != text:
+            _write(p, new)
+            text = new
+    return (ini_get(text, "Log", "LogToFile") or "").lower() == "true"
+
+
 def uninstall(target_dir: str | Path) -> dict:
     """HelixSR out of OptiScaler: OptiScaler.ini gets its earlier values back and the mod's folder goes."""
     t = Path(target_dir)

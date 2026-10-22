@@ -90,6 +90,18 @@ def call20(b, here, *args):
     return r
 
 
+def opti_logging(folder):
+    """Whether OptiScaler.ini in folder has OptiScaler's log file on (the plugin switches it, multifg.helix_opti)."""
+    try:
+        text = (Path(folder) / "OptiScaler.ini").read_text(errors="replace")
+    except OSError:
+        return None
+    import re
+    section = re.search(r"(?ms)^\[Log\][^\n]*\n(.*?)(?=^\[|\Z)", text)
+    m = re.search(r"(?m)^[ \t]*LogToFile[ \t]*=[ \t]*(\S*)", section.group(1)) if section else None
+    return bool(m and m.group(1).lower() == "true")
+
+
 def describe20(b, j):
     way = j.get("installed")
     log = None
@@ -136,6 +148,7 @@ def describe20(b, j):
         "graphics": graphics,
         "runtime_log": log,
         "scaler_name": j.get("scaler_dll"),
+        "opti_logging": opti_logging(j["exe_folder"]) if way == "scaler" and j.get("exe_folder") else None,
         "launch_options_now": j.get("launch_options"),
     }
 
