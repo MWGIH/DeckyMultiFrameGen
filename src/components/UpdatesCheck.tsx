@@ -9,6 +9,7 @@ import {
 } from "../api";
 import { installMako } from "../mako/api/makoApi";
 import { availableUpdates } from "../dailyUpdateCheck";
+import { promptRestart } from "../restartPrompt";
 
 const PLUGIN_NAME = "Decky MultiFrameGen"; // plugin.json's name: Decky replaces the installed copy with that name
 const INSTALL_URL =
@@ -252,7 +253,17 @@ export function UpdatesCheck({
           key="mb"
           layout="below"
           disabled={busy || pluginFirst}
-          onClick={() => run(installMako, "MAKO updated.", onMakoChange)}
+          onClick={() =>
+            run(
+              async () => {
+                const r = await installMako();
+                if (r.success) promptRestart("The MAKO update");
+                return r;
+              },
+              "MAKO updated.",
+              onMakoChange,
+            )
+          }
         >
           Update MAKO
         </ButtonItem>,

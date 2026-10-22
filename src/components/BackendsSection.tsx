@@ -21,6 +21,7 @@ import { OptiScalerSetup } from "./OptiScaler";
 import { UpdatesCheck } from "./UpdatesCheck";
 import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
+import { promptRestart } from "../restartPrompt";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -141,11 +142,8 @@ function MakoInstall({
     setBusy(true);
     try {
       const r = await installMako();
-      toast(
-        r.success
-          ? "Installed. Set a game to MAKO to use it."
-          : r.error || "Install failed",
-      );
+      if (r.success) promptRestart("MAKO");
+      else toast(r.error || "Install failed");
     } finally {
       setBusy(false);
       onChange();

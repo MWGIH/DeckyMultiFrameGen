@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ButtonItem,
   ConfirmModal,
@@ -9,6 +9,7 @@ import {
   ToggleField,
 } from "@decky/ui";
 import { toaster } from "@decky/api";
+import { promptRestart } from "../restartPrompt";
 import {
   helixsrInstall,
   helixsrRemove,
@@ -157,6 +158,15 @@ export function useHelixStatus() {
       clearInterval(id);
     };
   }, [running]);
+
+  // a setup that just finished: HelixSR only takes effect after a restart
+  const lastState = useRef(status?.job?.state);
+  useEffect(() => {
+    const state = status?.job?.state;
+    if (lastState.current === "running" && state === "succeeded")
+      promptRestart(`HelixSR ${status?.job?.tag ?? ""}`.trim());
+    lastState.current = state;
+  }, [status?.job?.state]);
 
   return [status, setStatus] as const;
 }
