@@ -93,13 +93,19 @@ def call20(b, here, *args):
 def describe20(b, j):
     way = j.get("installed")
     log = None
-    if j.get("log_path"):
-        p = Path(j["log_path"])
+    # helixsr.log; for HelixSR Scaler also OptiScaler's own log, which is there even when the game stops before
+    # HelixSR loads
+    candidates = [j.get("log_path")]
+    if way == "scaler" and j.get("exe_folder"):
+        candidates.append(str(Path(j["exe_folder"]) / "OptiScaler.log"))
+    for c in filter(None, candidates):
+        p = Path(c)
         try:
             log = {"path": str(p), "modified": p.stat().st_mtime,
                    "lines": p.read_text(errors="replace").splitlines()[-12:]}
+            break
         except OSError:
-            pass
+            continue
     graphics = None
     if j.get("exe_folder"):
         with contextlib.suppress(Exception):

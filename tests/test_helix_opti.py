@@ -22,6 +22,16 @@ class IniTests(unittest.TestCase):
         self.assertEqual(helix_opti.ini_set(text, "C", "K", "z"), "[A]\nKey=1\n[B]\nKey=2\n\n[C]\nK=z\n")
 
 
+class FrameGenerationOffTests(unittest.TestCase):
+    def test_turns_decky_framegens_frame_generation_off(self):
+        home = support.reset_home()
+        (home / "OptiScaler.ini").write_bytes(b"[FrameGen]\r\nEnabled=auto\r\nFGInput=nukems\r\nFGOutput=nukems\r\n")
+        self.assertTrue(helix_opti.frame_generation_off(home))
+        self.assertEqual((home / "OptiScaler.ini").read_bytes(),
+                         b"[FrameGen]\r\nEnabled=false\r\nFGInput=nofg\r\nFGOutput=nofg\r\n")
+        self.assertFalse(helix_opti.frame_generation_off(home / "missing"))
+
+
 class ModTests(unittest.TestCase):
     def setUp(self):
         self.home = support.reset_home()

@@ -120,6 +120,24 @@ async def _opti_target(appid: str) -> str | None:
     return st.get("target_dir") if st.get("patched") else None
 
 
+async def _opti_frame_generation_off(appid: str, helix: dict | None = None) -> None:
+    """With MAKO in the game, OptiScaler's frame generation goes off: in the OptiScaler Decky Framegen put in, and in
+    HelixSR Scaler (an OptiScaler build next to the game's .exe)."""
+    try:
+        target = await _opti_target(appid)
+        if target:
+            await asyncio.to_thread(helix_opti.frame_generation_off, target)
+        if helix is None:
+            try:
+                helix = await _for_game(appid, HELIXSR.game_status)
+            except Exception:
+                helix = {}
+        if helix.get("current") == "scaler" and helix.get("exe_folder"):
+            await asyncio.to_thread(helix_opti.frame_generation_off, helix["exe_folder"])
+    except Exception:
+        decky.logger.exception("OptiScaler frame generation off")
+
+
 async def _add_helix_to_opti(appid: str) -> dict:
     target = await _opti_target(appid)
     if not target:
@@ -211,6 +229,8 @@ class Plugin:
         added = None
         if {"optiscaler", "helixsr"} <= set(backend.split("+")) and await _opti_target(appid):
             added = await _add_helix_to_opti(appid)
+        if "mako" in backend.split("+"):
+            await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
         return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added,
                 "removed": cleared["removed"], "launch_options": cleared["launch_options"]}
 
@@ -270,6 +290,8 @@ class Plugin:
         if not cleared["ok"]:
             return cleared
         result = await _for_game(appid, lambda folder: HELIXSR.install_game(folder, route or None))
+        if result.get("ok") and keep == "helixsr+mako":
+            await _opti_frame_generation_off(str(appid), result)
         return {**result, "removed": cleared["removed"], "base_launch_options": cleared["launch_options"]}
 
     async def helixsr_uninstall_game(self, appid: str) -> dict:
@@ -341,6 +363,8 @@ class Plugin:
         result = await OPTISCALER.patch_game(str(appid), dll_name, launch, FSR4_VARIANT)
         if result.get("launch_options") and "mako" in keep.split("+") and Path(_mako_runner()).is_file():
             result["launch_options"] = _with_mako(result["launch_options"])
+        if result.get("status") == "success" and "mako" in keep.split("+"):
+            await _opti_frame_generation_off(str(appid), {})
         if result.get("status") == "success" and {"optiscaler", "helixsr"} <= set(keep.split("+")):
             result["helix_in_opti"] = await _add_helix_to_opti(str(appid))
         return {**result, "removed": cleared["removed"]}

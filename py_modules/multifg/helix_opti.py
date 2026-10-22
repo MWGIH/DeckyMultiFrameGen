@@ -161,6 +161,25 @@ def install(release_dir: str | Path, target_dir: str | Path, tag: str) -> dict:
     return {"ok": True, "installed": True}
 
 
+# OptiScaler's own frame generation off: MAKO generates the frames, and two frame generators must not run together
+# (MAKO's docs: "disable their Frame Generation"). Decky Framegen turns it on (FGInput/FGOutput = nukems).
+FG_OFF = {("FrameGen", "Enabled"): "false", ("FrameGen", "FGInput"): "nofg", ("FrameGen", "FGOutput"): "nofg"}
+
+
+def frame_generation_off(target_dir: str | Path) -> bool:
+    """OptiScaler.ini in target_dir with OptiScaler's frame generation off; False when there is no OptiScaler.ini."""
+    p = Path(target_dir) / INI
+    if not p.is_file():
+        return False
+    text = _read(p)
+    new = text
+    for (s, k), v in FG_OFF.items():
+        new = ini_set(new, s, k, v)
+    if new != text:
+        _write(p, new)
+    return True
+
+
 def uninstall(target_dir: str | Path) -> dict:
     """HelixSR out of OptiScaler: OptiScaler.ini gets its earlier values back and the mod's folder goes."""
     t = Path(target_dir)
