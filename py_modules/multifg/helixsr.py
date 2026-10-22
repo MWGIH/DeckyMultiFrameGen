@@ -23,6 +23,9 @@ RELEASES_TTL = 3600          # seconds between GitHub checks (60 unauthenticated
 _TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,40}")
 BRIDGE = Path(__file__).resolve().parent / "helix_bridge.py"
 DLL = "amd_fidelityfx_dx12.dll"
+# The newest HelixSR that runs inside a stock OptiScaler (the one Decky Framegen installs): HelixSR 2.0's DLL needs its
+# own OptiScaler build, HelixSR Scaler 1.1.0 (its Dx12Upscaler=ffx); stock OptiScaler 0.9.4 falls back to FSR 2.1.2
+OPTI_RELEASE = "v1.9.3"
 
 
 class HelixSR:
@@ -117,6 +120,13 @@ class HelixSR:
         local = self.local_releases()
         ready = [t for t in local if self.ready(t)]
         return (ready or local or [None])[0]
+
+    def opti_release(self) -> str | None:
+        """The newest set-up release whose DLL a stock OptiScaler can load (before HelixSR 2.0's HelixSR-fsrfg)."""
+        for tag in self.local_releases():
+            if not (self.release_dir(tag) / "HelixSR-fsrfg").exists() and self.ready(tag):
+                return tag
+        return None
 
     def ready(self, tag: str) -> bool:
         """The setup built the upscaling network: found where releases so far put it, else the release's own

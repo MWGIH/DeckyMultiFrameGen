@@ -103,6 +103,19 @@ class ReleaseStateTests(unittest.TestCase):
         st = self.h.status()
         self.assertEqual((st["job"]["state"], st["active"], st["active_ready"]), ("succeeded", "v2.0.0", True))
 
+    def test_optiscaler_gets_the_newest_1x_release(self):
+        self.add_release("v1.9.3", built=True)
+        d = self.add_release("v2.0.0", built=False)
+        (d / "HelixSR-fsrfg").mkdir()
+        (d / "HelixSR-fsrfg" / helixsr.DLL).write_bytes(b"MZ" + b"HXSRNET1" + b"\0" * 24)
+        self.assertEqual((self.h.active(), self.h.opti_release()), ("v2.0.0", "v1.9.3"))
+
+    def test_no_release_for_optiscaler_with_only_2_0(self):
+        d = self.add_release("v2.0.0", built=False)
+        (d / "HelixSR-fsrfg").mkdir()
+        (d / "HelixSR-fsrfg" / helixsr.DLL).write_bytes(b"MZ" + b"HXSRNET1" + b"\0" * 24)
+        self.assertIsNone(self.h.opti_release())
+
     def test_download_interrupted_by_a_restart_is_a_failure(self):
         self.h._write_json(self.h.job_file, {"state": "running", "phase": "download", "tag": "v1.9.3"})
         self.assertEqual(self.h.status()["job"]["state"], "failed")

@@ -9,7 +9,7 @@ import decky
 from mako_plugin.plugin import Plugin as MakoPlugin
 
 from multifg import backends, helix_opti, mako_payload, steam_library, updates
-from multifg.helixsr import HelixSR
+from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
 from multifg.optiscaler import OPTISCALER_ARCHIVE_ASSET, OptiScaler
 from multifg.settings import Settings
@@ -142,9 +142,10 @@ async def _add_helix_to_opti(appid: str) -> dict:
     target = await _opti_target(appid)
     if not target:
         return {"ok": False, "error": "Patch the game with OptiScaler first."}
-    tag = HELIXSR.active()
-    if not tag or not HELIXSR.ready(tag):
-        return {"ok": False, "error": "HelixSR's setup hasn't finished yet."}
+    tag = await asyncio.to_thread(HELIXSR.opti_release)
+    if not tag:
+        return {"ok": False, "needs": OPTI_RELEASE,
+                "error": f"OptiScaler needs HelixSR {OPTI_RELEASE}: HelixSR 2.0 only runs in its own HelixSR Scaler."}
     return await asyncio.to_thread(helix_opti.install, HELIXSR.release_dir(tag), target, tag)
 
 
@@ -315,7 +316,9 @@ class Plugin:
             return {"ok": False, "error": str(exc)}
         if not target:
             return {"ok": True, "patched": False, "installed": False}
-        return {**await asyncio.to_thread(helix_opti.status, target), "patched": True, "active": HELIXSR.active()}
+        tag = await asyncio.to_thread(HELIXSR.opti_release)
+        return {**await asyncio.to_thread(helix_opti.status, target), "patched": True, "active": tag,
+                "needs": None if tag else OPTI_RELEASE}
 
     async def helixsr_opti_add(self, appid: str) -> dict:
         try:

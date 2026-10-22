@@ -94,6 +94,10 @@ What decides whether a game can use HelixSR:
 | DirectX 12 with anti-cheat that checks game files (Easy Anti-Cheat) | OptiScaler + HelixSR only; the drop-in stops the game |
 | Vulkan, DirectX 11 or older, native Linux | Not supported |
 
+OptiScaler + HelixSR uses HelixSR 1.9.3: HelixSR 2.0's DLL only runs inside its own OptiScaler build (HelixSR
+Scaler 1.1.0), and the OptiScaler Decky Framegen installs (0.9.4) falls back to FSR 2.1.2 with it. The plugin sets
+1.9.3 up next to 2.0 when needed.
+
 Reports so far:
 
 | Game | Way | Result | Source |

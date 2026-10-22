@@ -171,6 +171,7 @@ export type HelixInOpti = {
   ini_ok?: boolean;
   helixsr?: string | null;
   active?: string | null;
+  needs?: string | null;
   runtime_log?: { lines: string[]; modified: number } | null;
 };
 export const helixsrOptiStatus = callable<[appid: string], HelixInOpti>(

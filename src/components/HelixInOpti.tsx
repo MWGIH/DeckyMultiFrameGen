@@ -3,6 +3,7 @@ import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { HelixLog } from "./HelixLog";
 import {
+  helixsrInstall,
   helixsrOptiAdd,
   helixsrOptiRemove,
   helixsrOptiStatus,
@@ -27,7 +28,7 @@ export function HelixInOptiGame({
   const load = () => helixsrOptiStatus(appid).then(setSt);
   useEffect(() => {
     load();
-  }, [appid, refresh, helix?.active]);
+  }, [appid, refresh, helix?.active, helix?.job?.state]);
 
   if (!helix?.active_ready) {
     return (
@@ -74,6 +75,36 @@ export function HelixInOptiGame({
   const outdated =
     st.installed && st.helixsr && st.active && st.helixsr !== st.active;
 
+  // HelixSR 2.0 doesn't run in this OptiScaler: the newest 1.x release goes in, downloaded next to 2.0 if needed
+  if (st.needs) {
+    return (
+      <>
+        <PanelSectionRow>
+          <Field
+            label={`OptiScaler needs HelixSR ${st.needs}`}
+            description={`HelixSR 2.0 only runs inside its own OptiScaler build (HelixSR Scaler): this OptiScaler falls back to FSR 2.1.2 with it. HelixSR ${st.needs} is downloaded and set up next to 2.0, which stays for HelixSR's own installs.`}
+          />
+        </PanelSectionRow>
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            disabled={busy || helix?.job?.state === "running"}
+            onClick={() =>
+              run(
+                () => helixsrInstall(st.needs!),
+                `Setting up HelixSR ${st.needs}: progress shows under Backends.`,
+              )
+            }
+          >
+            {helix?.job?.state === "running"
+              ? "HelixSR is being set up…"
+              : `Install HelixSR ${st.needs} for OptiScaler`}
+          </ButtonItem>
+        </PanelSectionRow>
+      </>
+    );
+  }
+
   return (
     <>
       <PanelSectionRow>
@@ -86,7 +117,7 @@ export function HelixInOptiGame({
           description={
             st.installed
               ? st.ini_ok
-                ? "In the game, select DLSS (or FSR / XeSS). OptiScaler then upscales with HelixSR: in OptiScaler's menu it is the FSR 3.X upscaler. FSR4 is off while HelixSR is in."
+                ? "In the game, select DLSS (or FSR / XeSS). OptiScaler then upscales with HelixSR: in OptiScaler's menu it is the FSR 3.X/4 upscaler. FSR4 is off while HelixSR is in."
                 : "OptiScaler.ini was changed since HelixSR was added, so OptiScaler may not use HelixSR. Add it again to fix that."
               : "Adds HelixSR as OptiScaler's FSR 3.X upscaler. The game's own files aren't changed."
           }
@@ -95,7 +126,7 @@ export function HelixInOptiGame({
       {st.installed && (
         <HelixLog
           log={st.runtime_log}
-          missing="HelixSR writes a log when OptiScaler loads it. If there is none after playing, check that OptiScaler's upscaler is FSR 3.X."
+          missing="HelixSR writes a log when OptiScaler loads it. If there is none after playing, check that OptiScaler's upscaler is FSR 3.X/4."
         />
       )}
       {(!st.installed || outdated || !st.ini_ok) && (
@@ -110,7 +141,7 @@ export function HelixInOptiGame({
             {!st.installed
               ? "Add HelixSR to OptiScaler"
               : outdated
-                ? `Update HelixSR to ${st.active}`
+                ? `Use HelixSR ${st.active}`
                 : "Add HelixSR again"}
           </ButtonItem>
         </PanelSectionRow>
