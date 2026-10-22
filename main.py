@@ -295,6 +295,17 @@ class Plugin:
             await _opti_frame_generation_off(str(appid), result)
         return {**result, "removed": cleared["removed"], "base_launch_options": cleared["launch_options"]}
 
+    async def optiscaler_logging(self, appid: str, on: bool | None = None) -> dict:
+        """OptiScaler's log file (off by default) in the game's OptiScaler.ini: switched when on is given."""
+        try:
+            target = await _opti_target(_valid_appid(appid))
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        if not target:
+            return {"ok": False, "error": "Patch the game with OptiScaler first"}
+        logging = await asyncio.to_thread(helix_opti.opti_logging, target, None if on is None else bool(on))
+        return {"ok": logging is not None, "logging": logging, "path": str(Path(target) / "OptiScaler.log")}
+
     async def helixsr_scaler_logging(self, appid: str, on: bool) -> dict:
         """OptiScaler's log file on or off for HelixSR Scaler in the game (off by default: without it a game that stops
         before HelixSR loads leaves no log at all)."""

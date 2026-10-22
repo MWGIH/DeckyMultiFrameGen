@@ -211,7 +211,7 @@ export function HelixSRGame({
           missing="HelixSR writes a log when the game loads it. If there is none after playing with the right upscaler selected, the game didn't load HelixSR."
         />
       )}
-      {game.installed && game.current === "scaler" && (
+      {game.installed && game.current === "scaler" ? (
         <PanelSectionRow>
           <ToggleField
             label="Write OptiScaler's log"
@@ -222,6 +222,19 @@ export function HelixSRGame({
               if (!r.ok) toast(r.error ?? "Couldn't change OptiScaler's log");
               load();
             }}
+          />
+        </PanelSectionRow>
+      ) : (
+        <PanelSectionRow>
+          <ToggleField
+            label="Write OptiScaler's log"
+            description={
+              game.installed
+                ? "Only for HelixSR Scaler: the FSR drop-in has no OptiScaler. HelixSR's own log is above."
+                : "Available once HelixSR Scaler is installed in this game."
+            }
+            checked={false}
+            disabled
           />
         </PanelSectionRow>
       )}

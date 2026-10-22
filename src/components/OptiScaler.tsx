@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { OptiLog } from "./OptiLog";
 import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, ProgressBarWithInfo, showModal } from "@decky/ui";
 import { toaster } from "@decky/api";
 import {
@@ -238,6 +239,7 @@ export function OptiScalerGame({
           description="OptiScaler's menu opens with the keyboard's Insert key. In the game's controller settings (Steam button, then Controller), set a back button (L4, L5, R4 or R5) to the keyboard key Insert to open the menu in game."
         />
       </PanelSectionRow>
+      {game.patched && <OptiLog appid={appid} />}
       <PanelSectionRow>
         <DropdownItem
           label="Proxy DLL"
