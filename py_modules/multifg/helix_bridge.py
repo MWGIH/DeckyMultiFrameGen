@@ -78,6 +78,15 @@ WAY_OUT = {"direct": "fsr", "scaler": "scaler"}
 IN_GAME = {"scaler": "Select DLSS in the game.", "fsr": "Select AMD FSR in the game."}
 
 
+def scaler_launch_options(j):
+    """The launch options HelixSR Scaler needs under Proton. HelixSR's bridge asks for none when it is dxgi.dll, but
+    Proton then loads its own dxgi.dll and HelixSR Scaler never runs (Decky Framegen sets dxgi=n,b for OptiScaler too)."""
+    if j.get("installed") != "scaler":
+        return None
+    name = Path(j.get("scaler_dll") or "dxgi.dll").stem
+    return j.get("launch_options") or f'WINEDLLOVERRIDES="{name}=n,b" %command%'
+
+
 def call20(b, here, *args):
     """One command of HelixSR's own bridge; its JSON answer (raises with its error)."""
     out = io.StringIO()
@@ -149,7 +158,7 @@ def describe20(b, j):
         "runtime_log": log,
         "scaler_name": j.get("scaler_dll"),
         "opti_logging": opti_logging(j["exe_folder"]) if way == "scaler" and j.get("exe_folder") else None,
-        "launch_options_now": j.get("launch_options"),
+        "launch_options_now": scaler_launch_options(j),
     }
 
 
@@ -192,7 +201,7 @@ def main20(here, cmd, args):
         j = call20(b, here, "install", "--game", folder, "--way", way, *extra)["game"]
         d = describe20(b, j)
         return {"ok": True, **d, "route": d["current"], "in_game": IN_GAME.get(j.get("installed"), ""),
-                "launch_options": j.get("launch_options")}
+                "launch_options": scaler_launch_options(j)}
     if cmd == "uninstall":
         try:
             j = call20(b, here, "remove", "--game", folder)["game"]
@@ -258,6 +267,8 @@ def main():
                         g.route = route
                     name = h.install(g, here)
                     launch = h.launch_options(name) if g.route == "scaler" and name else None
+                    if g.route == "scaler" and name and not launch:   # Proton's own dxgi.dll would load instead
+                        launch = f'WINEDLLOVERRIDES="{Path(name).stem}=n,b" %command%'
                     result = {"ok": True, "route": g.route, "in_game": h.in_game(g.route),
                               "launch_options": launch, **describe(h, g)}
                 elif cmd == "uninstall":

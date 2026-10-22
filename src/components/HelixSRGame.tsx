@@ -82,7 +82,16 @@ export function HelixSRGame({
   const [busy, setBusy] = useState(false);
   const ready = Boolean(helix?.active_ready);
 
-  const load = () => helixsrGameStatus(appid).then(setGame);
+  // HelixSR Scaler's DLL override in the launch options, also for installs made before the plugin set it
+  const load = () =>
+    helixsrGameStatus(appid).then(async (g) => {
+      setGame(g);
+      if (g.installed && g.current === "scaler" && g.launch_options_now) {
+        const current = await readLaunchOptions(Number(appid));
+        if (current !== null && !hasOverrides(current))
+          await syncLaunchOptions(appid, g.launch_options_now, current);
+      }
+    });
   useEffect(() => {
     setGame(null);
     setRoute("auto");

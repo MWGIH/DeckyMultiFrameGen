@@ -120,6 +120,7 @@ export type HelixGame = {
   anticheat?: string[];
   scaler_name?: string | null;
   opti_logging?: boolean | null;
+  launch_options_now?: string | null;
   graphics?: "vulkan" | null;
   runtime_log?: { path: string; modified: number; lines: string[] } | null;
   in_game?: string;
