@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
 import { BelowDropdown } from "./BelowDropdown";
+import { GAME_NOTES } from "../gameNotes";
 import { toaster } from "@decky/api";
 import {
   getGame,
@@ -150,6 +151,14 @@ export function GameSection({
               {detail && !detail.installed ? "Not installed" : null}
             </Field>
           </PanelSectionRow>
+          {detail?.ok && GAME_NOTES[selected.appid] && (
+            <PanelSectionRow>
+              <Field
+                label="Tested with this game"
+                description={GAME_NOTES[selected.appid]}
+              />
+            </PanelSectionRow>
+          )}
           {detail?.ok && (
             <PanelSectionRow>
               <BelowDropdown
