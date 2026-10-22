@@ -39,6 +39,7 @@ PER_GAME_WRAPPER_FLATPAK_APP_IDS = (
 
 # Cross-language validation limits. Keep the deliberately narrower Decky UI
 # ceiling separate from the canonical profile validation range.
+GPU_HEADROOM_PERCENT_VALUES = (0, 5, 10, 15, 20)
 BASE_FPS_CAP_MIN = 0
 BASE_FPS_CAP_MAX = 240
 BASE_FPS_CAP_UI_MAX = 120
@@ -154,6 +155,7 @@ VKBASALT_SHADER_FILM_GRAIN = "film_grain"
 VKBASALT_SHADER_CARTOON = "cartoon"
 VKBASALT_SHADER_NOSTALGIA = "nostalgia"
 VKBASALT_SHADER_CHROMATIC_ABERRATION = "chromatic_aberration"
+VKBASALT_SHADER_CROP_STRETCH = "crop_stretch"
 VKBASALT_SHADER_CLARITY = "clarity"
 VKBASALT_SHADER_LEVELS_PLUS = "levels_plus"
 VKBASALT_SHADER_VALUES = (
@@ -177,6 +179,7 @@ VKBASALT_SHADER_VALUES = (
     VKBASALT_SHADER_CARTOON,
     VKBASALT_SHADER_NOSTALGIA,
     VKBASALT_SHADER_CHROMATIC_ABERRATION,
+    VKBASALT_SHADER_CROP_STRETCH,
 )
 VKBASALT_STRENGTH_MIN = 0.0
 VKBASALT_STRENGTH_MAX = 1.0
@@ -271,6 +274,13 @@ CONFIG_SCHEMA_DEF: Dict[str, ConfigFieldDefinition] = {
         "fieldType": ConfigFieldType.INTEGER,
         "default": 0,
         "description": "pause frame generation at or below a confirmed Gamescope refresh rate; zero disables the guard",
+        "location": "toml"
+    },
+
+    "gpu_headroom_percent": {
+        "fieldType": ConfigFieldType.INTEGER,
+        "default": 0,
+        "description": "live FG-only soft GPU utilization reserve: 0 (off), 5, 10, 15 or 20 percent; supported AMD telemetry required",
         "location": "toml"
     },
 

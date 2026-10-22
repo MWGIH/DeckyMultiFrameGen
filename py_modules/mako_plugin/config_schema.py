@@ -16,6 +16,7 @@ from shared_config import (
     ADAPTIVE_FRACTIONAL_REAL_FRAME_PRIORITY_VALUES,
     BASE_FPS_CAP_MAX,
     BASE_FPS_CAP_MIN,
+    GPU_HEADROOM_PERCENT_VALUES,
     CONFIG_SCHEMA_DEF,
     DEFAULT_PROFILE_NAME,
     DYNAMIC_CADENCE_PROBE_INTERVAL_SECONDS_MAX,
@@ -166,6 +167,9 @@ class ConfigurationManager:
         canonical validation, rather than being retained as untyped state.
         """
         validated: Dict[str, Any] = {}
+        raw_headroom = config.get("gpu_headroom_percent", 0)
+        if isinstance(raw_headroom, bool) or (isinstance(raw_headroom, float) and not raw_headroom.is_integer()):
+            raise ValueError("gpu_headroom_percent must be 0, 5, 10, 15 or 20")
         for name, field in CONFIG_SCHEMA.items():
             value = config.get(name, field.default)
             if field.field_type == ConfigFieldType.BOOLEAN:
@@ -185,6 +189,8 @@ class ConfigurationManager:
             raise ValueError(
                 f"multiplier must be {FIXED_MULTIPLIER_MIN} or greater"
             )
+        if validated["gpu_headroom_percent"] not in GPU_HEADROOM_PERCENT_VALUES:
+            raise ValueError("gpu_headroom_percent must be 0, 5, 10, 15 or 20")
         if not BASE_FPS_CAP_MIN <= validated["base_fps_cap"] <= BASE_FPS_CAP_MAX:
             raise ValueError(
                 "base_fps_cap must be between "
@@ -340,6 +346,7 @@ class ConfigurationManager:
                 ADAPTIVE_FRACTIONAL_REAL_FRAME_PRIORITY_AUTO
             )
             validated["base_fps_cap"] = 0
+            validated["gpu_headroom_percent"] = 0
         return cast(ConfigurationData, validated)
 
     @staticmethod

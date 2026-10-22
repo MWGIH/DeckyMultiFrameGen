@@ -3,7 +3,7 @@ import { GamepadButton, type GamepadEvent } from "@decky/ui";
 import { RiArrowDownSFill, RiArrowUpSFill } from "react-icons/ri";
 import { VKBASALT_SHADER_NONE } from "../../../config/configSchema";
 import t from "../../../i18n/i18n";
-import { findFocusScrollContainer } from "../../../utils/focusScrollUtils";
+import { usePanelFocusScroll } from "../../../hooks/usePanelFocusScroll";
 import { MakoFocusable } from "../../MakoUi";
 
 interface EffectOption {
@@ -40,11 +40,8 @@ export function EffectsChecklist({
     null,
   );
   const checklistRef = useRef<HTMLDivElement>(null);
-  const focusAnchor = useRef<{
-    target: HTMLElement;
-    top: number;
-    scroller: HTMLElement | null;
-  }>();
+  const pendingClose = useRef<number>();
+  const refreshFocusScroll = usePanelFocusScroll();
   const pendingPageFocusRow = useRef<number>();
   const pendingSave = useRef(Promise.resolve());
   const selectionValue = initialSelection.join(":");
@@ -52,6 +49,13 @@ export function EffectsChecklist({
     (option) => option.data !== VKBASALT_SHADER_NONE,
   );
   const pageCount = Math.max(1, Math.ceil(effects.length / EFFECTS_PER_PAGE));
+
+  const cancelPendingClose = () => {
+    window.clearTimeout(pendingClose.current);
+    pendingClose.current = undefined;
+  };
+
+  useEffect(() => cancelPendingClose, []);
 
   useEffect(() => {
     setPage((current) => Math.min(current, pageCount - 1));
@@ -62,18 +66,11 @@ export function EffectsChecklist({
   }, [selectionValue]);
 
   useLayoutEffect(() => {
-    if (expanded) return;
-    const anchor = focusAnchor.current;
-    if (!anchor) return;
-    if (anchor.target.isConnected) {
-      anchor.target.focus({ preventScroll: true });
-      if (anchor.scroller) {
-        anchor.scroller.scrollTop +=
-          anchor.target.getBoundingClientRect().top - anchor.top;
-      }
-    }
-    focusAnchor.current = undefined;
-  }, [expanded]);
+    // The next button may still be below the viewport when the list closes.
+    // Reapply the panel's focus scrolling after layout, instead of preserving
+    // that offscreen position or cancelling a scroll before it reaches view.
+    if (!expanded) refreshFocusScroll();
+  }, [expanded, refreshFocusScroll]);
 
   useLayoutEffect(() => {
     const requestedRow = pendingPageFocusRow.current;
@@ -103,24 +100,17 @@ export function EffectsChecklist({
       .then(() => onChange(value));
   };
 
-  const closeAfterFocusLeaves = () => {
+  const closeAfterFocusLeaves = (target: HTMLElement | null) => {
+    cancelPendingClose();
     if (!expanded) return;
-    window.setTimeout(() => {
+    if (target && checklistRef.current?.contains(target)) return;
+    pendingClose.current = window.setTimeout(() => {
+      pendingClose.current = undefined;
       const checklist = checklistRef.current;
-      const activeElement = checklist?.ownerDocument
-        .activeElement as HTMLElement | null;
       if (
         checklist &&
-        !checklist.contains(activeElement) &&
         !checklist.querySelector(".mako-effects-focus-within")
       ) {
-        if (activeElement && activeElement !== checklist.ownerDocument.body) {
-          focusAnchor.current = {
-            target: activeElement,
-            top: activeElement.getBoundingClientRect().top,
-            scroller: findFocusScrollContainer(activeElement),
-          };
-        }
         setExpanded(false);
         setFocusedEffect(null);
         setFocusedAction(null);
@@ -267,8 +257,14 @@ export function EffectsChecklist({
       <MakoFocusable
         flow-children="column"
         focusWithinClassName="mako-effects-focus-within"
-        onBlur={closeAfterFocusLeaves}
-        onGamepadBlur={closeAfterFocusLeaves}
+        onFocusCapture={cancelPendingClose}
+        onGamepadFocus={cancelPendingClose}
+        onBlur={(event) =>
+          closeAfterFocusLeaves(event.relatedTarget as HTMLElement | null)
+        }
+        onGamepadBlur={(event) =>
+          closeAfterFocusLeaves(event.detail?.focusedNode?.Element ?? null)
+        }
         {...(expanded ? { onCancel: handleExpandedCancel } : {})}
         style={{ width: "100%" }}
       >

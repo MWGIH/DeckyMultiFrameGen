@@ -1,8 +1,11 @@
+import { ShaderParametersModal } from "./settings/shaders/ShaderParametersModal";
 import {
   ButtonItem,
   PanelSection,
   PanelSectionRow,
   showModal,
+  Navigation,
+  QuickAccessTab,
 } from "@decky/ui";
 import { useCallback, useRef, useState } from "react";
 import {
@@ -133,6 +136,20 @@ export function Content({ variant = "full" }: { variant?: "light" | "full" }) {
   });
   flushConfigChangesRef.current = flushConfigChanges;
 
+  const customizeShaders = async () => {
+    const profile = editingProfile;
+    await flushConfigChanges();
+    if (getEditingProfile() !== profile) return;
+    Navigation.CloseSideMenus();
+    showModal(
+      <ShaderParametersModal
+        profileName={profile}
+        onReturn={() => Navigation.OpenQuickAccessMenu(QuickAccessTab.Decky)}
+      />,
+      undefined,
+      { bNeverPopOut: true },
+    );
+  };
   const refreshShaders = async () => {
     const profile = editingProfile;
     await flushConfigChanges();
@@ -377,6 +394,7 @@ export function Content({ variant = "full" }: { variant?: "light" | "full" }) {
                 customShaderEffects={customShaderEffects}
                 onAddShader={addShader}
                 onRefreshShaders={refreshShaders}
+                onCustomizeShaders={customizeShaders}
                 onDeleteShaders={deleteShaders}
                 onConfigChange={handleConfigChange}
                 onConfigUpdate={handleConfigChanges}

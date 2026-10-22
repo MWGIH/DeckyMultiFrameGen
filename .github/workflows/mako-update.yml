@@ -1,0 +1,71 @@
+name: MAKO update
+
+# Once a day: a new MAKO Decky release is merged into this plugin (scripts/update_mako.py), checked like any change,
+# and published as a new MultiFrameGen release, which the plugin then offers under Check for updates.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Merge the newest MAKO release
+        id: merge
+        run: |
+          git clone --quiet --filter=blob:none https://github.com/eugeniosegala/MAKO.git "$RUNNER_TEMP/mako"
+          set +e
+          python scripts/update_mako.py "$RUNNER_TEMP/mako" | tee "$RUNNER_TEMP/mako-update.txt"
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "version=$(sed -n 's/^MAKO_VENDORED = "\(.*\)"/\1/p' py_modules/multifg/updates.py)" >> "$GITHUB_OUTPUT"
+          [ "$code" -le 2 ]
+      - name: Report a merge that needs a hand
+        if: steps.merge.outputs.code == '2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="MAKO ${{ steps.merge.outputs.version }} needs a hand merge"
+          gh issue list --state open --search "$title in:title" --json number --jq length | grep -qx 0 || exit 0
+          gh issue create --title "$title" --body-file "$RUNNER_TEMP/mako-update.txt"
+      - name: Check, commit and publish
+        if: steps.merge.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node -e 'const f="package.json",p=require("./"+f),v=p.version.split(".").map(Number);v[2]++;p.version=v.join(".");require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
+          pnpm install --frozen-lockfile
+          pnpm typecheck
+          python -m unittest discover -s tests
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "MAKO ${{ steps.merge.outputs.version }} (merged automatically from MAKO Decky's release)"
+          git push origin HEAD:main
+          gh workflow run build.yml --ref main
+      - name: Report a failed update
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Automatic MAKO update failed"
+          gh issue list --state open --search "$title in:title" --json number --jq length | grep -qx 0 || exit 0
+          gh issue create --title "$title" --body "See $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"

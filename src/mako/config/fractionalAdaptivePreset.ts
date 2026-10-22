@@ -66,6 +66,7 @@ export function dynamicCadenceRecoveryChanges(
     adaptive_fractional_real_frame_priority:
       ADAPTIVE_FRACTIONAL_REAL_FRAME_PRIORITY_AUTO,
     base_fps_cap: 0,
+    gpu_headroom_percent: 0,
   };
 }
 

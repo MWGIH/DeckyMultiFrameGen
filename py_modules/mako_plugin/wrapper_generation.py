@@ -36,6 +36,8 @@ from .constants import (
     MAKO_PROFILE_FALLBACK_ENV,
     MAKO_SPLIT_LAYER_CHAIN_COMBINED_PIPELINE,
     MAKO_SPLIT_LAYER_CHAIN_ENV,
+    MANGOHUD_CONFIG_FILENAME,
+    MANGOHUD_CONFIG_FILE_ENV,
     MANGOHUD_LAYER_NAME_64,
     PRESENT_ACQUIRE_TIMEOUT_ENV,
     PRESENT_ACQUIRE_TIMEOUT_MS,
@@ -68,7 +70,7 @@ from .profile_storage import (
 from .process_detection import is_matchable_process_name
 
 
-WRAPPER_FORMAT_VERSION = 77
+WRAPPER_FORMAT_VERSION = 79
 WRAPPER_FORMAT_MARKER = f"# mako-wrapper-format: {WRAPPER_FORMAT_VERSION}"
 HOST_COMPATIBILITY_MARKER = "# mako-host-compatibility: aarch64-passthrough-v1"
 DIAGNOSTICS_DEFAULT_MARKER = (
@@ -95,6 +97,7 @@ REQUIRED_WRAPPER_EXPORTS = (
     f"unset {VKBASALT_CONFIG_RELOAD_ENV}",
     "mako_spatial_scaling_required=",
     f"export {EXTERNAL_VULKAN_LAYER_ENV}=",
+    f"export {MANGOHUD_CONFIG_FILE_ENV}=",
     "mako_vkbasalt_config=",
     "mako_vkbasalt_enabled=",
     "mako_managed_instance_layers=",
@@ -354,6 +357,7 @@ def layer_environment_lines(context: WrapperGenerationContext) -> list[str]:
     if PRESENT_DIAGNOSTICS_RETAINED_SESSION_COUNT < 1:
         raise ValueError("managed diagnostics must retain at least one session")
     diagnostics_log_path = context.config_dir / PRESENT_DIAGNOSTICS_LOG_FILENAME
+    mangohud_config_path = shlex.quote(str(context.config_dir / MANGOHUD_CONFIG_FILENAME))
     diagnostics_history_paths = " ".join(
         '"$mako_diagnostics_log' + (f".{index}" if index else "") + '"'
         for index in range(PRESENT_DIAGNOSTICS_RETAINED_SESSION_COUNT)
@@ -545,6 +549,12 @@ def layer_environment_lines(context: WrapperGenerationContext) -> list[str]:
         f"{{ [ -r {mangohud_manifest} ] || [ -r {mangohud_manifest32} ]; }}; then",
         "                unset DISABLE_MANGOHUD",
         "                export MANGOHUD=1",
+        # This opt-in file wins over inherited configuration (including Steam's
+        # Gamescope preset file). Check at launch so edits need no regeneration.
+        # Keep MangoHud's MANGOHUD_CONFIG precedence; never source this file.
+        f"                if [ -f {mangohud_config_path} ] && [ -r {mangohud_config_path} ]; then",
+        f"                    export {MANGOHUD_CONFIG_FILE_ENV}={mangohud_config_path}",
+        "                fi",
         "                export NODEVICE_SELECT=1",
         "                export DISABLE_LAYER_MESA_ANTI_LAG=1",
         '                mako_implicit_layer_path="$mako_implicit_layer_path:$mako_mangohud_layer_dir"',

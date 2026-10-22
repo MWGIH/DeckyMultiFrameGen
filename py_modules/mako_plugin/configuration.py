@@ -1,7 +1,9 @@
 """Configuration service for MAKO Renderer TOML and Decky profiles."""
 
 import json
+import copy
 import re
+import subprocess
 from pathlib import Path
 from threading import RLock
 from typing import Dict, Any, Optional, cast
@@ -25,6 +27,7 @@ from .constants import (
     ARMADA_DEVICE_ENV,
     ARMADA_GAME_LAUNCH,
     CLI_DIR,
+    SHADER_TOOL_FILENAME,
     FLATPAK_IMPLICIT_LAYER_DIR,
     GAMESCOPE_WSI_MANIFEST_FILENAME_64,
     SPATIAL_SCALING_JSON_FILENAME,
@@ -40,9 +43,10 @@ from .process_detection import (
     detect_processes_for_steam_app,
     is_matchable_process_name,
 )
+from . import shader_parameters
 from . import profile_storage
 from . import wrapper_generation
-from .types import ConfigurationResponse, ProfilesResponse, ProfileResponse
+from .types import ConfigurationResponse, ProfilesResponse, ProfileResponse, ShaderParametersResponse
 
 
 class ConfigurationService(BaseService):
@@ -70,6 +74,8 @@ class ConfigurationService(BaseService):
             else development_build
         )
         self._configuration_write_lock = RLock()
+        self._shader_parameter_cache: dict[str, tuple[str, list[shader_parameters.ShaderEffectParameters]]] = {}
+        self._shader_parameter_generation = 0
 
     def _diagnostics_default_marker(self) -> str:
         return wrapper_generation.DIAGNOSTICS_DEFAULT_MARKER
@@ -661,6 +667,67 @@ class ConfigurationService(BaseService):
                 return self.get_profile_config(profile_name)
             except (OSError, ValueError, TypeError) as error:
                 return self._error_response(ConfigurationResponse, str(error), config=None)
+
+    def get_shader_parameters(self, profile_name: str) -> ShaderParametersResponse:
+        try:
+            with self._configuration_write_lock:
+                self._shader_parameter_generation += 1
+                generation = self._shader_parameter_generation
+                self._shader_parameter_cache.clear()
+                data = self._get_profile_data()
+                if profile_name not in data["profiles"]:
+                    raise ValueError("Profile does not exist")
+                metadata = self._read_profile_metadata(data)
+                path = self._vkbasalt_config_path(profile_name, metadata)
+                tool = self.user_home / CLI_DIR / SHADER_TOOL_FILENAME
+                if not tool.is_file():
+                    tool = self.user_home / ".local/bin" / SHADER_TOOL_FILENAME
+                content = self._profile_shader_content(profile_name, metadata)
+            # Shader compilation can be slow. Do not block ordinary profile RPCs
+            # on the plugin event loop while the discovery worker is running.
+            effects = shader_parameters.discover(tool, path)
+            with self._configuration_write_lock:
+                data = self._get_profile_data()
+                metadata = self._read_profile_metadata(data)
+                # Cache only one open editor. Full configuration identity prevents
+                # applying a stale control after a chain/import/profile change.
+                if (generation != self._shader_parameter_generation or
+                        profile_name not in data["profiles"] or
+                        path != self._vkbasalt_config_path(profile_name, metadata) or
+                        content != self._profile_shader_content(profile_name, metadata)):
+                    raise ValueError("Shader settings changed; reopen the editor")
+                self._shader_parameter_cache = {profile_name: (content, copy.deepcopy(effects))}
+                return self._success_response(ShaderParametersResponse, "Shader parameters loaded", effects=effects)
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError) as error:
+            return self._error_response(ShaderParametersResponse, str(error), effects=[])
+
+    def set_shader_parameters(self, profile_name: str, changes: dict[str, float | None]) -> ShaderParametersResponse:
+        with self._configuration_write_lock:
+            try:
+                data = self._get_profile_data()
+                if profile_name not in data["profiles"]:
+                    raise ValueError("Profile does not exist")
+                metadata = self._read_profile_metadata(data)
+                path = self._vkbasalt_config_path(profile_name, metadata)
+                content = self._profile_shader_content(profile_name, metadata)
+                cached = self._shader_parameter_cache.get(profile_name)
+                if cached is None or cached[0] != content:
+                    raise ValueError("Shader settings changed; reopen the editor")
+                values = shader_parameters.validate_changes(cached[1], changes)
+                updated = profile_storage.update_shader_parameters(content, values)
+                with managed_install_transaction([path, self.selected_shader_config_path], self.log):
+                    write_managed_text_atomically(path, updated, 0o644, self.log)
+                    self._write_selected_shader_config(data, metadata)
+                effects = copy.deepcopy(cached[1])
+                for effect in effects:
+                    for parameter in effect["parameters"]:
+                        if parameter["key"] in values:
+                            saved = values[parameter["key"]]
+                            parameter["value"] = parameter["default"] if saved == "default" else float(saved)
+                self._shader_parameter_cache[profile_name] = (updated, copy.deepcopy(effects))
+                return self._success_response(ShaderParametersResponse, "Shader parameters saved", effects=effects)
+            except (OSError, ValueError, TypeError) as error:
+                return self._error_response(ShaderParametersResponse, str(error), effects=[])
 
     def reload_profile_shaders(self, profile_name: str) -> ConfigurationResponse:
         """Refresh the catalog and explicitly rebuild the active dependency graph."""

@@ -20,6 +20,7 @@ from shared_config import (
     VKBASALT_SHADER_BLEACH_BYPASS,
     VKBASALT_SHADER_CARTOON,
     VKBASALT_SHADER_CHROMATIC_ABERRATION,
+    VKBASALT_SHADER_CROP_STRETCH,
     VKBASALT_SHADER_CLARITY,
     VKBASALT_SHADER_COLOURFULNESS,
     VKBASALT_SHADER_CURVES,
@@ -223,6 +224,7 @@ _VKBASALT_SHADER_EFFECTS = {
     VKBASALT_SHADER_CARTOON: "makoCartoon",
     VKBASALT_SHADER_NOSTALGIA: "makoNostalgia",
     VKBASALT_SHADER_CHROMATIC_ABERRATION: "makoChromaticAberration",
+    VKBASALT_SHADER_CROP_STRETCH: "makoCropStretch",
     VKBASALT_SHADER_CLARITY: "makoClarity",
     VKBASALT_SHADER_LEVELS_PLUS: "makoLevelsPlus",
 }
@@ -411,6 +413,7 @@ def merge_vkbasalt_config_content(
         "makoCartoon": f'"{shader_directory / "Cartoon.fx"}"',
         "makoNostalgia": f'"{shader_directory / "Nostalgia.fx"}"',
         "makoChromaticAberration": f'"{shader_directory / "ChromaticAberration.fx"}"',
+        "makoCropStretch": f'"{shader_directory / "CropStretch.fx"}"',
         "makoClarity": f'"{shader_directory / "Clarity.fx"}"',
         "makoLevelsPlus": f'"{shader_directory / "LevelsPlus.fx"}"',
     }
@@ -488,11 +491,14 @@ def remove_custom_shader_content(content: str, shader_ids: set[str]) -> str:
            for shader_id in shader_ids):
         raise ValueError("Only custom shader IDs can be deleted")
     names = {shader_id[7:] for shader_id in shader_ids}
+    parameter_prefixes = tuple("makoShader_" + name.encode().hex() + "_" for name in names)
     lines = []
     for line in content.splitlines(keepends=True):
         assignment = _assignment_parts(line.rstrip("\r\n"))
         if assignment is not None:
             prefix, key, value, suffix = assignment
+            if key.startswith(parameter_prefixes):
+                continue
             if key in names and _vkbasalt_value(value).lower().endswith(".fx"):
                 continue
             if key == "effects":
@@ -720,3 +726,24 @@ def config_for_profile(
     config.update(profile_data["global_config"])
     config.update(settings_for_profile(profile_name, profile_settings))
     return ConfigurationManager.validate_config(config)
+
+
+def update_shader_parameters(content: str, changes: dict[str, str]) -> str:
+    """Merge validated effect-local values without disturbing comments or other effects."""
+    from .shader_parameters import PARAMETER_KEY
+    if any(not PARAMETER_KEY.fullmatch(key) for key in changes):
+        raise ValueError("Invalid shader parameter key")
+    if any(value != "default" and not re.fullmatch(r"-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?", value) for value in changes.values()):
+        raise ValueError("Invalid shader parameter value")
+    remaining = dict(changes)
+    lines: list[str] = []
+    for line in content.splitlines():
+        parts = _assignment_parts(line)
+        if parts and parts[1] in changes:
+            prefix, key, _, suffix = parts
+            if key in remaining:
+                lines.append(f"{prefix}{remaining.pop(key)}{suffix}")
+        else:
+            lines.append(line)
+    lines.extend(f"{key} = {value}" for key, value in remaining.items())
+    return "\n".join(lines) + "\n"

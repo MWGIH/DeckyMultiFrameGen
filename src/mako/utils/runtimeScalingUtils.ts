@@ -36,6 +36,8 @@ export interface RuntimeScalingUiState {
   frameGenerationTargetFps: number | null;
   frameGenerationMultiplier: number | null;
   frameGenerationPending: boolean;
+  gpuHeadroomState: string;
+  gpuHeadroomPercent: number;
   scalingActive: boolean;
   scalingEnabled: boolean;
   scalingActivationSupported: boolean | null;
@@ -68,6 +70,8 @@ export const EMPTY_RUNTIME_SCALING_UI_STATE: RuntimeScalingUiState = {
   frameGenerationTargetFps: null,
   frameGenerationMultiplier: null,
   frameGenerationPending: false,
+  gpuHeadroomState: "off",
+  gpuHeadroomPercent: 0,
   scalingActive: false,
   scalingEnabled: false,
   scalingActivationSupported: null,
@@ -148,6 +152,8 @@ export function runtimeScalingUiState(
     phase: contexts.length > 0 ? status.phase : "inactive",
     frameGenerationActive: Boolean(frameContext?.frame_generation_active),
     frameGenerationEnabled,
+    gpuHeadroomState: frameContext?.gpu_headroom_state ?? "unavailable",
+    gpuHeadroomPercent: appliedFrameProfile?.gpu_headroom_percent ?? 0,
     frameGenerationMode,
     frameGenerationAdaptiveStyle: appliedFrameProfile?.adaptive
       ? appliedFrameProfile.adaptive_auto_base_fps_cap

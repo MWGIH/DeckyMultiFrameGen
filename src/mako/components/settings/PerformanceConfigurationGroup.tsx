@@ -1,7 +1,13 @@
-import { PanelSectionRow, SliderField, ToggleField } from "@decky/ui";
+import {
+  DropdownItem,
+  PanelSectionRow,
+  SliderField,
+  ToggleField,
+} from "@decky/ui";
 import { MdBolt } from "react-icons/md";
 import {
   ALLOW_FP16,
+  GPU_HEADROOM_PERCENT_VALUES,
   DISABLE_STEAM_OVERLAY,
   FLOW_SCALE_MAX,
   FLOW_SCALE_MIN,
@@ -98,6 +104,47 @@ export function PerformanceConfigurationGroup({
           onChange={(value) => onConfigChange(FLOW_SCALE, value)}
         />
       </PanelSectionRow>
+
+      <PanelSectionRow>
+        <ToggleField
+          label={t("CONFIG_GPU_HEADROOM", "GPU Headroom")}
+          description={t(
+            "CONFIG_GPU_HEADROOM_DESC",
+            "Reduces real FPS during Frame Generation to free GPU capacity. Requires AMD GPU readings. May reduce stutter, but add input lag or uneven pacing.",
+          )}
+          checked={config.gpu_headroom_percent > 0}
+          onChange={(enabled) =>
+            onConfigUpdate({
+              gpu_headroom_percent: enabled ? 10 : 0,
+              ...(enabled ? { dynamic_cadence_recovery: false } : {}),
+            })
+          }
+        />
+      </PanelSectionRow>
+      {config.gpu_headroom_percent > 0 && (
+        <PanelSectionRow>
+          <DropdownItem
+            label={t("CONFIG_GPU_HEADROOM_RESERVE", "Reserved GPU capacity")}
+            description={t(
+              "CONFIG_GPU_HEADROOM_TRADEOFF",
+              "10% targets about 90% GPU usage. Adaptive can add generated frames; Fixed may lower output FPS. Disables Dynamic Cadence Recovery.",
+            )}
+            rgOptions={GPU_HEADROOM_PERCENT_VALUES.filter(
+              (value) => value > 0,
+            ).map((value) => ({
+              data: value,
+              label: `${value}%`,
+            }))}
+            selectedOption={config.gpu_headroom_percent}
+            onChange={(option) =>
+              onConfigUpdate({
+                gpu_headroom_percent: Number(option.data),
+                dynamic_cadence_recovery: false,
+              })
+            }
+          />
+        </PanelSectionRow>
+      )}
 
       <PanelSectionRow>
         <ToggleField

@@ -17,7 +17,7 @@ from .constants import (
     LIB_FILENAME, JSON_FILENAME, JSON32_FILENAME,
     SPATIAL_SCALING_LIB_FILENAME,
     SPATIAL_SCALING_JSON_FILENAME, SPATIAL_SCALING_JSON32_FILENAME,
-    CLI_FILENAME, CLI_DIR, VRR_LEASE_FILENAME, BIN_DIR,
+    SHADER_TOOL_FILENAME, CLI_FILENAME, CLI_DIR, VRR_LEASE_FILENAME, BIN_DIR,
     DIAGNOSTICS_HELPER_FILENAME, MAKO_LAYER_NAME,
     MAKO_LAYER_ENABLE_ENV, MAKO_LAYER_DISABLE_ENV,
     SPATIAL_SCALING_LAYER_NAME,
@@ -572,6 +572,7 @@ class InstallationService(BaseService):
             # Published 4.0 archives predate native Remote Play. They remain
             # installable; enabling the override requires the current helper.
             optional_archive={f"bin/{CLI_FILENAME}": self.cli_file,
+                              f"bin/{SHADER_TOOL_FILENAME}": self.cli_file.with_name(SHADER_TOOL_FILENAME),
                               SDR_HELPER_RELATIVE_PATH: self.remote_play_sdr_file},
             generated=(
                 self.registered_json_file, self.registered_json32_file,
@@ -762,10 +763,14 @@ class InstallationService(BaseService):
                         copy_managed_file_atomically(
                             temp_file,
                             destination,
-                            0o755 if filename in (CLI_FILENAME, VRR_LEASE_FILENAME) else 0o644,
+                            0o755 if filename in (CLI_FILENAME, VRR_LEASE_FILENAME, SHADER_TOOL_FILENAME) else 0o644,
                             self.log,
                         )
                     self.log.info("Installed %s to %s", filename, destination)
+
+                shader_tool = self.cli_file.with_name(SHADER_TOOL_FILENAME)
+                if shader_tool not in staged_files:
+                    self._remove_if_exists(shader_tool)
 
                 if not has_32bit_library:
                     # A 64-bit-only local test package must not leave a stale

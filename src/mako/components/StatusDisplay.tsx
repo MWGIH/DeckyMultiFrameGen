@@ -1,5 +1,6 @@
 import { PanelSectionRow } from "@decky/ui";
 import { FiAlertCircle, FiCheckCircle } from "react-icons/fi";
+import t from "../i18n/i18n";
 
 interface StatusDisplayProps {
   dllDetected: boolean;
@@ -56,6 +57,19 @@ export function StatusDisplay({
   installationStatus,
   topMargin = "0"
 }: StatusDisplayProps) {
+  // Keep essential labels visible even when status text is empty during refresh.
+  // Preserve supplied progress and error messages.
+  const dllText = dllDetectionStatus?.trim()
+    ? dllDetectionStatus
+    : dllDetected
+      ? t("STATUS_LOSSLESS_INSTALLED", "Lossless Scaling installed")
+      : t("STATUS_LOSSLESS_CHECKING", "Checking Lossless Scaling…");
+  const rendererText = installationStatus?.trim()
+    ? installationStatus
+    : isInstalled
+      ? t("STATUS_ENGINE_INSTALLED", "MAKO Renderer installed")
+      : t("STATUS_ENGINE_CHECKING", "Checking MAKO Renderer…");
+
   return (
     <PanelSectionRow>
       <div
@@ -71,8 +85,8 @@ export function StatusDisplay({
           boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 2px 5px rgba(0, 0, 0, 0.16)"
         }}
       >
-        <StatusRow ready={dllDetected} text={dllDetectionStatus} />
-        <StatusRow ready={isInstalled} text={installationStatus} separated />
+        <StatusRow ready={dllDetected} text={dllText} />
+        <StatusRow ready={isInstalled} text={rendererText} separated />
       </div>
     </PanelSectionRow>
   );

@@ -72,6 +72,62 @@ export interface CustomShaderEffect {
   path: string;
 }
 
+export interface ShaderParameterPresentation {
+  widget:
+    | ""
+    | "input"
+    | "drag"
+    | "slider"
+    | "combo"
+    | "radio"
+    | "list"
+    | "color"
+    | "button";
+  group: string;
+  label: string;
+  component: number;
+  count: number;
+}
+
+export interface ShaderParameter {
+  key: string;
+  label: string;
+  description: string;
+  category: string;
+  type: "bool" | "int" | "uint" | "float";
+  default: number;
+  value: number;
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  items: string[];
+  presentation?: ShaderParameterPresentation;
+  resettable?: boolean;
+}
+
+export interface ShaderEffectParameters {
+  id: string;
+  name: string;
+  path: string;
+  parameters: ShaderParameter[];
+  error: string | null;
+}
+
+export interface ShaderParametersResult {
+  success: boolean;
+  message: string;
+  error: string | null;
+  effects: ShaderEffectParameters[];
+}
+
+export const getShaderParameters = callable<[string], ShaderParametersResult>(
+  "get_shader_parameters",
+);
+export const setShaderParameters = callable<
+  [string, Record<string, number | null>],
+  ShaderParametersResult
+>("set_shader_parameters");
+
 export interface ConfigResult {
   success: boolean;
   config: Nullable<MakoConfig>;
@@ -204,6 +260,7 @@ export interface RuntimeProfileSnapshot {
   hdr_quality: "quality" | "balanced" | "performance";
   frame_generation_refresh_threshold: number;
   base_fps_cap: number;
+  gpu_headroom_percent: number;
   adaptive: boolean;
   adaptive_auto_base_fps_cap: boolean;
   adaptive_fractional_real_frame_priority: string;
@@ -267,6 +324,7 @@ export interface RuntimeContextState {
   pending: RuntimePendingState;
   applied_generated_capacity: number;
   frame_generation_active: boolean;
+  gpu_headroom_state: string;
   spatial_scaling: RuntimeSpatialScalingState;
   requested: RuntimeProfileSnapshot;
   applied: RuntimeProfileSnapshot;

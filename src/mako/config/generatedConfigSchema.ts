@@ -36,6 +36,7 @@ export type FlatpakRuntimeI18nKey =
 export const BASE_FPS_CAP_MIN = 0 as const;
 export const BASE_FPS_CAP_MAX = 240 as const;
 export const BASE_FPS_CAP_UI_MAX = 120 as const;
+export const GPU_HEADROOM_PERCENT_VALUES = [0, 5, 10, 15, 20] as const;
 export const TARGET_FPS_MIN = 30 as const;
 export const TARGET_FPS_MAX = 240 as const;
 export const ADAPTIVE_MAX_MULTIPLIER_MIN = 2 as const;
@@ -131,6 +132,7 @@ export const VKBASALT_SHADER_FILM_GRAIN = "film_grain" as const;
 export const VKBASALT_SHADER_CARTOON = "cartoon" as const;
 export const VKBASALT_SHADER_NOSTALGIA = "nostalgia" as const;
 export const VKBASALT_SHADER_CHROMATIC_ABERRATION = "chromatic_aberration" as const;
+export const VKBASALT_SHADER_CROP_STRETCH = "crop_stretch" as const;
 export const VKBASALT_SHADER_CLARITY = "clarity" as const;
 export const VKBASALT_SHADER_LEVELS_PLUS = "levels_plus" as const;
 export const VKBASALT_STRENGTH_MIN = 0.0 as const;
@@ -155,6 +157,7 @@ export const SCALING_SHARPNESS = "scaling_sharpness" as const;
 export const FRAME_GENERATION_PROVISIONED = "frame_generation_provisioned" as const;
 export const FRAME_GENERATION_ENABLED = "frame_generation_enabled" as const;
 export const FRAME_GENERATION_REFRESH_THRESHOLD = "frame_generation_refresh_threshold" as const;
+export const GPU_HEADROOM_PERCENT = "gpu_headroom_percent" as const;
 export const BASE_FPS_CAP = "base_fps_cap" as const;
 export const MULTIPLIER = "multiplier" as const;
 export const ADAPTIVE = "adaptive" as const;
@@ -259,6 +262,12 @@ export const CONFIG_SCHEMA: Record<string, ConfigField> = {
     fieldType: ConfigFieldType.INTEGER,
     default: 0,
     description: "pause frame generation at or below a confirmed Gamescope refresh rate; zero disables the guard"
+  },
+  gpu_headroom_percent: {
+    name: "gpu_headroom_percent",
+    fieldType: ConfigFieldType.INTEGER,
+    default: 0,
+    description: "live FG-only soft GPU utilization reserve: 0 (off), 5, 10, 15 or 20 percent; supported AMD telemetry required"
   },
   base_fps_cap: {
     name: "base_fps_cap",
@@ -478,6 +487,7 @@ export interface ConfigurationData {
   frame_generation_provisioned: boolean;
   frame_generation_enabled: boolean;
   frame_generation_refresh_threshold: number;
+  gpu_headroom_percent: number;
   base_fps_cap: number;
   multiplier: number;
   adaptive: boolean;
@@ -534,6 +544,7 @@ export function getDefaults(): ConfigurationData {
     frame_generation_provisioned: true,
     frame_generation_enabled: true,
     frame_generation_refresh_threshold: 0,
+    gpu_headroom_percent: 0,
     base_fps_cap: 0,
     multiplier: 2,
     adaptive: false,
@@ -583,6 +594,7 @@ export function getFieldTypes(): Record<string, ConfigFieldType> {
     frame_generation_provisioned: ConfigFieldType.BOOLEAN,
     frame_generation_enabled: ConfigFieldType.BOOLEAN,
     frame_generation_refresh_threshold: ConfigFieldType.INTEGER,
+    gpu_headroom_percent: ConfigFieldType.INTEGER,
     base_fps_cap: ConfigFieldType.INTEGER,
     multiplier: ConfigFieldType.INTEGER,
     adaptive: ConfigFieldType.BOOLEAN,

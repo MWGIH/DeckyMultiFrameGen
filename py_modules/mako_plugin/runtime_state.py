@@ -122,6 +122,9 @@ def _profile(value: object, field: str) -> RuntimeProfileSnapshot:
             value.get("frame_generation_refresh_threshold"),
             f"{field}.frame_generation_refresh_threshold",
         ),
+        "gpu_headroom_percent": _integer(
+            value.get("gpu_headroom_percent", 0), f"{field}.gpu_headroom_percent"
+        ),
         "base_fps_cap": _integer(
             value.get("base_fps_cap"), f"{field}.base_fps_cap"
         ),
@@ -317,6 +320,7 @@ def _context(value: object) -> RuntimeContextState:
             "frame_generation_active",
         ),
         "spatial_scaling": _spatial_scaling(value.get("spatial_scaling")),
+        "gpu_headroom_state": _string(value.get("gpu_headroom_state", "unavailable"), "gpu_headroom_state"),
         "requested": _profile(value.get("requested"), "requested"),
         "applied": _profile(value.get("applied"), "applied"),
         "error": error_value,

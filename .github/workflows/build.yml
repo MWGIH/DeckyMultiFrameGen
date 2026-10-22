@@ -5,6 +5,8 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
+  # started by mako-update.yml after it brings in a new MAKO release (its own push can't start this workflow)
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -36,7 +38,7 @@ jobs:
       # installed from https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
       # Pushing a v* tag (or creating a release on GitHub) attaches the ZIP to that release instead.
       - name: Publish release
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

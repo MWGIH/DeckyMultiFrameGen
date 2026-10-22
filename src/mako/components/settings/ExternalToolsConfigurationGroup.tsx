@@ -43,7 +43,7 @@ export function ExternalToolsConfigurationGroup({
               }
               description={t(
                 "CONFIG_ENABLE_MANGOHUD_DESC",
-                "Uses installed MangoHud and its settings; see expert guide for per-game overrides.",
+                "Uses installed MangoHud. To share a layout across enabled profiles, create ~/.config/mako-render/mangohud.conf with MangoHud options and restart the game.",
               )}
               checked={
                 config.external_vulkan_layer === EXTERNAL_VULKAN_LAYER_MANGOHUD

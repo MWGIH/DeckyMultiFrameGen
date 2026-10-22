@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useState,
   type ComponentProps,
   type ComponentType,
@@ -32,6 +33,7 @@ import {
   VKBASALT_SHADER_BLEACH_BYPASS,
   VKBASALT_SHADER_CARTOON,
   VKBASALT_SHADER_CHROMATIC_ABERRATION,
+  VKBASALT_SHADER_CROP_STRETCH,
   VKBASALT_SHADER_CLARITY,
   VKBASALT_SHADER_COLOURFULNESS,
   VKBASALT_SHADER_CURVES,
@@ -57,6 +59,7 @@ import { MakoInfo } from "../MakoInfo";
 import {
   MakoFocusable,
   MakoInlineTip,
+  MakoRestartLabel,
   makoDialogButtonStyle,
 } from "../MakoUi";
 import type { ConfigurationControlProps } from "./types";
@@ -69,6 +72,7 @@ interface ShadersConfigurationGroupProps extends ConfigurationControlProps {
   customShaderEffects?: CustomShaderEffect[];
   onAddShader?: (path: string) => Promise<void>;
   onRefreshShaders?: () => Promise<void>;
+  onCustomizeShaders?: () => Promise<void>;
   onDeleteShaders?: (shaderIds: string[]) => Promise<void>;
 }
 
@@ -103,6 +107,44 @@ const compactCustomShaderButtonStyle: CSSProperties = {
   fontSize: "11px",
 };
 
+function ShaderActionButton({
+  disabled,
+  children,
+  className,
+  style,
+  ...props
+}: ComponentProps<typeof DialogButton>) {
+  // Steam's DialogButton forces the underlying button to stay enabled. Use
+  // a native disabled button so unavailable actions have no Steam focus node
+  // and cannot receive browser focus when the panel restores its selection.
+  if (disabled) {
+    return (
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        className={`DialogButton _DialogLayout Secondary Disabled ${className || ""}`}
+        style={{
+          ...style,
+          background: "#30363d",
+          color: "#8b949e",
+          border: "1px solid #444c56",
+          boxShadow: "none",
+          outline: "none",
+          pointerEvents: "none",
+        }}
+      >
+        {children}
+      </button>
+    );
+  }
+  return (
+    <DialogButton {...props} className={className} style={style}>
+      {children}
+    </DialogButton>
+  );
+}
+
 export function ShadersConfigurationGroup({
   config,
   isDefaultProfile,
@@ -111,6 +153,7 @@ export function ShadersConfigurationGroup({
   customShaderEffects = [],
   onAddShader,
   onRefreshShaders,
+  onCustomizeShaders,
   onDeleteShaders,
   onConfigChange,
 }: ShadersConfigurationGroupProps) {
@@ -141,6 +184,11 @@ export function ShadersConfigurationGroup({
     config.vkbasalt_shader === VKBASALT_SHADER_NONE
       ? []
       : config.vkbasalt_shader.split(":");
+  const deleteDisabled =
+    busy || !selectedEffects.some((id) => id.startsWith("custom/"));
+  useEffect(() => {
+    if (deleteDisabled) setFocusedAction(null);
+  }, [deleteDisabled]);
   const sharpeningOptions = [
     {
       data: VKBASALT_SHARPENING_NONE,
@@ -253,6 +301,10 @@ export function ShadersConfigurationGroup({
         "Chromatic Aberration",
       ),
     },
+    {
+      data: VKBASALT_SHADER_CROP_STRETCH,
+      label: t("CONFIG_VKBASALT_SHADER_CROP_STRETCH", "Crop & Stretch"),
+    },
   ];
 
   const customIds = new Set(customShaderEffects.map((effect) => effect.id));
@@ -281,7 +333,11 @@ export function ShadersConfigurationGroup({
     <>
       <PanelSectionRow>
         <ToggleField
-          label={t("CONFIG_ENABLE_VKBASALT", "Enable Shaders (Restart)")}
+          label={
+            <MakoRestartLabel
+              label={t("CONFIG_ENABLE_VKBASALT", "Enable shaders (Restart)")}
+            />
+          }
           description={t(
             "CONFIG_ENABLE_VKBASALT_DESC",
             "Enable before launch for bundled sharpening, anti-aliasing, and shaders. No separate install. If effects are invisible, try Windowed or Borderless Fullscreen mode.",
@@ -333,11 +389,31 @@ export function ShadersConfigurationGroup({
             </SteamEffectsField>
           </PanelSectionRow>
           <PanelSectionRow>
-            <MakoFocusable
-              flow-children="column"
-              noFocusRing
+            {/* Keep the action rows in the panel's navigation order. A parent
+                focus group would remember Add while Customize is disabled. */}
+            <div
               style={{ width: "100%", minWidth: 0, paddingBottom: "6px" }}
             >
+              <div
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "12px 4px 8px",
+                }}
+              >
+                <ShaderActionButton
+                  disabled={
+                    busy || !selectedEffects.length || !onCustomizeShaders
+                  }
+                  style={{ ...customShaderButtonStyle, width: "100%" }}
+                  onClick={() => {
+                    if (onCustomizeShaders)
+                      void runShaderAction(onCustomizeShaders);
+                  }}
+                >
+                  {t("SHADER_EDITOR_TITLE", "Customize shaders")}
+                </ShaderActionButton>
+              </div>
               {(onAddShader || onRefreshShaders) && (
                 <MakoFocusable
                   flow-children="row"
@@ -349,11 +425,11 @@ export function ShadersConfigurationGroup({
                     width: "100%",
                     minWidth: 0,
                     boxSizing: "border-box",
-                    padding: "12px 4px 8px",
+                    padding: "4px 4px 8px",
                   }}
                 >
                   {onAddShader && (
-                    <DialogButton
+                    <ShaderActionButton
                       style={compactCustomShaderButtonStyle}
                       disabled={busy}
                       onClick={() =>
@@ -373,17 +449,17 @@ export function ShadersConfigurationGroup({
                         })
                       }
                     >
-                      {t("CONFIG_VKBASALT_CUSTOM_ADD", "Add Custom Shader")}
-                    </DialogButton>
+                      {t("CONFIG_VKBASALT_CUSTOM_ADD", "Add custom shader")}
+                    </ShaderActionButton>
                   )}
                   {onRefreshShaders && (
-                    <DialogButton
+                    <ShaderActionButton
                       style={compactCustomShaderButtonStyle}
                       disabled={busy}
                       onClick={() => runShaderAction(onRefreshShaders)}
                     >
                       {t("CONFIG_VKBASALT_CUSTOM_REFRESH", "Refresh")}
-                    </DialogButton>
+                    </ShaderActionButton>
                   )}
                 </MakoFocusable>
               )}
@@ -403,22 +479,19 @@ export function ShadersConfigurationGroup({
                     padding: "4px 4px 8px",
                   }}
                 >
-                  <DialogButton
+                  <ShaderActionButton
                     className="Mako_DialogButton Mako_DialogButton--danger"
                     style={{
                       ...customShaderButtonStyle,
                       width: "100%",
                       ...makoDialogButtonStyle(
-                        focusedAction === "delete",
+                        focusedAction === "delete" && !deleteDisabled,
                         "danger",
                       ),
                     }}
                     onGamepadFocus={() => setFocusedAction("delete")}
                     onGamepadBlur={() => setFocusedAction(null)}
-                    disabled={
-                      busy ||
-                      !selectedEffects.some((id) => id.startsWith("custom/"))
-                    }
+                    disabled={deleteDisabled}
                     onClick={() =>
                       runShaderAction(() =>
                         onDeleteShaders(
@@ -433,7 +506,7 @@ export function ShadersConfigurationGroup({
                       "CONFIG_VKBASALT_CUSTOM_DELETE",
                       "Delete selected custom shaders",
                     )}
-                  </DialogButton>
+                  </ShaderActionButton>
                 </div>
               )}
               {shaderError && (
@@ -441,7 +514,7 @@ export function ShadersConfigurationGroup({
                   {shaderError}
                 </MakoInlineTip>
               )}
-            </MakoFocusable>
+            </div>
           </PanelSectionRow>
 
           <PanelSectionRow>
@@ -488,7 +561,7 @@ export function ShadersConfigurationGroup({
               <SliderField
                 label={t(
                   "CONFIG_VKBASALT_DLS_DENOISE",
-                  "DLS Denoise ({value}%)",
+                  "DLS denoise ({value}%)",
                   { value: Math.round(config.vkbasalt_dls_denoise * 100) },
                 )}
                 description={t(

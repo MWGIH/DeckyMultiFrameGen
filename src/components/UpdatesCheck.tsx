@@ -281,7 +281,7 @@ export function UpdatesCheck({
         <Field
           key="up"
           label="Newer upstream releases"
-          description={`${upstream.join(" and ")} ${upstream.length > 1 ? "are" : "is"} out. ${p.update_available ? "Update MultiFrameGen to check whether it brings them." : "They come with a future MultiFrameGen update."}`}
+          description={`${upstream.join(" and ")} ${upstream.length > 1 ? "are" : "is"} out. ${p.update_available ? "Update MultiFrameGen to check whether it brings them." : m.newer_upstream ? "MultiFrameGen brings new MAKO releases in by itself within a day: they show here as a MultiFrameGen update." : "They come with a future MultiFrameGen update."}`}
         />,
       );
     }

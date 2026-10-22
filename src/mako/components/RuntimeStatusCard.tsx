@@ -189,7 +189,8 @@ export function RuntimeStatusCard({
     | "frame_generation_provisioned"
     | "frame_generation_enabled"
     | "scaling_enabled"
-  >;
+  > &
+    Partial<Pick<ConfigurationData, "gpu_headroom_percent">>;
 }) {
   // Configuration explains absent telemetry; it must not override live reports.
   const featuresOff =
@@ -208,6 +209,36 @@ export function RuntimeStatusCard({
   const pendingNotice =
     runtimeState.frameGenerationPending || runtimeState.scalingPending;
   const notices: StatusNotice[] = [];
+
+  if (
+    runtimeState.frameGenerationEnabled &&
+    (runtimeState.gpuHeadroomPercent > 0 ||
+      (runtimeState.hasContext &&
+        runtimeState.gpuHeadroomState === "unavailable" &&
+        (activeConfig?.gpu_headroom_percent ?? 0) > 0))
+  ) {
+    if (
+      ["telemetry-unavailable", "unavailable"].includes(
+        runtimeState.gpuHeadroomState,
+      )
+    ) {
+      notices.push({
+        key: "headroom-unavailable",
+        content: t(
+          "LIVE_STATUS_HEADROOM_UNAVAILABLE",
+          "GPU Headroom is waiting for supported GPU readings; normal pacing remains active.",
+        ),
+      });
+    } else if (runtimeState.gpuHeadroomState === "frame-rate-floor") {
+      notices.push({
+        key: "headroom-floor",
+        content: t(
+          "LIVE_STATUS_HEADROOM_FLOOR",
+          "GPU Headroom reached the real-frame floor. The selected generation capacity may prevent further GPU savings.",
+        ),
+      });
+    }
+  }
 
   if (runtimeState.frameGenerationEnabled) {
     notices.push({

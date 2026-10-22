@@ -19,6 +19,7 @@ SCALING_SHARPNESS = "scaling_sharpness"
 FRAME_GENERATION_PROVISIONED = "frame_generation_provisioned"
 FRAME_GENERATION_ENABLED = "frame_generation_enabled"
 FRAME_GENERATION_REFRESH_THRESHOLD = "frame_generation_refresh_threshold"
+GPU_HEADROOM_PERCENT = "gpu_headroom_percent"
 BASE_FPS_CAP = "base_fps_cap"
 MULTIPLIER = "multiplier"
 ADAPTIVE = "adaptive"
@@ -67,6 +68,7 @@ class ConfigurationData(TypedDict):
     frame_generation_provisioned: bool
     frame_generation_enabled: bool
     frame_generation_refresh_threshold: int
+    gpu_headroom_percent: int
     base_fps_cap: int
     multiplier: int
     adaptive: bool
@@ -115,6 +117,7 @@ class ConfigurationPatch(TypedDict, total=False):
     frame_generation_provisioned: bool
     frame_generation_enabled: bool
     frame_generation_refresh_threshold: int
+    gpu_headroom_percent: int
     base_fps_cap: int
     multiplier: int
     adaptive: bool
@@ -203,4 +206,4 @@ def get_script_generation_logic():
     return generate_script_lines
 
 
-ALL_FIELDS = ['dll', 'allow_fp16', 'scaling_enabled', 'scaling_method', 'scaling_factor', 'scaling_supersampling', 'scaling_sharpness', 'frame_generation_provisioned', 'frame_generation_enabled', 'frame_generation_refresh_threshold', 'base_fps_cap', 'multiplier', 'adaptive', 'adaptive_auto_base_fps_cap', 'adaptive_fractional_real_frame_priority', 'target_fps', 'adaptive_target_refresh_rate', 'adaptive_max_multiplier', 'adaptive_stable_cadence', 'gamescope_vrr_mode', 'dynamic_cadence_recovery', 'dynamic_cadence_probe_interval_seconds', 'ultra_performance', 'flow_scale', 'performance_mode', 'pacing', 'active_in', 'gpu', 'disable_mako', 'hdr_quality', 'disable_hdr_exposure', 'gamescope_wsi_compatibility', 'swapchain_image_count_compatibility', 'external_vulkan_layer', 'vkbasalt_sharpening', 'vkbasalt_sharpness', 'vkbasalt_dls_denoise', 'vkbasalt_antialiasing', 'vkbasalt_shader', 'vkbasalt_manage_custom_shaders', 'disable_steamdeck_mode', 'disable_steam_overlay', 'enable_zink', 'force_alsa_audio']
+ALL_FIELDS = ['dll', 'allow_fp16', 'scaling_enabled', 'scaling_method', 'scaling_factor', 'scaling_supersampling', 'scaling_sharpness', 'frame_generation_provisioned', 'frame_generation_enabled', 'frame_generation_refresh_threshold', 'gpu_headroom_percent', 'base_fps_cap', 'multiplier', 'adaptive', 'adaptive_auto_base_fps_cap', 'adaptive_fractional_real_frame_priority', 'target_fps', 'adaptive_target_refresh_rate', 'adaptive_max_multiplier', 'adaptive_stable_cadence', 'gamescope_vrr_mode', 'dynamic_cadence_recovery', 'dynamic_cadence_probe_interval_seconds', 'ultra_performance', 'flow_scale', 'performance_mode', 'pacing', 'active_in', 'gpu', 'disable_mako', 'hdr_quality', 'disable_hdr_exposure', 'gamescope_wsi_compatibility', 'swapchain_image_count_compatibility', 'external_vulkan_layer', 'vkbasalt_sharpening', 'vkbasalt_sharpness', 'vkbasalt_dls_denoise', 'vkbasalt_antialiasing', 'vkbasalt_shader', 'vkbasalt_manage_custom_shaders', 'disable_steamdeck_mode', 'disable_steam_overlay', 'enable_zink', 'force_alsa_audio']

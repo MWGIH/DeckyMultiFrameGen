@@ -8,7 +8,7 @@ default_steam_logs=(
   "${HOME}/.var/app/com.valvesoftware.Steam/.steam/steam/logs/console-linux.txt"
 )
 log_path="${MAKO_PRESENT_DIAGNOSTICS_LOG:-}"
-retained_session_count=5
+retained_session_count=10
 session=latest
 line_count=800
 presets=()
@@ -51,7 +51,7 @@ Examples:
   mako-diagnostics --lines 2000 all > mako-report.txt
   mako-diagnostics --session previous --lines 2000 all > previous-report.txt
   mako-diagnostics --session previous-two --lines 2000 all > earlier-report.txt
-  mako-diagnostics --session all --lines 2000 all > five-session-report.txt
+  mako-diagnostics --session all --lines 2000 all > ten-session-report.txt
 EOF
 }
 
@@ -212,10 +212,18 @@ add_pattern() {
 # preset such as HDR or performance. Retain the former prefix in the filter so
 # reports collected immediately after an upgrade can still include old logs.
 renderer_prefix='(MAKO Renderer:|mako:)'
+# Steam console-linux.txt timestamps every stderr line, including exception
+# continuations and Wayland errors. Match only that known envelope.
+steam_timestamp_prefix='[[][0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9][]][[:space:]]+'
 add_pattern "$renderer_prefix render layer active; identity=VK_LAYER_MAKO_render; build="
 # A presentation or initialization failure explains missing later telemetry in
 # any preset. Its adjacent exception details are folded into the same record.
 add_pattern "$renderer_prefix [^:]*failed:"
+# libwayland reports compositor protocol errors without a Renderer prefix.
+# Keep its exact error shape, including older @ object IDs and destroyed
+# proxies: an EPIPE bridge failure can otherwise hide the server's cause.
+# This does not admit ordinary Wayland request traces or arbitrary game logs.
+add_pattern "^($steam_timestamp_prefix)?([[:alpha:]_][[:alnum:]_]*[#@][0-9]+|[[]destroyed object[]]): error -?[0-9]+:"
 # Interleaved Vulkan processes are common on SteamOS. Keep their identity and
 # swapchain metadata in every focused report so policy and slow-operation
 # records can be attributed without expanding the report to unrelated output.
@@ -224,6 +232,7 @@ add_pattern "$renderer_prefix present diagnostics: operation=(launch-environment
 # metadata. Keep the initial snapshot and any live pacing-owner transition in
 # every report without collecting unrelated compositor output.
 add_pattern "$renderer_prefix Gamescope presentation feedback"
+add_pattern "$renderer_prefix presentation timing (initialized|fallback);"
 add_pattern "$renderer_prefix present diagnostics: operation=gamescope-presentation-feedback"
 # Wrapper session admission failures are deliberately log-only. Retain this
 # line in every focused report so a Desktop-session fallback remains visible
@@ -240,7 +249,7 @@ live_recreation_record="$renderer_prefix present diagnostics: operation=(generat
 add_pattern "$live_recreation_record"
 # Periodic health and collection failures are useful for every failure mode,
 # including memory/thermal degradation outside frame-generation presets.
-add_pattern "$renderer_prefix present diagnostics: operation=(runtime-health|present-phase-summary)"
+add_pattern "$renderer_prefix present diagnostics: operation=(runtime-health|present-phase-summary|gpu-headroom|adaptive-efficiency-probe-cancelled)"
 
 for preset in "${presets[@]}"; do
   case "$preset" in
@@ -260,6 +269,8 @@ for preset in "${presets[@]}"; do
       add_pattern "$renderer_prefix present diagnostics: operation=(runtime-transition-pending|runtime-transition-prepared|runtime-transition-failed|runtime-transition-applied|runtime-transition-recreation-requested|runtime-state-applied)"
       ;;
     scaling)
+      # Preserve full bridge records, including protocol/stage/drop fields and legacy VRR margins.
+      # Keep the complete wait record, including first_failure_* call identity.
       add_pattern "$renderer_prefix present diagnostics: operation=(gamescope-bridge-timing|application-present-mode|application-present-wait)"
       add_pattern "$renderer_prefix (swapchain colour pipeline|swapchain creation failed|swapchain presentation failed)"
       add_pattern "$renderer_prefix Gamescope application HDR feedback"
@@ -282,6 +293,8 @@ for preset in "${presets[@]}"; do
     performance)
       add_pattern "$renderer_prefix present diagnostics: operation=(adaptive-rescue-|adaptive-auto-base-cap-|adaptive-paced-load-)"
       add_pattern "$renderer_prefix present diagnostics: operation=adaptive-load-shed .*reason=paced-unpaid-real-frame-cost"
+      # Preserve full bridge records, including protocol/stage/drop fields and legacy VRR margins.
+      # Keep the complete wait record, including first_failure_* call identity.
       add_pattern "$renderer_prefix present diagnostics: operation=(gamescope-bridge-timing|application-present-mode|application-present-wait)"
       add_pattern "$renderer_prefix present diagnostics: operation=(gamescope-focus|lower-present-stall-|adaptive-recovery-(recreation-|in-place-))"
       add_pattern "$renderer_prefix (backend-memory|renderer-memory) operation="
@@ -323,10 +336,12 @@ done
 # Fold only adjacent details into one bounded record before either collection
 # pass, so even --lines 1 preserves the header and its error together.
 normalize_renderer_errors() {
-  awk -v renderer="$renderer_prefix" '
+  awk -v renderer="$renderer_prefix" -v steam_timestamp="$steam_timestamp_prefix" '
     {
-      if (header != "" && $0 ~ /^[[:space:]]*-[[:space:]]/) {
-        if (details < 8) header = header " " $0
+      message = $0
+      sub("^" steam_timestamp, "", message)
+      if (header != "" && message ~ /^[[:space:]]*-[[:space:]]/) {
+        if (details < 8) header = header " " message
         else if (details == 8) header = header " error_details_truncated=1"
         ++details
         next

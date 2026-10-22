@@ -12,7 +12,7 @@ class UpdateTests(unittest.TestCase):
     def test_versions_compare_by_number(self):
         self.assertTrue(updates.newer("v0.6.0", "0.5.10"))
         self.assertFalse(updates.newer("v0.5.5", "0.5.5"))
-        self.assertTrue(updates.newer("plugin-v4.6.0", "4.5.0"))
+        self.assertTrue(updates.newer("plugin-v99.0.0", "4.5.0"))
         self.assertFalse(updates.newer(None, "1"))
 
     def test_self_update_needs_the_zip(self):
@@ -27,7 +27,7 @@ class UpdateTests(unittest.TestCase):
     def test_check_updates_reports_each_part_and_survives_errors(self):
         def fake_get(url):
             if "MAKO" in url:
-                return [{"tag_name": "plugin-v4.6.0"}, {"tag_name": "render-v4.6.0"}]
+                return [{"tag_name": "plugin-v99.0.0"}, {"tag_name": "render-v4.6.0"}]
             raise RuntimeError("offline")
         with mock.patch.object(updates, "_get", side_effect=fake_get), \
                 mock.patch.object(main.HELIXSR, "releases", return_value=[]):
@@ -36,7 +36,7 @@ class UpdateTests(unittest.TestCase):
         self.assertIn("error", r["plugin"])
         self.assertNotIn("error", r["optiscaler"])   # only the upstream check failed
         self.assertIn("upstream_error", r["optiscaler"])
-        self.assertEqual((r["mako"]["latest"], r["mako"]["newer_upstream"]), ("plugin-v4.6.0", True))
+        self.assertEqual((r["mako"]["latest"], r["mako"]["newer_upstream"]), ("plugin-v99.0.0", True))
         self.assertFalse(r["helixsr"]["update_available"])
 
 

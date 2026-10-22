@@ -36,18 +36,31 @@ export interface MakoNavigationHandle {
   TakeFocus(button?: GamepadButton): boolean;
 }
 
+/** Steam focus events carry navigation nodes, independently of DOM focus. */
+export type MakoFocusEvent = CustomEvent<{
+  focusedNode?: { Element?: HTMLElement | null } | null;
+  blurredNode?: { Element?: HTMLElement | null } | null;
+}>;
+
 type MakoFocusableProps = Omit<
   ComponentProps<typeof Focusable>,
-  "flow-children"
+  "flow-children" | "onGamepadFocus" | "onGamepadBlur"
 > & {
   "flow-children"?: SteamFocusFlow;
+  onGamepadFocus?: (event: MakoFocusEvent) => void;
+  onGamepadBlur?: (event: MakoFocusEvent) => void;
   // Steam's Focusable supports navRef, including in virtual-focus trees.
   navRef?: Ref<MakoNavigationHandle>;
+  // Steam's scroll owner hooks are also omitted from Decky's Focusable types.
+  scrollIntoViewWhenChildFocused?: boolean | "force";
+  fnScrollIntoViewHandler?: (focused: {
+    Element?: HTMLElement | null;
+  }) => boolean;
 };
 
-/** Type Steam's focus layout and navigation handle omitted by Decky. */
+/** Type Steam's focus, navigation, and scroll options omitted by Decky. */
 export function MakoFocusable(props: MakoFocusableProps) {
-  return <Focusable {...props} />;
+  return <Focusable {...(props as ComponentProps<typeof Focusable>)} />;
 }
 
 export const makoPanelDivider = "1px solid rgba(77, 170, 190, 0.2)";

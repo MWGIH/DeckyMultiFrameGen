@@ -17,7 +17,7 @@ MAKO_REPO = "eugeniosegala/MAKO"
 
 # The upstream versions vendored into this release of the plugin
 FRAMEGEN_VENDORED = "0.17"
-MAKO_VENDORED = "4.5.0"
+MAKO_VENDORED = "4.6.0"
 
 
 def version_key(v: str | None) -> tuple:

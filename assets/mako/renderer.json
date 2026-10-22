@@ -1,28 +1,28 @@
 {
-  "_note": "MAKO Renderer release assets, copied from MAKO Decky's package.json (plugin-v4.5.0). Downloaded at runtime by multifg/mako_payload.py.",
-  "version": "4.5.0",
+  "_note": "MAKO Renderer release assets, copied from MAKO Decky's package.json (plugin-v4.6.0). Downloaded at runtime by multifg/mako_payload.py.",
+  "version": "4.6.0",
   "remote_binary": [
     {
-      "name": "MAKO-Renderer-v4.5.0-linux.tar.xz",
-      "version": "4.5.0",
-      "lineage_version": "4.5.0",
+      "name": "MAKO-Renderer-v4.6.0-linux.tar.xz",
+      "version": "4.6.0",
+      "lineage_version": "4.6.0",
       "source_repository": "https://github.com/eugeniosegala/MAKO",
-      "release_tag": "render-v4.5.0",
-      "source_commit": "81d398508592d339da9f4287ea844e695f427630",
-      "url": "https://github.com/eugeniosegala/MAKO/releases/download/render-v4.5.0/MAKO-Renderer-v4.5.0-linux.tar.xz",
-      "sha256hash": "4dd3e70743a08a0f2f0e6006d35d1e08dfcf751932678a6217cbdcf87c784305",
+      "release_tag": "render-v4.6.0",
+      "source_commit": "c1eea4858984d13d8118b3b0468be5dabce95f92",
+      "url": "https://github.com/eugeniosegala/MAKO/releases/download/render-v4.6.0/MAKO-Renderer-v4.6.0-linux.tar.xz",
+      "sha256hash": "66224414e2d94f7cb019226735b3b6d26b9be7103c5334250522f7260213be56",
       "host_architectures": [
         "x86_64"
       ],
       "flatpak_bundle": {
-        "name": "MAKO-Renderer-v4.5.0-flatpaks.tar.xz",
-        "url": "https://github.com/eugeniosegala/MAKO/releases/download/render-v4.5.0/MAKO-Renderer-v4.5.0-flatpaks.tar.xz",
-        "sha256hash": "3ae482eacef13bc6fc0e1a148f3db7a0effc0b54edc309755db60090b4baea9c"
+        "name": "MAKO-Renderer-v4.6.0-flatpaks.tar.xz",
+        "url": "https://github.com/eugeniosegala/MAKO/releases/download/render-v4.6.0/MAKO-Renderer-v4.6.0-flatpaks.tar.xz",
+        "sha256hash": "0aff4bc63cf8241ca26375dbd4c1d52168766d8f7914e2670331e25dbd415fd8"
       },
       "arch_package": {
-        "name": "mako-renderer-bin-4.5.0-1-x86_64.pkg.tar.zst",
-        "url": "https://github.com/eugeniosegala/MAKO/releases/download/render-v4.5.0/mako-renderer-bin-4.5.0-1-x86_64.pkg.tar.zst",
-        "sha256hash": "77412940395dc3242129bed928612461215f9cbf7dbdffb8fcf248cf86b1950c"
+        "name": "mako-renderer-bin-4.6.0-1-x86_64.pkg.tar.zst",
+        "url": "https://github.com/eugeniosegala/MAKO/releases/download/render-v4.6.0/mako-renderer-bin-4.6.0-1-x86_64.pkg.tar.zst",
+        "sha256hash": "de5bc4e8b5dba0106d0e08bbcdacc5e65c47166c53163a19a883348c44bea3d2"
       }
     }
   ]
