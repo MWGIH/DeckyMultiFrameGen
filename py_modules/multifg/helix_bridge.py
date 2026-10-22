@@ -8,6 +8,9 @@ library. HelixSR's files are imported and called as they are, never changed. Pri
     helix_bridge.py HELIXSR_FOLDER uninstall GAME_FOLDER
     helix_bridge.py HELIXSR_FOLDER ready
     helix_bridge.py HELIXSR_FOLDER remove_all [GAME_FOLDER]..   (every game HelixSR's scan finds, plus these)
+
+HelixSR 2.0 on carries its own JSON bridge for its desktop app (setup/helixsr_bridge.py, over helixsr_games.py) and
+its setup/helixsr_install.py is only a text front end: for those releases the commands go to that bridge (main20).
 """
 import contextlib
 import io
@@ -69,9 +72,134 @@ def describe(h, g):
     }
 
 
+# HelixSR 2.0's names for the ways into a game, and this plugin's (from the 1.x installer)
+WAY_IN = {"fsr": "direct", "scaler": "scaler"}
+WAY_OUT = {"direct": "fsr", "scaler": "scaler"}
+IN_GAME = {"scaler": "Select DLSS in the game.", "fsr": "Select AMD FSR in the game."}
+
+
+def call20(b, here, *args):
+    """One command of HelixSR's own bridge; its JSON answer (raises with its error)."""
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        b._messages.clear()
+        b.main([str(here), *args])
+    r = json.loads(out.getvalue().strip().splitlines()[-1])
+    if not r.get("ok"):
+        raise SystemExit(r.get("error") or "HelixSR's installer failed")
+    return r
+
+
+def describe20(b, j):
+    way = j.get("installed")
+    log = None
+    if j.get("log_path"):
+        p = Path(j["log_path"])
+        try:
+            log = {"path": str(p), "modified": p.stat().st_mtime,
+                   "lines": p.read_text(errors="replace").splitlines()[-12:]}
+        except OSError:
+            pass
+    graphics = None
+    if j.get("exe_folder"):
+        with contextlib.suppress(Exception):
+            exes = [f for f in Path(j["exe_folder"]).iterdir() if f.suffix.lower() == ".exe" and f.is_file()]
+            imports = b.exe_imports(max(exes, key=lambda f: f.stat().st_size)) if exes else set()
+            graphics = "vulkan" if "vulkan-1.dll" in imports and "d3d12.dll" not in imports else None
+    rec = j.get("recommended")
+    if j.get("blocked"):
+        label = f"{' / '.join(j.get('inputs') or [])} only: HelixSR Scaler isn't offered in games with anti-cheat"
+    elif rec == "scaler":
+        label = f"{' / '.join(j.get('inputs') or ['FSR 3.1'])}: HelixSR Scaler (select DLSS in the game)"
+    elif rec == "fsr":
+        label = "FSR 3.1: FSR drop-in (HelixSR replaces the game's FSR DLL: select AMD FSR in the game)"
+    else:
+        label = "HelixSR found no upscaler it can take over in this game"
+    return {
+        "found": True,
+        "name": j.get("name"),
+        "folder": j.get("folder"),
+        "route": WAY_IN.get(rec, "blocked" if j.get("blocked") else None),
+        "ways": [WAY_IN[w] for w in j.get("ways", []) if w in WAY_IN],
+        "current": WAY_IN.get(way, way),
+        "installed": bool(way),
+        "label": label,
+        "inputs": j.get("inputs", []),
+        "anticheat": j.get("anticheat") or [],
+        "exe_folder": j.get("exe_folder"),
+        "graphics": graphics,
+        "runtime_log": log,
+        "scaler_name": j.get("scaler_dll"),
+        "launch_options_now": j.get("launch_options"),
+    }
+
+
+def main20(here, cmd, args):
+    sys.path.insert(0, str(here / "setup"))
+    import helixsr_bridge as b
+
+    if cmd == "ready":
+        st = call20(b, here, "status")
+        return {"ok": True, "ready": bool(st.get("network_ready")), "version": st.get("version")}
+    if cmd == "remove_all":
+        extra = [x for f in args for x in ("--folder", f)]
+        games = call20(b, here, "games", *extra)["games"]
+        removed, left = [], []
+        for j in games:
+            if not j.get("installed"):
+                continue
+            try:
+                call20(b, here, "remove", "--game", j["folder"])
+                removed.append(j["name"])
+            except SystemExit:
+                left.append(j["name"])
+        return {"ok": True, "removed": removed, "left": left}
+    folder = args[0]
+    if cmd == "status":
+        try:
+            j = call20(b, here, "games", "--folder", folder)
+        except SystemExit:
+            return {"ok": True, "found": False}
+        want = Path(folder).resolve()
+        game = next((g for g in j["games"] if Path(g["folder"]).resolve() == want), None)
+        return {"ok": True, **(describe20(b, game) if game else {"found": False})}
+    if cmd == "install":
+        route = args[1] if len(args) > 1 else None
+        way = WAY_OUT.get(route, "auto")
+        extra = ["--scaler", str(here / "helixsr-scaler")]
+        # a way picked in the plugin: the user confirmed it (anti-cheat warning included)
+        if way == "scaler":
+            extra += ["--anticheat-ok", "yes"]
+        j = call20(b, here, "install", "--game", folder, "--way", way, *extra)["game"]
+        d = describe20(b, j)
+        return {"ok": True, **d, "route": d["current"], "in_game": IN_GAME.get(j.get("installed"), ""),
+                "launch_options": j.get("launch_options")}
+    if cmd == "uninstall":
+        try:
+            j = call20(b, here, "remove", "--game", folder)["game"]
+        except SystemExit as e:
+            if "not installed" in str(e.code):
+                return {"ok": True, "installed": False, "current": None}
+            raise
+        return {"ok": True, **describe20(b, j)}
+    return {"ok": False, "error": f"unknown command {cmd}"}
+
+
 def main():
     here = Path(sys.argv[1]).resolve()
     cmd = sys.argv[2]
+    if (here / "setup" / "helixsr_bridge.py").is_file():
+        log = io.StringIO()
+        with contextlib.redirect_stdout(log):
+            try:
+                result = main20(here, cmd, sys.argv[3:])
+            except SystemExit as e:
+                result = {"ok": False, "error": str(e.code) if e.code is not None else "stopped"}
+            except Exception as e:  # noqa: BLE001 (reported to the plugin, which shows it)
+                result = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        result["log"] = log.getvalue().splitlines()[-40:]
+        print(json.dumps(result))
+        return
     sys.path.insert(0, str(here / "setup"))
     log = io.StringIO()
     result = {}
