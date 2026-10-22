@@ -150,9 +150,16 @@ class Plugin:
                 b.update(installed=True, version=active)
             # MAKO's launcher can be there without the MAKO Renderer it starts (removed, or a partial install)
             if b["id"] == backends.MAKO and b.get("installed"):
+                b["version"] = updates.MAKO_VENDORED   # MAKO Decky's controls this plugin carries
                 try:
                     r = await MAKO.check_mako_installed()
                     b["renderer_installed"] = bool(r.get("installed"))
+                    have, want = r.get("installed_engine_version"), r.get("expected_engine_version")
+                    if r.get("installed"):
+                        line = f"MAKO Renderer {have or 'installed (version unknown)'}"
+                        if r.get("engine_update_required") and want:
+                            line += f": {want} is available, update it under Check for updates"
+                        b["notes"] = [line, *(b.get("notes") or [])]
                 except Exception:
                     decky.logger.exception("MAKO Renderer check")
         return out
