@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ButtonItem,
   ConfirmModal,
@@ -119,7 +119,11 @@ export function BackendsSection(props: Props) {
               <OptiScalerSetup status={opti} onChange={onOptiChange} />
             )}
             {b.id === "mako" && (
-              <MakoInstall installed={b.installed} onChange={onMakoChange} />
+              <MakoInstall
+                installed={b.installed}
+                rendererMissing={b.installed && b.renderer_installed === false}
+                onChange={onMakoChange}
+              />
             )}
           </div>
         ))
@@ -129,11 +133,16 @@ export function BackendsSection(props: Props) {
 }
 
 // MAKO's own install (the MAKO Renderer, downloaded from MAKO's releases); its controls appear for games set to MAKO
+// asked once per Steam session, not every time the panel opens
+let rendererPrompted = false;
+
 function MakoInstall({
   installed,
+  rendererMissing,
   onChange,
 }: {
   installed: boolean;
+  rendererMissing: boolean;
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -149,6 +158,19 @@ function MakoInstall({
       onChange();
     }
   };
+  useEffect(() => {
+    if (!rendererMissing || rendererPrompted) return;
+    rendererPrompted = true;
+    showModal(
+      <ConfirmModal
+        strTitle="Install the MAKO Renderer"
+        strDescription="MAKO is set up, but the MAKO Renderer it runs games with isn't installed. Games set to MAKO won't start with MAKO until it is. Install it now?"
+        strOKButtonText="Install"
+        strCancelButtonText="Later"
+        onOK={install}
+      />,
+    );
+  }, [rendererMissing]);
   // MAKO's launcher comes out of the games' launch options first: a game would not start with it missing
   const uninstall = async () => {
     setBusy(true);
@@ -194,20 +216,37 @@ function MakoInstall({
       />,
     );
   return (
-    <PanelSectionRow>
-      <ButtonItem
-        layout="below"
-        disabled={busy}
-        onClick={installed ? confirm : install}
-      >
-        {busy
-          ? installed
-            ? "Uninstalling MAKO…"
-            : "Installing MAKO…"
-          : installed
-            ? "Uninstall MAKO"
-            : "Install MAKO"}
-      </ButtonItem>
-    </PanelSectionRow>
+    <>
+      {rendererMissing && (
+        <>
+          <PanelSectionRow>
+            <Field
+              label="MAKO Renderer isn't installed"
+              description="Games set to MAKO need it to start with MAKO."
+            />
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem layout="below" disabled={busy} onClick={install}>
+              {busy ? "Installing the MAKO Renderer…" : "Install MAKO Renderer"}
+            </ButtonItem>
+          </PanelSectionRow>
+        </>
+      )}
+      <PanelSectionRow>
+        <ButtonItem
+          layout="below"
+          disabled={busy}
+          onClick={installed ? confirm : install}
+        >
+          {busy
+            ? installed
+              ? "Uninstalling MAKO…"
+              : "Installing MAKO…"
+            : installed
+              ? "Uninstall MAKO"
+              : "Install MAKO"}
+        </ButtonItem>
+      </PanelSectionRow>
+    </>
   );
 }

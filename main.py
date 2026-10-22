@@ -148,6 +148,13 @@ class Plugin:
         for b in out:
             if b["id"] == backends.HELIXSR and active:
                 b.update(installed=True, version=active)
+            # MAKO's launcher can be there without the MAKO Renderer it starts (removed, or a partial install)
+            if b["id"] == backends.MAKO and b.get("installed"):
+                try:
+                    r = await MAKO.check_mako_installed()
+                    b["renderer_installed"] = bool(r.get("installed"))
+                except Exception:
+                    decky.logger.exception("MAKO Renderer check")
         return out
 
     async def list_installed_games(self) -> dict:
@@ -249,7 +256,10 @@ class Plugin:
             folder = _game_folder(appid)
         except ValueError as exc:
             return {"ok": False, "error": str(exc)}
-        cleared = await _clear_game(str(appid), folder, "helixsr", current_launch_options or "")
+        # with HelixSR + MAKO chosen, MAKO stays and its launcher stays in the launch options
+        choice = SETTINGS.game_choice(str(appid)).split("+")
+        keep = "helixsr+mako" if "mako" in choice and "optiscaler" not in choice else "helixsr"
+        cleared = await _clear_game(str(appid), folder, keep, current_launch_options or "")
         if not cleared["ok"]:
             return cleared
         result = await _for_game(appid, lambda folder: HELIXSR.install_game(folder, route or None))

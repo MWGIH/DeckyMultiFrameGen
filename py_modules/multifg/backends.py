@@ -16,10 +16,12 @@ MAKO = "mako"
 # What a game can use. HelixSR picks its own way per game: the FSR drop-in, or HelixSR Scaler (its OptiScaler build).
 # OptiScaler and MAKO can run together: OptiScaler upscales inside the game, MAKO generates frames in Vulkan after it.
 OPTISCALER_MAKO = f"{OPTISCALER}+{MAKO}"
+HELIXSR_MAKO = f"{HELIXSR}+{MAKO}"
 # HelixSR as a mod inside OptiScaler: OptiScaler's FSR 3.1 upscaler is HelixSR (multifg.helix_opti)
 OPTISCALER_HELIXSR = f"{OPTISCALER}+{HELIXSR}"
 OPTISCALER_HELIXSR_MAKO = f"{OPTISCALER}+{HELIXSR}+{MAKO}"
-GAME_CHOICES = ("none", OPTISCALER, HELIXSR, MAKO, OPTISCALER_MAKO, OPTISCALER_HELIXSR, OPTISCALER_HELIXSR_MAKO)
+GAME_CHOICES = ("none", OPTISCALER, HELIXSR, MAKO, OPTISCALER_MAKO, HELIXSR_MAKO, OPTISCALER_HELIXSR,
+                OPTISCALER_HELIXSR_MAKO)
 
 UPSTREAM = {
     OPTISCALER: {

@@ -7,6 +7,7 @@ export type GameChoice =
   | "helixsr"
   | "mako"
   | "optiscaler+mako"
+  | "helixsr+mako"
   | "optiscaler+helixsr"
   | "optiscaler+helixsr+mako";
 
@@ -21,6 +22,7 @@ export type Backend = {
   path?: string;
   releases?: string[];
   lossless_scaling?: boolean;
+  renderer_installed?: boolean;
   notes?: string[];
   error?: string;
 };

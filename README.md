@@ -37,6 +37,9 @@ Early development.
 - [x] Switching a game to another backend takes the previous one out of the game and restores its launch options.
 - [x] OptiScaler + MAKO together: OptiScaler upscales in the game and MAKO's launcher goes into OptiScaler's launch
       options.
+- [x] HelixSR + MAKO together: HelixSR upscales in the game (its own install) and MAKO's launcher stays in the game's
+      launch options.
+- [x] Backends checks that the MAKO Renderer is installed when MAKO is, and offers to install it if not.
 - [x] Check for updates (Backends): updates this plugin through Decky's own installer, OptiScaler and MAKO to the
       versions this plugin brings, and HelixSR to its newest release. Newer Decky Framegen or MAKO releases are
       listed too; they arrive with the next MultiFrameGen release.

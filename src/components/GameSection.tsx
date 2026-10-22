@@ -25,11 +25,13 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   helixsr: "HelixSR",
   mako: "MAKO",
   "optiscaler+mako": "OptiScaler + MAKO",
+  "helixsr+mako": "HelixSR + MAKO",
   "optiscaler+helixsr": "OptiScaler + HelixSR",
   "optiscaler+helixsr+mako": "OptiScaler + HelixSR + MAKO",
 };
 
-const parts = (choice: GameChoice | null | undefined) => (choice ? choice.split("+") : []);
+const parts = (choice: GameChoice | null | undefined) =>
+  choice ? choice.split("+") : [];
 
 const toast = (body: string) => toaster.toast({ title: "MultiFrameGen", body });
 
@@ -49,7 +51,15 @@ type Props = {
   onChoice: (choice: GameChoice | null) => void;
 };
 
-export function GameSection({ selected, games, backends, helix, opti, onPick, onChoice }: Props) {
+export function GameSection({
+  selected,
+  games,
+  backends,
+  helix,
+  opti,
+  onPick,
+  onChoice,
+}: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
 
   useEffect(() => {
@@ -64,7 +74,13 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
       cancelled = true;
     };
   }, [selected?.appid]);
-  useEffect(() => onChoice(detail?.ok && detail.installed ? (detail.backend ?? null) : null), [detail]);
+  useEffect(
+    () =>
+      onChoice(
+        detail?.ok && detail.installed ? (detail.backend ?? null) : null,
+      ),
+    [detail],
+  );
 
   const [switching, setSwitching] = useState(false);
   const [optiChanged, setOptiChanged] = useState(0);
@@ -78,12 +94,22 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
       const r = await setGameBackend(selected.appid, choice, current);
       if (r.ok) {
         setDetail((d) => (d ? { ...d, backend: choice } : d));
-        if (r.launch_options != null && !writeLaunchOptions(id, r.launch_options)) {
-          toast(`Couldn't update the launch options. Set them in Steam: ${r.launch_options || "(empty)"}`);
+        if (
+          r.launch_options != null &&
+          !writeLaunchOptions(id, r.launch_options)
+        ) {
+          toast(
+            `Couldn't update the launch options. Set them in Steam: ${r.launch_options || "(empty)"}`,
+          );
         }
-        if (r.removed?.length) toast(`Removed ${r.removed.join(" and ")} from this game.`);
+        if (r.removed?.length)
+          toast(`Removed ${r.removed.join(" and ")} from this game.`);
         if (r.helix_in_opti) {
-          toast(r.helix_in_opti.ok ? "HelixSR added to OptiScaler" : `HelixSR wasn't added: ${r.helix_in_opti.error}`);
+          toast(
+            r.helix_in_opti.ok
+              ? "HelixSR added to OptiScaler"
+              : `HelixSR wasn't added: ${r.helix_in_opti.error}`,
+          );
         }
         setOptiChanged((n) => n + 1);
       } else {
@@ -94,8 +120,11 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
     }
   };
 
-  const installed = new Set((backends ?? []).filter((b) => b.installed).map((b) => b.id as string));
-  const name = detail?.name ?? selected?.name ?? (selected ? `App ${selected.appid}` : "");
+  const installed = new Set(
+    (backends ?? []).filter((b) => b.installed).map((b) => b.id as string),
+  );
+  const name =
+    detail?.name ?? selected?.name ?? (selected ? `App ${selected.appid}` : "");
 
   return (
     <PanelSection title="Game">
@@ -107,7 +136,9 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
             menuLabel="Installed games"
             strDefaultLabel="Pick a game"
             rgOptions={games.map((g) => ({ data: g.appid, label: g.name }))}
-            selectedOption={selected?.source === "picked" ? selected.appid : undefined}
+            selectedOption={
+              selected?.source === "picked" ? selected.appid : undefined
+            }
             onChange={(o) => onPick(String(o.data))}
           />
         </PanelSectionRow>
@@ -125,7 +156,12 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
                 label="Use"
                 rgOptions={(detail.choices ?? [])
                   // only methods that are installed, plus whatever the game is set to now
-                  .filter((c) => c === "none" || c === detail.backend || parts(c).every((id) => installed.has(id)))
+                  .filter(
+                    (c) =>
+                      c === "none" ||
+                      c === detail.backend ||
+                      parts(c).every((id) => installed.has(id)),
+                  )
                   .map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
                 disabled={switching}
@@ -133,23 +169,42 @@ export function GameSection({ selected, games, backends, helix, opti, onPick, on
               />
             </PanelSectionRow>
           )}
-          {detail?.ok && detail.installed && detail.backend === "helixsr" && (
-            <HelixSRGame appid={selected.appid} helix={helix} />
-          )}
-          {detail?.ok && detail.installed && parts(detail.backend).includes("optiscaler") && (
-            <OptiScalerGame appid={selected.appid} status={opti} onChange={() => setOptiChanged((n) => n + 1)} />
-          )}
-          {detail?.ok && detail.installed && parts(detail.backend).includes("optiscaler") &&
-            parts(detail.backend).includes("helixsr") && (
-              <HelixInOptiGame appid={selected.appid} helix={helix} refresh={optiChanged} />
+          {detail?.ok &&
+            detail.installed &&
+            parts(detail.backend).includes("helixsr") &&
+            !parts(detail.backend).includes("optiscaler") && (
+              <HelixSRGame appid={selected.appid} helix={helix} />
             )}
-          {detail?.ok && detail.installed && parts(detail.backend).includes("mako") && (
-            <MakoGame
-              appid={selected.appid}
-              makoInstalled={installed.has("mako")}
-              losslessScaling={Boolean(backends?.find((b) => b.id === "mako")?.lossless_scaling)}
-            />
-          )}
+          {detail?.ok &&
+            detail.installed &&
+            parts(detail.backend).includes("optiscaler") && (
+              <OptiScalerGame
+                appid={selected.appid}
+                status={opti}
+                onChange={() => setOptiChanged((n) => n + 1)}
+              />
+            )}
+          {detail?.ok &&
+            detail.installed &&
+            parts(detail.backend).includes("optiscaler") &&
+            parts(detail.backend).includes("helixsr") && (
+              <HelixInOptiGame
+                appid={selected.appid}
+                helix={helix}
+                refresh={optiChanged}
+              />
+            )}
+          {detail?.ok &&
+            detail.installed &&
+            parts(detail.backend).includes("mako") && (
+              <MakoGame
+                appid={selected.appid}
+                makoInstalled={installed.has("mako")}
+                losslessScaling={Boolean(
+                  backends?.find((b) => b.id === "mako")?.lossless_scaling,
+                )}
+              />
+            )}
         </>
       )}
     </PanelSection>
