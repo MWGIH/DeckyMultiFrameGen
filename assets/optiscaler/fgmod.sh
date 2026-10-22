@@ -258,7 +258,7 @@ done
 unset cleanup_file
 
 # === Optional: Backup Original DLLs ===
-original_dlls=("d3dcompiler_47.dll" "amd_fidelityfx_dx12.dll" "amd_fidelityfx_framegeneration_dx12.dll" "amd_fidelityfx_upscaler_dx12.dll" "amdxcffx64.dll" "amdxc64.dll" "amd_fidelityfx_vk.dll")
+original_dlls=("d3dcompiler_47.dll" "amd_fidelityfx_dx12.dll" "amd_fidelityfx_framegeneration_dx12.dll" "amd_fidelityfx_upscaler_dx12.dll" "amdxcffx64.dll" "amdxc64.dll" "amd_fidelityfx_vk.dll" "libxess.dll" "libxess_dx11.dll" "libxess_fg.dll" "libxell.dll")
 for dll in "${original_dlls[@]}"; do
   existing_path="$exe_folder_path/$dll"
   backup_path="$exe_folder_path/$dll.b"

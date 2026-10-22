@@ -8,7 +8,7 @@ import decky
 
 from mako_plugin.plugin import Plugin as MakoPlugin
 
-from multifg import backends, helix_opti, mako_payload, steam_library, updates
+from multifg import backends, helix_opti, leftovers, mako_payload, steam_library, updates
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
 from multifg.optiscaler import OPTISCALER_ARCHIVE_ASSET, OptiScaler
@@ -90,12 +90,15 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
         if target and (await asyncio.to_thread(helix_opti.status, target))["installed"]:
             await asyncio.to_thread(helix_opti.uninstall, target)
             removed.append("HelixSR (in OptiScaler)")
-    if "optiscaler" not in keeps and (await OPTISCALER.get_game_status(appid)).get("patched"):
+    verify = False
+    # also a patch whose OptiScaler DLL has gone (target_dir comes with any Framegen marker)
+    if "optiscaler" not in keeps and (await OPTISCALER.get_game_status(appid)).get("target_dir"):
         r = await OPTISCALER.unpatch_game(appid)
         if r.get("status") != "success":
             return {"ok": False, "error": f"Couldn't remove OptiScaler: {r.get('message')}"}
         removed.append("OptiScaler")
         new_launch = r.get("launch_options") or ""
+        verify = bool(r.get("verify_files"))
     # HelixSR's own install (FSR drop-in or HelixSR Scaler) goes when HelixSR runs inside OptiScaler instead
     if ("helixsr" not in keeps or in_opti) and HELIXSR.active():
         helix = await asyncio.to_thread(HELIXSR.game_status, folder)
@@ -106,12 +109,27 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
             removed.append("HelixSR")
             if helix.get("current") == "scaler":
                 new_launch = _without_overrides(new_launch)
+    if not keeps & {"optiscaler", "helixsr"}:
+        left = await asyncio.to_thread(_sweep_leftovers, appid)
+        if left:
+            decky.logger.info(f"Leftovers cleaned in {appid}: {left}")
+            removed.append("leftover OptiScaler/HelixSR files")
     if "mako" not in keeps and _MAKO_RUNNER.search(new_launch + " "):
         new_launch = _without_mako(new_launch)
         removed.append("MAKO")
     elif "mako" in keeps and Path(_mako_runner()).is_file():
         new_launch = _with_mako(new_launch)
-    return {"ok": True, "removed": removed, "launch_options": new_launch if new_launch != launch else None}
+    return {"ok": True, "removed": removed, "verify_files": verify,
+            "launch_options": new_launch if new_launch != launch else None}
+
+
+def _sweep_leftovers(appid: str) -> list[str]:
+    """leftovers.sweep in the folder OptiScaler and HelixSR go into (the game's .exe folder)."""
+    game = OPTISCALER._game_record(appid)
+    if not game or not Path(game["install_path"]).is_dir():
+        return []
+    target, _ = OPTISCALER._guess_patch_target(game)
+    return leftovers.sweep(target, Path(HOME) / "fgmod")
 
 
 async def _opti_target(appid: str) -> str | None:
@@ -233,7 +251,8 @@ class Plugin:
         if "mako" in backend.split("+"):
             await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
         return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added,
-                "removed": cleared["removed"], "launch_options": cleared["launch_options"]}
+                "removed": cleared["removed"], "verify_files": cleared.get("verify_files", False),
+                "launch_options": cleared["launch_options"]}
 
     # --- MAKO (its own controls are the mako_* methods at the end) ---
 

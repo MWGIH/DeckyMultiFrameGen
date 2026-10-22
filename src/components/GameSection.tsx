@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Field, PanelSection, PanelSectionRow } from "@decky/ui";
+import { Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
 import { BelowDropdown } from "./BelowDropdown";
 import { GAME_NOTES } from "../gameNotes";
 import { toaster } from "@decky/api";
@@ -14,7 +14,15 @@ import {
   type OptiStatus,
 } from "../api";
 import type { SelectedGame } from "../hooks/useSelectedGame";
-import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
+import {
+  hasLauncherSkip,
+  LAUNCHER_SKIP_GAMES,
+  launcherSkipOn,
+  readLaunchOptions,
+  setLauncherSkip,
+  withLauncherSkip,
+  writeLaunchOptions,
+} from "../launchOptions";
 import { HelixSRGame } from "./HelixSRGame";
 import { OptiScalerGame } from "./OptiScaler";
 import { MakoGame } from "./MakoGame";
@@ -83,6 +91,31 @@ export function GameSection({
     [detail],
   );
 
+  // --launcher-skip in the launch options of games with their own launcher, as soon as the game is shown
+  const [skipLauncher, setSkipLauncher] = useState(false);
+  const skipGame = Boolean(selected && selected.appid in LAUNCHER_SKIP_GAMES);
+  useEffect(() => {
+    if (!selected || !skipGame || !detail?.ok || !detail.installed) return;
+    const id = Number(selected.appid);
+    const on = launcherSkipOn(selected.appid);
+    setSkipLauncher(on);
+    readLaunchOptions(id).then((current) => {
+      if (current !== null && hasLauncherSkip(current) !== on)
+        writeLaunchOptions(id, withLauncherSkip(current, on));
+    });
+  }, [selected?.appid, detail?.ok, detail?.installed]);
+  const toggleSkipLauncher = async (on: boolean) => {
+    if (!selected) return;
+    const id = Number(selected.appid);
+    setLauncherSkip(selected.appid, on);
+    setSkipLauncher(on);
+    const current = await readLaunchOptions(id);
+    if (current === null || !writeLaunchOptions(id, withLauncherSkip(current, on)))
+      toast(
+        `Couldn't change the launch options. ${on ? "Add" : "Remove"} --launcher-skip in Steam.`,
+      );
+  };
+
   const [switching, setSwitching] = useState(false);
   const [optiChanged, setOptiChanged] = useState(0);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
@@ -105,6 +138,10 @@ export function GameSection({
         }
         if (r.removed?.length)
           toast(`Removed ${r.removed.join(" and ")} from this game.`);
+        if (r.verify_files)
+          toast(
+            "OptiScaler had replaced some of the game's files. If it doesn't start, verify its files in Steam (Properties, Installed Files).",
+          );
         if (r.helix_in_opti) {
           toast(
             r.helix_in_opti.ok
@@ -156,6 +193,16 @@ export function GameSection({
               <Field
                 label="Tested with this game"
                 description={GAME_NOTES[selected.appid]}
+              />
+            </PanelSectionRow>
+          )}
+          {detail?.ok && detail.installed && skipGame && (
+            <PanelSectionRow>
+              <ToggleField
+                label="Skip the game's launcher"
+                description="Adds --launcher-skip to the launch options so the game starts straight away. Turn it off if you need the launcher, e.g. to change its settings or mods."
+                checked={skipLauncher}
+                onChange={toggleSkipLauncher}
               />
             </PanelSectionRow>
           )}

@@ -109,7 +109,7 @@ Reports so far:
 | CONTROL Resonant | not stated | ✅ 35 to 40 FPS at 1080p, locked 60 at 720p, ROG Ally X | BlackHeart909, via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | Hitman: World of Assassination | not stated | ✅ 35 FPS with DLSS Quality vs 17 with FSR 4, BC-250 at 4K | via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | Diablo IV | FSR drop-in | ❌ Crashes on load | [HelixSR issue #1](https://github.com/lonewolf0622/HelixSR/issues/1) |
-| Cyberpunk 2077 | HelixSR Scaler (HelixSR 2.0), alone or with MAKO; MAKO alone | ❌ Crashes when the game starts (also with `--launcher-skip`) | Steam Deck test for this plugin |
+| Cyberpunk 2077 | HelixSR Scaler (HelixSR 2.0); MAKO alone | ✅ Runs after verifying the game's files. The crash at start came from versions before 0.8.8 deleting the game's own XeSS DLLs when OptiScaler was taken out | Steam Deck test for this plugin |
 | Cyberpunk 2077 | OptiScaler, OptiScaler + HelixSR, OptiScaler + MAKO, OptiScaler + HelixSR + MAKO | ✅ Runs | Steam Deck test for this plugin |
 
 Tried a game? Open an issue in this repository with the game, the way (FSR drop-in, HelixSR Scaler or OptiScaler +
