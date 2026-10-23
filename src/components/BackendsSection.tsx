@@ -22,6 +22,7 @@ import { UpdatesCheck } from "./UpdatesCheck";
 import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
+import { LosslessWarning } from "./LosslessWarning";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -117,6 +118,9 @@ export function BackendsSection(props: Props) {
             )}
             {b.id === "optiscaler" && (
               <OptiScalerSetup status={opti} onChange={onOptiChange} />
+            )}
+            {b.id === "mako" && b.lossless_scaling === false && (
+              <LosslessWarning />
             )}
             {b.id === "mako" && (
               <MakoInstall

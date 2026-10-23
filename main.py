@@ -185,6 +185,13 @@ class Plugin:
         for b in out:
             if b["id"] == backends.HELIXSR and active:
                 b.update(installed=True, version=active)
+            # MAKO's frame generation needs Lossless Scaling's DLL: found the way MAKO looks for it (any Steam library)
+            if b["id"] == backends.MAKO:
+                try:
+                    found = (await MAKO.check_lossless_scaling_dll("")).get("detected")
+                    b["lossless_scaling"] = bool(found) or b.get("lossless_scaling", False)
+                except Exception:
+                    decky.logger.exception("Lossless Scaling check")
             # MAKO's launcher can be there without the MAKO Renderer it starts (removed, or a partial install)
             if b["id"] == backends.MAKO and b.get("installed"):
                 b["version"] = updates.MAKO_VENDORED   # MAKO Decky's controls this plugin carries

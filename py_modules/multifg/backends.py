@@ -89,8 +89,6 @@ def mako_status(home: Path) -> dict:
     wrapper = home / ".local" / "bin" / "mako-run"
     lossless = steam_library.is_installed(home, steam_library.LOSSLESS_SCALING_APPID)
     notes = []
-    if not lossless:
-        notes.append("Lossless Scaling isn't installed in Steam: MAKO's scaler and shaders work, frame generation needs it.")
     return {
         "installed": wrapper.exists(),
         "version": None,

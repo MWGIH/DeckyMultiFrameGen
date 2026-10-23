@@ -3,6 +3,7 @@ import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { makoGameLaunchOptions } from "../api";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
+import { LosslessWarning } from "./LosslessWarning";
 
 function toast(body: string) {
   toaster.toast({ title: "MAKO", body });
@@ -59,12 +60,11 @@ export function MakoGame({ appid, makoInstalled, losslessScaling }: { appid: str
           description={
             !makoInstalled
               ? "Install it in the MAKO controls below, then add it to this game."
-              : losslessScaling
-                ? "Change frame generation, scaling and shaders in the MAKO controls below."
-                : "Frame generation needs Lossless Scaling installed in Steam. Scaling and shaders work without it."
+              : "Change frame generation, scaling and shaders in the MAKO controls below."
           }
         />
       </PanelSectionRow>
+      {!losslessScaling && <LosslessWarning />}
       {makoInstalled && enabled !== null && (
         <PanelSectionRow>
           <ButtonItem layout="below" disabled={busy} onClick={() => change(!enabled)}>

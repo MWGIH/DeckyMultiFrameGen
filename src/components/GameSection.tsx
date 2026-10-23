@@ -138,6 +138,13 @@ export function GameSection({
         }
         if (r.removed?.length)
           toast(`Removed ${r.removed.join(" and ")} from this game.`);
+        if (
+          parts(choice).includes("mako") &&
+          backends?.find((b) => b.id === "mako")?.lossless_scaling === false
+        )
+          toast(
+            "Lossless Scaling isn't installed: MAKO's frame generation needs it. Install it from the Steam Store.",
+          );
         if (r.verify_files)
           toast(
             "OptiScaler had replaced some of the game's files. If it doesn't start, verify its files in Steam (Properties, Installed Files).",
@@ -256,9 +263,10 @@ export function GameSection({
               <MakoGame
                 appid={selected.appid}
                 makoInstalled={installed.has("mako")}
-                losslessScaling={Boolean(
-                  backends?.find((b) => b.id === "mako")?.lossless_scaling,
-                )}
+                losslessScaling={
+                  backends?.find((b) => b.id === "mako")?.lossless_scaling !==
+                  false
+                }
               />
             )}
         </>

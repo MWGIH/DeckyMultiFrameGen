@@ -44,7 +44,6 @@ class BackendStatusTests(unittest.TestCase):
         self.assertEqual(set(status), {"optiscaler", "helixsr", "mako"})
         self.assertFalse(any(b["installed"] for b in status.values()))
         self.assertFalse(status["mako"]["lossless_scaling"])
-        self.assertTrue(status["mako"]["notes"])
 
     def test_detects_existing_installs_from_the_upstream_plugins(self):
         fgmod = self.home / "fgmod"
