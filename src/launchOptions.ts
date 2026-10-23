@@ -52,30 +52,29 @@ export function withoutOverrides(current: string): string {
   return rest.startsWith("%command% ") && !rest.slice(10).includes("%command%") ? rest.slice(10) : rest;
 }
 
-// Games that open their own launcher (REDlauncher) first: --launcher-skip, which goes straight to the game, is put in
-// their launch options unless it is turned off for the game
-export const LAUNCHER_SKIP_GAMES: Record<string, string> = {
-  "1091500": "Cyberpunk 2077",
-  "292030": "The Witcher 3: Wild Hunt",
+// Games that open their own launcher (REDlauncher) first, and whether --launcher-skip (straight to the game) goes in
+// their launch options by default. The Witcher 3 doesn't start with it on Steam Deck: there it is only a choice.
+export const LAUNCHER_SKIP_GAMES: Record<string, { name: string; byDefault: boolean }> = {
+  "1091500": { name: "Cyberpunk 2077", byDefault: true },
+  "292030": { name: "The Witcher 3: Wild Hunt", byDefault: false },
 };
 const LAUNCHER_SKIP = "--launcher-skip";
 const SKIP_WORD = /(^|\s)--launcher-skip(?=\s|$)/g;
-const LAUNCHER_SKIP_OFF_KEY = "multifg:launcherSkipOff";
+const LAUNCHER_SKIP_KEY = "multifg:launcherSkip"; // {appid: on} for games where it was switched
 
-function launcherSkipOff(): string[] {
+function launcherSkipChoices(): Record<string, boolean> {
   try {
-    return JSON.parse(localStorage.getItem(LAUNCHER_SKIP_OFF_KEY) ?? "[]");
+    return JSON.parse(localStorage.getItem(LAUNCHER_SKIP_KEY) ?? "{}");
   } catch {
-    return [];
+    return {};
   }
 }
 
 export const launcherSkipOn = (appid: string) =>
-  appid in LAUNCHER_SKIP_GAMES && !launcherSkipOff().includes(appid);
+  appid in LAUNCHER_SKIP_GAMES && (launcherSkipChoices()[appid] ?? LAUNCHER_SKIP_GAMES[appid].byDefault);
 
 export function setLauncherSkip(appid: string, on: boolean) {
-  const off = launcherSkipOff().filter((a) => a !== appid);
-  localStorage.setItem(LAUNCHER_SKIP_OFF_KEY, JSON.stringify(on ? off : [...off, appid]));
+  localStorage.setItem(LAUNCHER_SKIP_KEY, JSON.stringify({ ...launcherSkipChoices(), [appid]: on }));
 }
 
 // --launcher-skip goes after %command% (at the end); without it, the rest is tidied like withoutOverrides does
