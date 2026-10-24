@@ -51,6 +51,11 @@ jobs:
             if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
               gh release upload "$tag" out/Decky-MultiFrameGen*.zip --clobber
             else
+              # Only adds ZIPs the release doesn't have yet (the device-named ones on releases made before they existed)
+              have="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+              for zip in out/Decky-MultiFrameGen*.zip; do
+                if ! grep -qxF "$(basename "$zip")" <<<"$have"; then gh release upload "$tag" "$zip"; fi
+              done
               echo "Release $tag already exists; bump the version in package.json to publish a new one."
             fi
           else
