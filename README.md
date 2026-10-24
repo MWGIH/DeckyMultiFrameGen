@@ -124,8 +124,10 @@ URL** and enter:
 https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
 ```
 
-Or download `Decky-MultiFrameGen.zip` from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
-and use **Install Plugin from ZIP**.
+Or download a ZIP from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest) and use
+**Install Plugin from ZIP**: `Decky-MultiFrameGen-SteamDeck.zip` for the Steam Deck, `Decky-MultiFrameGen-SteamFrame.zip`
+for the Steam Frame. Both hold the same plugin (it has no native code); on the Steam Frame MAKO stays off because
+its Renderer is x86_64 only. OptiScaler and HelixSR install Windows DLLs into games, which the Frame runs the same way.
 
 ## Releasing
 

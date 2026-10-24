@@ -2,7 +2,7 @@
 // one top folder with plugin.json, package.json, main.py, py_modules/, assets/, dist/index.js and the licenses.
 // Adapted from HelixSR Manager's package script (Unlicense, PeroTuncay).
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, rmSync } from "node:fs";
 
 const name = "Decky-MultiFrameGen";
 
@@ -45,3 +45,11 @@ cpSync("assets", `out/${name}/assets`, { recursive: true });
 cpSync("bin", `out/${name}/bin`, { recursive: true }); // MAKO's diagnostics helper, where its installer looks
 execFileSync("zip", ["-qr", `${name}.zip`, name], { cwd: "out", stdio: "inherit" });
 console.log(`out/${name}.zip`);
+
+// The plugin is Python and JavaScript only, so one build runs on both the Steam Deck (x86_64) and the Steam Frame
+// (AArch64, where MAKO turns itself off: its Renderer is x86_64 only). The device-named copies are for people picking
+// a download; Decky-MultiFrameGen.zip stays the name the in-plugin updater and the install URL use.
+for (const device of ["SteamDeck", "SteamFrame"]) {
+  copyFileSync(`out/${name}.zip`, `out/${name}-${device}.zip`);
+  console.log(`out/${name}-${device}.zip`);
+}

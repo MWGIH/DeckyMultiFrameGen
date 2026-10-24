@@ -33,7 +33,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Decky-MultiFrameGen
-          path: out/Decky-MultiFrameGen.zip
+          path: out/Decky-MultiFrameGen*.zip
       # A push to main whose package.json version has no release yet publishes one, so the plugin can be
       # installed from https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
       # Pushing a v* tag (or creating a release on GitHub) attaches the ZIP to that release instead.
@@ -49,10 +49,10 @@ jobs:
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-              gh release upload "$tag" out/Decky-MultiFrameGen.zip --clobber
+              gh release upload "$tag" out/Decky-MultiFrameGen*.zip --clobber
             else
               echo "Release $tag already exists; bump the version in package.json to publish a new one."
             fi
           else
-            gh release create "$tag" out/Decky-MultiFrameGen.zip --target "$GITHUB_SHA" --title "$tag" --generate-notes
+            gh release create "$tag" out/Decky-MultiFrameGen*.zip --target "$GITHUB_SHA" --title "$tag" --generate-notes
           fi
