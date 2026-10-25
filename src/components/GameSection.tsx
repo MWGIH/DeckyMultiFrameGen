@@ -67,7 +67,10 @@ function useDescription(detail: GameDetail, showAll: boolean): string | undefine
   const hidden = (detail.hidden ?? []).filter((h) => !h.choice.endsWith("+mako"));
   if (!hidden.length || showAll) return found;
   const left = hidden
-    .map((h) => `${CHOICE_LABELS[h.choice].replace(/ \(.*\)$/, "")} (needs ${h.needs.join(" or ")})`)
+    .map(
+      (h) =>
+        `${CHOICE_LABELS[h.choice].replace(/ \(.*\)$/, "")} (${h.reason ?? `needs ${h.needs.join(" or ")}`})`,
+    )
     .join(", ");
   return `${found} Not offered: ${left}.`;
 }

@@ -59,6 +59,20 @@ def detect(install_dir: str) -> set[str] | None:
     return found
 
 
+# Choices testing found don't work in a game, whatever its files say (Steam app id -> part -> why); "Show all Use
+# options" still offers them
+NOT_WORKING = {
+    # its FSR 3 option is gone (the game moved on to FSR 4 / DLSS / XeSS), so FSR4 Injector has nothing to upgrade
+    "1091500": {"fsr4injector": "doesn't work in Cyberpunk 2077"},
+}
+
+
+def not_working(appid: str, choice: str) -> str | None:
+    """Why a choice is known not to work in this game, or None."""
+    parts = NOT_WORKING.get(str(appid), {})
+    return next((why for part, why in parts.items() if part in choice.split("+")), None)
+
+
 def needs(choice: str) -> tuple[str, ...]:
     """What a choice needs from the game: its most demanding part decides (e.g. fsr4injector+mako needs FSR 3.1+)."""
     if choice.startswith("optiscaler+helixsr"):

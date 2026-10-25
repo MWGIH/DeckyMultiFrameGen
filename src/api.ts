@@ -42,7 +42,7 @@ export type GameDetail = {
   choices?: GameChoice[];
   all_choices?: GameChoice[];
   upscalers?: string[] | null; // what the game ships (FSR 3.1+, DLSS, ...); null when its files couldn't be read
-  hidden?: { choice: GameChoice; needs: string[] }[];
+  hidden?: { choice: GameChoice; needs: string[]; reason?: string | null }[];
 };
 
 export const getBackends = callable<[], Backend[]>("get_backends");

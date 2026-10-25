@@ -165,7 +165,7 @@ Reports so far:
 | --- | --- | --- | --- |
 | Marvel's Spider-Man Remastered | Legion Go 2 (890M) | ✅ FSR 4 Lite 14.1 ms vs FSR 3 13.7 ms (about 3% slower, clearly sharper) | [FSR4 Injector README](https://github.com/Rayekkk/FSR4Injector#features) |
 | HITMAN | Legion Go 2 (890M) | ✅ FSR 4 Lite confirmed (through OptiScaler, during FSR4 Injector's development) | [FSR4 Injector history](https://github.com/Rayekkk/FSR4Injector/commits/main) |
-| Any game | Steam Deck | Not tested yet | |
+| Cyberpunk 2077 | Steam Deck | ❌ FSR 4 never active: the game no longer offers FSR 3, so there's nothing to upgrade. The plugin hides FSR4 Injector for it | Steam Deck test for this plugin |
 
 Tried a game on the Deck? Open an issue in this repository with the game, what the game's FSR4 Injector panel said after
 playing (FSR 4 active, not used, or not active and why), and whether the watermark showed.

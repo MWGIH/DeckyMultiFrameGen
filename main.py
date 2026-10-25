@@ -263,8 +263,10 @@ class Plugin:
                 found = await asyncio.to_thread(game_files.detect, game["install_path"])
             except Exception:
                 decky.logger.exception("game_files.detect")
-        choices = [c for c in backends.GAME_CHOICES if c == current or game_files.fits(c, found)]
-        hidden = [{"choice": c, "needs": game_files.labels(set(game_files.needs(c)))}
+        choices = [c for c in backends.GAME_CHOICES
+                   if c == current or (game_files.fits(c, found) and not game_files.not_working(appid, c))]
+        hidden = [{"choice": c, "needs": game_files.labels(set(game_files.needs(c))),
+                   "reason": game_files.not_working(appid, c)}
                   for c in backends.GAME_CHOICES if c not in choices]
         return {
             "ok": True,
