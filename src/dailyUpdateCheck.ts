@@ -33,6 +33,8 @@ export function availableUpdates(u: Updates): string[] {
     out.push(`HelixSR ${u.helixsr.available ?? ""}`.trim());
   if (u.mako.update_available)
     out.push(`MAKO ${u.mako.available ?? ""}`.trim());
+  if (u.fsr4injector?.update_available)
+    out.push(`FSR4 Injector ${u.fsr4injector.available ?? ""}`.trim());
   return out;
 }
 

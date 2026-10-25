@@ -13,6 +13,9 @@ without juggling several plugins:
 - **MAKO** (from [MAKO](https://github.com/eugeniosegala/MAKO)): frame generation, scaling and shaders as a Vulkan
   layer. Frame generation needs [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/)
   installed in Steam; the scaler and shaders don't.
+- **FSR4 Injector** (from [FSR4 Injector](https://github.com/Rayekkk/FSR4Injector)): AMD's own FSR 4.1 library in
+  DirectX 12 games that ship FSR 3.1 or newer, through a small shim that tells it the GPU Proton can't report. On the
+  Steam Deck (Van Gogh) it uses FSR 4's Lite model, which FSR4 Injector's author lists as beta, not yet tested there.
 
 See [CREDITS.md](CREDITS.md) for who made what.
 
@@ -48,6 +51,10 @@ Early development.
 - [x] OptiScaler + HelixSR: HelixSR goes in as OptiScaler's FSR 3.X upscaler (OptiScaler.ini points FfxDx12Path at
       it), so the game's own files stay untouched. Use it in games whose anti-cheat blocks HelixSR's FSR drop-in
       (Easy Anti-Cheat in Gears of War: E-Day). Can be combined with MAKO.
+- [x] FSR4 Injector (test branch): installs FSR4 Injector's release and AMD's FSR 4 library from Backends (with
+      updates under Check for updates), and the Use choices FSR4 Injector and FSR4 Injector + MAKO put it in the game
+      with `WINEDLLOVERRIDES=amdxc64=n,b` in the launch options. AMD's FSR 4 watermark can be switched on per game
+      (`FSR_WATERMARK=1`), and the game's panel shows whether FSR 4 ran in the last session.
 
 If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
 Renderer install.

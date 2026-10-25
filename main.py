@@ -9,6 +9,7 @@ import decky
 from mako_plugin.plugin import Plugin as MakoPlugin
 
 from multifg import backends, helix_opti, leftovers, mako_payload, steam_library, updates
+from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
 from multifg.optiscaler import OPTISCALER_ARCHIVE_ASSET, OptiScaler
@@ -22,6 +23,7 @@ OPTI_JOB = OptiInstallJob(OPTISCALER)
 # The Steam Deck's GPU is RDNA2: always Valve's FSR 4.1.1 build with RDNA2 settings, no choice offered
 FSR4_VARIANT = "rdna2-valve-411-pre10"
 MAKO = MakoPlugin()  # MAKO Decky's backend (vendored); its methods are exposed below as mako_<name>
+FSR4 = FSR4Injector(Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_SETTINGS_DIR))
 _APPID = re.compile(r"\d{1,10}")
 
 
@@ -84,6 +86,11 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
     has MAKO. Returns {ok, removed: [names], launch_options: what they become, or None if unchanged} or {ok: False}."""
     keeps = set(keep.split("+"))
     removed, new_launch = [], launch
+    # FSR4 Injector's DLLs sit next to the game's FSR 3.1 DLL, which HelixSR's drop-in replaces
+    if "fsr4injector" not in keeps and await asyncio.to_thread(FSR4.enabled, int(appid)):
+        r = await asyncio.to_thread(FSR4.disable, int(appid), new_launch)
+        removed.append("FSR4 Injector")
+        new_launch = r["launch_options"] if r["launch_options"] is not None else new_launch
     in_opti = {"optiscaler", "helixsr"} <= keeps
     if not in_opti:
         target = await _opti_target(appid)
@@ -121,6 +128,24 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
         new_launch = _with_mako(new_launch)
     return {"ok": True, "removed": removed, "verify_files": verify,
             "launch_options": new_launch if new_launch != launch else None}
+
+
+def _fsr4_backend() -> dict:
+    """FSR4 Injector's line in Backends: installed once its release is unpacked and AMD's library is fetched."""
+    st = FSR4.status()
+    notes = []
+    gpu = st["gpu"]
+    if st["unpacked"] and gpu:
+        model = gpu.get("model_name") or "none: games stay on FSR 3"
+        notes.append(f"GPU {gpu.get('arch')}: FSR 4 model {model}"
+                     + ("" if gpu.get("verified") or not gpu.get("model") else " (beta: not yet confirmed by FSR4 Injector's author)"))
+    elif st["unpacked"]:
+        notes.append("No AMD GPU found: FSR 4 can't run here")
+    if st["unpacked"] and not st["dll_ready"]:
+        notes.append("AMD's FSR 4 library isn't downloaded yet")
+    if st["recipe"] and st["dll_ready"]:
+        notes.append(f"AMD FSR {st['recipe']['fsr']} from {st['recipe']['driver']}")
+    return {"installed": st["ready"], "version": st["version"], "path": str(FSR4.base), "notes": notes}
 
 
 def _sweep_leftovers(appid: str) -> list[str]:
@@ -206,6 +231,8 @@ class Plugin:
                         b["notes"] = [line, *(b.get("notes") or [])]
                 except Exception:
                     decky.logger.exception("MAKO Renderer check")
+        out.append({"id": backends.FSR4INJECTOR, **backends.UPSTREAM[backends.FSR4INJECTOR],
+                    **await asyncio.to_thread(_fsr4_backend)})
         return out
 
     async def list_installed_games(self) -> dict:
@@ -242,6 +269,7 @@ class Plugin:
         if backend not in backends.GAME_CHOICES:
             return {"ok": False, "message": f"Unknown backend: {backend}"}
         cleared = {"removed": [], "launch_options": None}
+        folder = None
         if current_launch_options is not None:
             try:
                 folder = _game_folder(appid)
@@ -252,12 +280,21 @@ class Plugin:
                 if not cleared["ok"]:
                     return {"ok": False, "message": cleared["error"]}
         SETTINGS.set_game_choice(appid, backend)
+        # FSR4 Injector has nothing to pick per game: it goes in as soon as the game is set to it
+        fsr4 = None
+        if "fsr4injector" in backend.split("+") and folder and await asyncio.to_thread(FSR4.ready) \
+                and not await asyncio.to_thread(FSR4.enabled, int(appid)):
+            launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options
+            fsr4 = await asyncio.to_thread(FSR4.enable, int(appid), folder, launch or "",
+                                           SETTINGS.game_value(appid, "fsr4_watermark", False))
+            if fsr4.get("ok"):
+                cleared["launch_options"] = fsr4["launch_options"]
         added = None
         if {"optiscaler", "helixsr"} <= set(backend.split("+")) and await _opti_target(appid):
             added = await _add_helix_to_opti(appid)
         if "mako" in backend.split("+"):
             await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
-        return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added,
+        return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4,
                 "removed": cleared["removed"], "verify_files": cleared.get("verify_files", False),
                 "launch_options": cleared["launch_options"]}
 
@@ -372,6 +409,67 @@ class Plugin:
             decky.logger.exception("helixsr_opti_remove")
             return {"ok": False, "error": str(exc)}
 
+    # --- FSR4 Injector ---
+
+    async def fsr4_status(self) -> dict:
+        return await asyncio.to_thread(FSR4.status)
+
+    async def fsr4_install(self) -> dict:
+        """Downloads (or updates to) FSR4 Injector's latest release, then AMD's library; fsr4_status shows progress."""
+        return FSR4.start_install()
+
+    async def fsr4_remove(self) -> dict:
+        return await asyncio.to_thread(FSR4.remove)
+
+    async def fsr4_game_status(self, appid: str) -> dict:
+        try:
+            appid = _valid_appid(appid)
+            folder = _game_folder(appid)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        watermark = SETTINGS.game_value(appid, "fsr4_watermark", False)
+        try:
+            return await asyncio.to_thread(FSR4.game_status, int(appid), folder, watermark)
+        except Exception as exc:
+            decky.logger.exception("fsr4_game_status")
+            return {"ok": False, "error": str(exc)}
+
+    async def fsr4_game_on(self, appid: str, current_launch_options: str) -> dict:
+        """FSR4 Injector into the game; launch_options are the game's new ones."""
+        try:
+            appid = _valid_appid(appid)
+            folder = _game_folder(appid)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        try:
+            return await asyncio.to_thread(FSR4.enable, int(appid), folder, current_launch_options or "",
+                                           SETTINGS.game_value(appid, "fsr4_watermark", False))
+        except Exception as exc:
+            decky.logger.exception("fsr4_game_on")
+            return {"ok": False, "error": str(exc)}
+
+    async def fsr4_game_off(self, appid: str, current_launch_options: str) -> dict:
+        """FSR4 Injector out of the game; launch_options are the game's own again (None when unchanged)."""
+        try:
+            return await asyncio.to_thread(FSR4.disable, int(_valid_appid(appid)), current_launch_options or "")
+        except Exception as exc:
+            decky.logger.exception("fsr4_game_off")
+            return {"ok": False, "error": str(exc)}
+
+    async def fsr4_watermark(self, appid: str, on: bool, current_launch_options: str) -> dict:
+        """AMD's FSR 4 watermark for the game: remembered, and in its launch options when FSR4 Injector is in it."""
+        try:
+            appid = _valid_appid(appid)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        SETTINGS.set_game_value(appid, "fsr4_watermark", bool(on))
+        new = await asyncio.to_thread(FSR4.set_watermark, int(appid), current_launch_options or "", bool(on))
+        return {"ok": True, "watermark": bool(on), "launch_options": new}
+
+    async def fsr4_games(self) -> list[str]:
+        """Games FSR4 Injector is in (to take it out of all of them before it's removed)."""
+        return (await asyncio.to_thread(FSR4.status))["games"]
+
     # --- OptiScaler (Decky Framegen) ---
 
     async def optiscaler_status(self) -> dict:
@@ -468,8 +566,16 @@ class Plugin:
                     "update_available": bool(check.get("installed")) and bool(check.get("engine_update_required")),
                     **up}
 
-        results = await asyncio.gather(guard(plugin), guard(optiscaler), guard(helixsr), guard(mako))
-        return dict(zip(("plugin", "optiscaler", "helixsr", "mako"), results))
+        async def fsr4injector():
+            installed = FSR4.version()
+            rel = await asyncio.to_thread(FSR4.latest, True)
+            available = rel["version"] if rel else None
+            return {"installed": installed, "available": available,
+                    "update_available": bool(installed) and updates.newer(available, installed)}
+
+        results = await asyncio.gather(guard(plugin), guard(optiscaler), guard(helixsr), guard(mako),
+                                       guard(fsr4injector))
+        return dict(zip(("plugin", "optiscaler", "helixsr", "mako", "fsr4injector"), results))
 
     async def log_error(self, message: str) -> None:
         decky.logger.error(f"frontend: {message}")

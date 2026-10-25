@@ -2,7 +2,8 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    # test/** and claude/** branches publish a test build as the "test" prerelease (see below)
+    branches: [main, "test/**", "claude/**"]
     tags: ["v*"]
   pull_request:
   # started by mako-update.yml after it brings in a new MAKO release (its own push can't start this workflow)
@@ -27,6 +28,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: pnpm install --frozen-lockfile
+      # A test build says so in Decky: <version>-test.<run>, never newer than the next real release
+      - name: Mark a test build's version
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        run: node -e 'const f="package.json",p=require("./"+f);p.version+="-test."+process.env.GITHUB_RUN_NUMBER;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
       - run: pnpm typecheck
       - run: python -m unittest discover -s tests -v
       - run: pnpm package
@@ -37,8 +42,21 @@ jobs:
       # A push to main whose package.json version has no release yet publishes one, so the plugin can be
       # installed from https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
       # Pushing a v* tag (or creating a release on GitHub) attaches the ZIP to that release instead.
+      # Any other branch replaces the "test" prerelease, installable from
+      # https://github.com/MWGIH/DeckyMultiFrameGen/releases/download/test/Decky-MultiFrameGen.zip
+      # (prereleases never become releases/latest, so normal installs and the plugin's update check ignore it)
+      - name: Publish test build
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          gh release delete test --cleanup-tag --yes >/dev/null 2>&1 || true
+          gh release create test out/Decky-MultiFrameGen.zip --prerelease --target "$GITHUB_SHA" \
+            --title "Test build $version ($GITHUB_REF_NAME)" \
+            --notes "Test build of branch $GITHUB_REF_NAME at $GITHUB_SHA. Not a release: install it only to test."
       - name: Publish release
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

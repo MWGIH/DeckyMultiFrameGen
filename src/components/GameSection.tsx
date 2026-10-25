@@ -9,6 +9,7 @@ import {
   type Backend,
   type GameChoice,
   type GameDetail,
+  type Fsr4Status,
   type GameSummary,
   type HelixStatus,
   type OptiStatus,
@@ -27,6 +28,7 @@ import { HelixSRGame } from "./HelixSRGame";
 import { OptiScalerGame } from "./OptiScaler";
 import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
+import { Fsr4Game } from "./FSR4Injector";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
   none: "Off",
@@ -37,6 +39,8 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   "helixsr+mako": "HelixSR + MAKO",
   "optiscaler+helixsr": "OptiScaler + HelixSR",
   "optiscaler+helixsr+mako": "OptiScaler + HelixSR + MAKO",
+  fsr4injector: "FSR4 Injector",
+  "fsr4injector+mako": "FSR4 Injector + MAKO",
 };
 
 const parts = (choice: GameChoice | null | undefined) =>
@@ -56,6 +60,7 @@ type Props = {
   backends: Backend[] | null;
   helix: HelixStatus | null;
   opti: OptiStatus | null;
+  fsr4: Fsr4Status | null;
   onPick: (appid: string) => void;
   onChoice: (choice: GameChoice | null) => void;
 };
@@ -66,6 +71,7 @@ export function GameSection({
   backends,
   helix,
   opti,
+  fsr4,
   onPick,
   onChoice,
 }: Props) {
@@ -148,6 +154,12 @@ export function GameSection({
         if (r.verify_files)
           toast(
             "OptiScaler had replaced some of the game's files. If it doesn't start, verify its files in Steam (Properties, Installed Files).",
+          );
+        if (r.fsr4)
+          toast(
+            r.fsr4.ok
+              ? "FSR4 Injector is on. Start the game and choose AMD FSR as its upscaler."
+              : `FSR4 Injector wasn't put in: ${r.fsr4.error}`,
           );
         if (r.helix_in_opti) {
           toast(
@@ -255,6 +267,15 @@ export function GameSection({
                 appid={selected.appid}
                 helix={helix}
                 refresh={optiChanged}
+              />
+            )}
+          {detail?.ok &&
+            detail.installed &&
+            parts(detail.backend).includes("fsr4injector") && (
+              <Fsr4Game
+                key={`${selected.appid}:${detail.backend}`}
+                appid={selected.appid}
+                status={fsr4}
               />
             )}
           {detail?.ok &&

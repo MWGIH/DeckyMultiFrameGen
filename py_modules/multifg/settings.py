@@ -24,6 +24,15 @@ class Settings:
     def game_choice(self, appid: str) -> str:
         return self.load().get("games", {}).get(appid, {}).get("backend", "none")
 
+    def game_value(self, appid: str, key: str, default=None):
+        """Another per-game setting kept next to the choice (e.g. "fsr4_watermark")."""
+        return self.load().get("games", {}).get(appid, {}).get(key, default)
+
+    def set_game_value(self, appid: str, key: str, value) -> None:
+        data = self.load()
+        data.setdefault("games", {}).setdefault(appid, {})[key] = value
+        self.save(data)
+
     def games_using(self, part: str) -> list[str]:
         """App ids of the games whose choice includes part (e.g. "mako")."""
         games = self.load().get("games", {})

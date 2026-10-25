@@ -1,6 +1,6 @@
 import { callable } from "@decky/api";
 
-export type BackendId = "optiscaler" | "helixsr" | "mako";
+export type BackendId = "optiscaler" | "helixsr" | "mako" | "fsr4injector";
 export type GameChoice =
   | "none"
   | "optiscaler"
@@ -9,7 +9,9 @@ export type GameChoice =
   | "optiscaler+mako"
   | "helixsr+mako"
   | "optiscaler+helixsr"
-  | "optiscaler+helixsr+mako";
+  | "optiscaler+helixsr+mako"
+  | "fsr4injector"
+  | "fsr4injector+mako";
 
 export type Backend = {
   id: BackendId;
@@ -56,6 +58,7 @@ export const setGameBackend = callable<
     verify_files?: boolean;
     launch_options?: string | null;
     helix_in_opti?: HelixInOptiResult | null;
+    fsr4?: Fsr4Result | null;
   }
 >("set_game_backend");
 export const logError = callable<[message: string], void>("log_error");
@@ -253,6 +256,81 @@ export const optiscalerUnpatchGame = callable<[appid: string], OptiPatch>(
   "optiscaler_unpatch_game",
 );
 
+// --- FSR4 Injector ---
+
+export type Fsr4Gpu = {
+  arch: string;
+  model: string | null;
+  model_name: string;
+  verified: boolean;
+};
+
+export type Fsr4Job = {
+  state: "running" | "done" | "failed";
+  phase: "release" | "amd" | "done";
+  done: number;
+  total: number;
+  version: string | null;
+  error: string | null;
+};
+
+export type Fsr4Status = {
+  version: string | null;
+  unpacked: boolean;
+  dll_ready: boolean;
+  ready: boolean;
+  gpu: Fsr4Gpu | null;
+  recipe: { driver: string; fsr: string; dll_size: number } | null;
+  eula_url: string;
+  games: string[];
+  job: Fsr4Job | null;
+};
+
+export type Fsr4Result = {
+  ok: boolean;
+  error?: string;
+  launch_options?: string | null;
+};
+
+export type Fsr4Game = {
+  ok: boolean;
+  error?: string;
+  unpacked?: boolean;
+  ready?: boolean;
+  found?: boolean;
+  ffx_dll?: string | null;
+  anticheat?: boolean;
+  enabled?: boolean;
+  verdict?: "ok" | "unused" | "failed" | "unknown" | null;
+  reason?: string | null;
+  watermark?: boolean;
+  gpu_supported?: boolean;
+};
+
+export const fsr4Status = callable<[], Fsr4Status>("fsr4_status");
+export const fsr4Install = callable<[], { ok: boolean; error?: string }>(
+  "fsr4_install",
+);
+export const fsr4Remove = callable<[], { ok: boolean; error?: string }>(
+  "fsr4_remove",
+);
+export const fsr4Games = callable<[], string[]>("fsr4_games");
+export const fsr4GameStatus = callable<[appid: string], Fsr4Game>(
+  "fsr4_game_status",
+);
+export const fsr4GameOn = callable<
+  [appid: string, current_launch_options: string],
+  Fsr4Result
+>("fsr4_game_on");
+export const fsr4GameOff = callable<
+  [appid: string, current_launch_options: string],
+  Fsr4Result
+>("fsr4_game_off");
+export const fsr4Watermark = callable<
+  [appid: string, on: boolean, current_launch_options: string],
+  Fsr4Result & { watermark?: boolean }
+>("fsr4_watermark");
+
 // --- updates ---
 
 export type PartUpdate = {
@@ -275,5 +353,6 @@ export type Updates = {
   optiscaler: PartUpdate;
   helixsr: PartUpdate;
   mako: PartUpdate;
+  fsr4injector?: PartUpdate;
 };
 export const checkUpdates = callable<[], Updates>("check_updates");

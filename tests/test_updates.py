@@ -32,7 +32,8 @@ class UpdateTests(unittest.TestCase):
         with mock.patch.object(updates, "_get", side_effect=fake_get), \
                 mock.patch.object(main.HELIXSR, "releases", return_value=[]):
             r = asyncio.run(main.Plugin().check_updates())
-        self.assertEqual(set(r), {"plugin", "optiscaler", "helixsr", "mako"})
+        self.assertEqual(set(r), {"plugin", "optiscaler", "helixsr", "mako", "fsr4injector"})
+        self.assertIn("error", r["fsr4injector"])
         self.assertIn("error", r["plugin"])
         self.assertNotIn("error", r["optiscaler"])   # only the upstream check failed
         self.assertIn("upstream_error", r["optiscaler"])

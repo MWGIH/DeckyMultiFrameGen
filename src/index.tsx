@@ -19,7 +19,13 @@ import { BackendsSection } from "./components/BackendsSection";
 import { GameSection } from "./components/GameSection";
 import { useHelixStatus } from "./components/HelixSRSetup";
 import { useOptiStatus } from "./components/OptiScaler";
-import { helixsrStatus, optiscalerStatus, type GameChoice } from "./api";
+import { useFsr4Status } from "./components/FSR4Injector";
+import {
+  fsr4Status,
+  helixsrStatus,
+  optiscalerStatus,
+  type GameChoice,
+} from "./api";
 import { Content as MakoContent } from "./mako/components/Content";
 import { startDailyUpdateCheck } from "./dailyUpdateCheck";
 
@@ -65,6 +71,11 @@ function Content() {
   const [helix, setHelix] = useHelixStatus();
   const refreshHelix = () => helixsrStatus().then(setHelix);
   const [opti, setOpti] = useOptiStatus();
+  const [fsr4, setFsr4] = useFsr4Status();
+  const refreshFsr4 = () => {
+    fsr4Status().then(setFsr4);
+    refreshBackends();
+  };
   const [choice, setChoice] = useState<GameChoice | null>(null);
   const makoGame = Boolean(choice?.split("+").includes("mako"));
   // MAKO's controls: shown for a MAKO game unless hidden; light or full
@@ -115,6 +126,8 @@ function Content() {
         opti={opti}
         onOptiChange={refreshOpti}
         onMakoChange={refreshBackends}
+        fsr4={fsr4}
+        onFsr4Change={refreshFsr4}
       />
       <GameSection
         selected={selected}
@@ -122,6 +135,7 @@ function Content() {
         backends={backends}
         helix={helix}
         opti={opti}
+        fsr4={fsr4}
         onPick={pick}
         onChoice={setChoice}
       />

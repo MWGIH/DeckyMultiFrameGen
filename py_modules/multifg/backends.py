@@ -12,6 +12,7 @@ from . import steam_library
 OPTISCALER = "optiscaler"
 HELIXSR = "helixsr"
 MAKO = "mako"
+FSR4INJECTOR = "fsr4injector"
 
 # What a game can use. HelixSR picks its own way per game: the FSR drop-in, or HelixSR Scaler (its OptiScaler build).
 # OptiScaler and MAKO can run together: OptiScaler upscales inside the game, MAKO generates frames in Vulkan after it.
@@ -20,8 +21,10 @@ HELIXSR_MAKO = f"{HELIXSR}+{MAKO}"
 # HelixSR as a mod inside OptiScaler: OptiScaler's FSR 3.1 upscaler is HelixSR (multifg.helix_opti)
 OPTISCALER_HELIXSR = f"{OPTISCALER}+{HELIXSR}"
 OPTISCALER_HELIXSR_MAKO = f"{OPTISCALER}+{HELIXSR}+{MAKO}"
+# FSR4 Injector puts AMD's own FSR 4 library next to the game's FSR 3.1 DLL; MAKO can generate frames after it
+FSR4INJECTOR_MAKO = f"{FSR4INJECTOR}+{MAKO}"
 GAME_CHOICES = ("none", OPTISCALER, HELIXSR, MAKO, OPTISCALER_MAKO, HELIXSR_MAKO, OPTISCALER_HELIXSR,
-                OPTISCALER_HELIXSR_MAKO)
+                OPTISCALER_HELIXSR_MAKO, FSR4INJECTOR, FSR4INJECTOR_MAKO)
 
 UPSTREAM = {
     OPTISCALER: {
@@ -41,6 +44,13 @@ UPSTREAM = {
         "plugin": "MAKO Decky",
         "repo": "eugeniosegala/MAKO",
         "kind": "Frame generation, scaling and shaders (Vulkan layer)",
+    },
+    # its status comes from multifg.fsr4injector (main.get_backends): it lives in the plugin's runtime folder
+    FSR4INJECTOR: {
+        "name": "FSR4 Injector",
+        "plugin": "FSR4 Injector",
+        "repo": "Rayekkk/FSR4Injector",
+        "kind": "AMD's FSR 4.1 in games with FSR 3.1 or newer (DirectX 12)",
     },
 }
 

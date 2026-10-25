@@ -3,6 +3,7 @@ import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster, useQuickAccessVisible } from "@decky/api";
 import {
   checkUpdates,
+  fsr4Install,
   helixsrInstall,
   optiscalerInstall,
   type Updates,
@@ -46,6 +47,8 @@ type Props = {
   onOptiChange: () => void;
   onHelixChange: () => void;
   onMakoChange: () => void;
+  fsr4JobState?: string | null;
+  onFsr4Change: () => void;
 };
 
 export function UpdatesCheck({
@@ -54,6 +57,8 @@ export function UpdatesCheck({
   onOptiChange,
   onHelixChange,
   onMakoChange,
+  fsr4JobState,
+  onFsr4Change,
 }: Props) {
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,7 +86,7 @@ export function UpdatesCheck({
   };
 
   // an update that ran in the background has finished: its notice goes once the list is checked again
-  const jobs = `${optiJobState ?? ""}/${helixJobState ?? ""}`;
+  const jobs = `${optiJobState ?? ""}/${helixJobState ?? ""}/${fsr4JobState ?? ""}`;
   const lastJobs = useRef(jobs);
   useEffect(() => {
     const wasRunning = lastJobs.current.includes("running");
@@ -266,6 +271,40 @@ export function UpdatesCheck({
           }
         >
           Update MAKO
+        </ButtonItem>,
+      );
+    }
+    const f = u.fsr4injector;
+    if (f?.error)
+      rows.push(
+        <Field
+          key="fe"
+          label="FSR4 Injector"
+          description={`Couldn't check: ${f.error}`}
+        />,
+      );
+    else if (f?.update_available && f.available) {
+      rows.push(
+        <Field
+          key="f"
+          label={`FSR4 Injector ${f.available} is available`}
+          description={`You have ${f.installed}. Games it is in get its new DLL straight away.${pluginFirst ? FIRST : ""}`}
+        />,
+      );
+      rows.push(
+        <ButtonItem
+          key="fb"
+          layout="below"
+          disabled={busy || pluginFirst}
+          onClick={() =>
+            run(
+              fsr4Install,
+              "Updating FSR4 Injector: progress shows under FSR4 Injector.",
+              onFsr4Change,
+            )
+          }
+        >
+          Update FSR4 Injector
         </ButtonItem>,
       );
     }

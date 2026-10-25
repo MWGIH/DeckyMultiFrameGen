@@ -12,9 +12,11 @@ import {
   makoGameLaunchOptions,
   makoGames,
   type Backend,
+  type Fsr4Status,
   type HelixStatus,
   type OptiStatus,
 } from "../api";
+import { Fsr4Setup } from "./FSR4Injector";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRSetup } from "./HelixSRSetup";
 import { OptiScalerSetup } from "./OptiScaler";
@@ -37,6 +39,8 @@ type Props = {
   opti: OptiStatus | null;
   onOptiChange: () => void;
   onMakoChange: () => void;
+  fsr4: Fsr4Status | null;
+  onFsr4Change: () => void;
 };
 
 const COLLAPSED_KEY = "multifg:backendsCollapsed";
@@ -60,8 +64,16 @@ function summary(backends: Backend[]): string {
 }
 
 export function BackendsSection(props: Props) {
-  const { backends, helix, onHelixChange, opti, onOptiChange, onMakoChange } =
-    props;
+  const {
+    backends,
+    helix,
+    onHelixChange,
+    opti,
+    onOptiChange,
+    onMakoChange,
+    fsr4,
+    onFsr4Change,
+  } = props;
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const toggle = () => {
     setCollapsed(!collapsed);
@@ -95,6 +107,8 @@ export function BackendsSection(props: Props) {
           onOptiChange={onOptiChange}
           onHelixChange={onHelixChange}
           onMakoChange={onMakoChange}
+          fsr4JobState={fsr4?.job?.state}
+          onFsr4Change={onFsr4Change}
         />
       )}
       {collapsed ? null : backends === null ? (
@@ -118,6 +132,9 @@ export function BackendsSection(props: Props) {
             )}
             {b.id === "optiscaler" && (
               <OptiScalerSetup status={opti} onChange={onOptiChange} />
+            )}
+            {b.id === "fsr4injector" && (
+              <Fsr4Setup status={fsr4} onChange={onFsr4Change} />
             )}
             {b.id === "mako" && b.lossless_scaling === false && (
               <LosslessWarning />

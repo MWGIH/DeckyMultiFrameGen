@@ -4,8 +4,8 @@
   "flags": [],
   "api_version": 1,
   "publish": {
-    "tags": ["framegen", "upscaling", "optiscaler", "helixsr", "mako"],
-    "description": "Install OptiScaler, HelixSR and MAKO from their own releases and choose which one each game uses.",
+    "tags": ["framegen", "upscaling", "optiscaler", "helixsr", "mako", "fsr4"],
+    "description": "Install OptiScaler, HelixSR, MAKO and FSR4 Injector from their own releases and choose which one each game uses.",
     "image": ""
   }
 }
