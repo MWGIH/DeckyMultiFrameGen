@@ -40,6 +40,9 @@ export type GameDetail = {
   install_path?: string | null;
   backend?: GameChoice;
   choices?: GameChoice[];
+  all_choices?: GameChoice[];
+  upscalers?: string[] | null; // what the game ships (FSR 3.1+, DLSS, ...); null when its files couldn't be read
+  hidden?: { choice: GameChoice; needs: string[] }[];
 };
 
 export const getBackends = callable<[], Backend[]>("get_backends");

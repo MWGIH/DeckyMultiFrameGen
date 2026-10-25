@@ -8,7 +8,7 @@ import decky
 
 from mako_plugin.plugin import Plugin as MakoPlugin
 
-from multifg import backends, helix_opti, leftovers, mako_payload, steam_library, updates
+from multifg import backends, game_files, helix_opti, leftovers, mako_payload, steam_library, updates
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
@@ -254,14 +254,29 @@ class Plugin:
             return {"ok": False, "message": str(exc)}
         matches = steam_library.installed_games(HOME, appid)
         game = matches[0] if matches else None
+        installed = bool(game and game["install_found"])
+        current = SETTINGS.game_choice(appid)
+        # only the choices that can work with the upscalers the game ships (and whatever it is set to now)
+        found = None
+        if installed:
+            try:
+                found = await asyncio.to_thread(game_files.detect, game["install_path"])
+            except Exception:
+                decky.logger.exception("game_files.detect")
+        choices = [c for c in backends.GAME_CHOICES if c == current or game_files.fits(c, found)]
+        hidden = [{"choice": c, "needs": game_files.labels(set(game_files.needs(c)))}
+                  for c in backends.GAME_CHOICES if c not in choices]
         return {
             "ok": True,
             "appid": appid,
             "name": game["name"] if game else None,
-            "installed": bool(game and game["install_found"]),
+            "installed": installed,
             "install_path": game["install_path"] if game else None,
-            "backend": SETTINGS.game_choice(appid),
-            "choices": list(backends.GAME_CHOICES),
+            "backend": current,
+            "choices": choices,
+            "all_choices": list(backends.GAME_CHOICES),   # for the panel's "Show all Use options"
+            "upscalers": game_files.labels(found) if found is not None else None,
+            "hidden": hidden,
         }
 
     async def set_game_backend(self, appid: str, backend: str, current_launch_options: str | None = None) -> dict:

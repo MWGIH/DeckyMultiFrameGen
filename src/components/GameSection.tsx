@@ -48,6 +48,30 @@ const parts = (choice: GameChoice | null | undefined) =>
 
 const toast = (body: string) => toaster.toast({ title: "MultiFrameGen", body });
 
+const SHOW_ALL_KEY = "multifg:showAllChoices";
+
+function readShowAll(): boolean {
+  try {
+    return localStorage.getItem(SHOW_ALL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// Under Use: what the game ships, and which choices that leaves out
+function useDescription(detail: GameDetail, showAll: boolean): string | undefined {
+  if (detail.upscalers == null) return undefined;
+  const found = detail.upscalers.length
+    ? `Found in the game: ${detail.upscalers.join(", ")}.`
+    : "No FSR, DLSS or XeSS files found in the game.";
+  const hidden = (detail.hidden ?? []).filter((h) => !h.choice.endsWith("+mako"));
+  if (!hidden.length || showAll) return found;
+  const left = hidden
+    .map((h) => `${CHOICE_LABELS[h.choice].replace(/ \(.*\)$/, "")} (needs ${h.needs.join(" or ")})`)
+    .join(", ");
+  return `${found} Not offered: ${left}.`;
+}
+
 const SOURCE_LABELS = {
   running: "Running now",
   library: "Open in your library",
@@ -122,6 +146,15 @@ export function GameSection({
       );
   };
 
+  const [showAll, setShowAllState] = useState(readShowAll);
+  const setShowAll = (on: boolean) => {
+    setShowAllState(on);
+    try {
+      localStorage.setItem(SHOW_ALL_KEY, on ? "1" : "0");
+    } catch {
+      // just not remembered
+    }
+  };
   const [switching, setSwitching] = useState(false);
   const [optiChanged, setOptiChanged] = useState(0);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
@@ -229,7 +262,8 @@ export function GameSection({
             <PanelSectionRow>
               <BelowDropdown
                 label="Use"
-                rgOptions={(detail.choices ?? [])
+                description={useDescription(detail, showAll)}
+                rgOptions={((showAll ? detail.all_choices : null) ?? detail.choices ?? [])
                   // only methods that are installed, plus whatever the game is set to now
                   .filter(
                     (c) =>
@@ -241,6 +275,20 @@ export function GameSection({
                 selectedOption={detail.backend}
                 disabled={switching}
                 onChange={(o) => choose(o.data as GameChoice)}
+              />
+            </PanelSectionRow>
+          )}
+          {detail?.ok && (
+            <PanelSectionRow>
+              <ToggleField
+                label="Show all Use options"
+                description={
+                  showAll
+                    ? "Every installed method is offered, whatever the game ships."
+                    : "Off: only the methods that can work with the game's upscaler files. Turn on if detection got it wrong or to experiment."
+                }
+                checked={showAll}
+                onChange={setShowAll}
               />
             </PanelSectionRow>
           )}
