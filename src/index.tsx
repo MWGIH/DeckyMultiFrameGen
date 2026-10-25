@@ -28,6 +28,7 @@ import {
 } from "./api";
 import { Content as MakoContent } from "./mako/components/Content";
 import { startDailyUpdateCheck } from "./dailyUpdateCheck";
+import { useTouchScroll } from "./touchScroll";
 
 const PICKED_KEY = "multifg:picked";
 const MAKO_HIDDEN_KEY = "multifg:makoHidden";
@@ -68,6 +69,7 @@ function Content() {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [picked, setPicked] = useState<string | null>(readPicked);
   const selected = useSelectedGame(picked);
+  const touchRef = useTouchScroll<HTMLDivElement>();
   const [helix, setHelix] = useHelixStatus();
   const refreshHelix = () => helixsrStatus().then(setHelix);
   const [opti, setOpti] = useOptiStatus();
@@ -118,7 +120,8 @@ function Content() {
   };
 
   return (
-    <>
+    // touch-action: none, so a swipe is scrolled once, by useTouchScroll
+    <div ref={touchRef} style={{ touchAction: "none" }}>
       <BackendsSection
         backends={backends}
         helix={helix}
@@ -161,7 +164,7 @@ function Content() {
           </PanelSectionRow>
         </PanelSection>
       )}
-    </>
+    </div>
   );
 }
 
