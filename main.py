@@ -62,6 +62,15 @@ def _without_overrides(options: str) -> str:
     return _tidy(_OVERRIDES.sub("", options))
 
 
+def _with_overrides(options: str, wanted: str) -> str:
+    """Launch options with wanted's WINEDLLOVERRIDES=... in front (like withOverrides in src/launchOptions.ts)."""
+    m = _OVERRIDES.search(wanted or "")
+    if not m:
+        return options
+    rest = _OVERRIDES.sub("", options or "").strip()
+    return f"{m.group(0).strip()} {rest if '%command%' in rest else f'%command% {rest}'.strip()}"
+
+
 def _without_mako(options: str) -> str:
     """Launch options without MAKO's launcher (~/.local/bin/mako-run) in front of %command%."""
     return _tidy(_MAKO_RUNNER.sub("", options))
@@ -126,6 +135,28 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
         new_launch = _with_mako(new_launch)
     return {"ok": True, "removed": removed,
             "launch_options": new_launch if new_launch != launch else None}
+
+
+async def _auto_install_helix(appid: str, folder: str, launch: str) -> dict | None:
+    """Puts HelixSR in a game just set to HelixSR: HelixSR Scaler where the game can take it, else HelixSR's own pick.
+    None when it's already in or the game needs a decision first (anti-cheat, no way in): the panel then offers it."""
+    try:
+        status = game_files.helix_ways(appid, await asyncio.to_thread(HELIXSR.game_status, folder))
+    except Exception:
+        decky.logger.exception("HelixSR status")
+        return None
+    if not status.get("ok") or not status.get("found") or status.get("installed") or status.get("anticheat"):
+        return None
+    ways = status.get("ways") or []
+    route = "scaler" if "scaler" in ways else status.get("route")
+    if route not in ways:
+        return None
+    try:
+        result = await asyncio.to_thread(HELIXSR.install_game, folder, route)
+    except Exception as exc:
+        decky.logger.exception("HelixSR install")
+        result = {"ok": False, "error": str(exc)}
+    return {**result, "route": result.get("route") or route}
 
 
 def _fsr4_backend() -> dict:
@@ -308,12 +339,20 @@ class Plugin:
                                            SETTINGS.game_value(appid, "fsr4_watermark", False))
             if fsr4.get("ok"):
                 cleared["launch_options"] = fsr4["launch_options"]
+        # HelixSR (on its own or with MAKO) goes in as HelixSR Scaler as soon as the game is set to it
+        helix = None
+        if backend in ("helixsr", "helixsr+mako") and folder and HELIXSR.active() \
+                and await asyncio.to_thread(HELIXSR.ready, HELIXSR.active()):
+            launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options
+            helix = await _auto_install_helix(appid, folder, launch or "")
+            if helix and helix.get("ok") and helix.get("launch_options"):
+                cleared["launch_options"] = _with_overrides(launch or "", helix["launch_options"])
         added = None
         if {"optiscaler", "helixsr"} <= set(backend.split("+")) and await _opti_target(appid):
             added = await _add_helix_to_opti(appid)
         if "mako" in backend.split("+"):
             await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
-        return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4,
+        return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4, "helix": helix,
                 "removed": cleared["removed"],
                 "launch_options": cleared["launch_options"]}
 

@@ -193,6 +193,14 @@ export function GameSection({
               ? "FSR4 Injector is on. Start the game and choose AMD FSR as its upscaler."
               : `FSR4 Injector wasn't put in: ${r.fsr4.error}`,
           );
+        if (r.helix)
+          toast(
+            r.helix.ok
+              ? r.helix.route === "scaler"
+                ? "HelixSR Scaler is in. In the game, select DLSS (or FSR / XeSS if it has no DLSS). Insert opens its menu."
+                : "HelixSR's FSR drop-in is in. In the game, select AMD FSR as the upscaler."
+              : `HelixSR wasn't put in: ${r.helix.error}`,
+          );
         if (r.helix_in_opti) {
           toast(
             r.helix_in_opti.ok

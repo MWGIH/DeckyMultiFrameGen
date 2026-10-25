@@ -62,6 +62,8 @@ export const setGameBackend = callable<
     launch_options?: string | null;
     helix_in_opti?: HelixInOptiResult | null;
     fsr4?: Fsr4Result | null;
+    // HelixSR put in on choosing HelixSR / HelixSR + MAKO (null when it was already in or needs a decision)
+    helix?: { ok: boolean; error?: string; route?: string } | null;
   }
 >("set_game_backend");
 export const logError = callable<[message: string], void>("log_error");
