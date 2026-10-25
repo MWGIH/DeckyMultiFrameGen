@@ -43,6 +43,7 @@ export type GameDetail = {
 };
 
 export const getBackends = callable<[], Backend[]>("get_backends");
+export const pluginVersion = callable<[], string>("plugin_version");
 export const listInstalledGames = callable<
   [],
   { ok: boolean; message?: string; games: GameSummary[] }

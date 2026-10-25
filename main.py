@@ -235,6 +235,10 @@ class Plugin:
                     **await asyncio.to_thread(_fsr4_backend)})
         return out
 
+    async def plugin_version(self) -> str:
+        """This plugin's version as Decky loaded it (a test build reads e.g. 0.8.10-test.64)."""
+        return decky.DECKY_PLUGIN_VERSION
+
     async def list_installed_games(self) -> dict:
         try:
             games = steam_library.installed_games(HOME)

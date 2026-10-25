@@ -11,6 +11,7 @@ import {
 import {
   makoGameLaunchOptions,
   makoGames,
+  pluginVersion,
   type Backend,
   type Fsr4Status,
   type HelixStatus,
@@ -75,6 +76,12 @@ export function BackendsSection(props: Props) {
     onFsr4Change,
   } = props;
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    pluginVersion()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
   const toggle = () => {
     setCollapsed(!collapsed);
     try {
@@ -92,7 +99,8 @@ export function BackendsSection(props: Props) {
           onChange={toggle}
           description={
             collapsed && backends
-              ? summary(backends) +
+              ? (version ? `MultiFrameGen ${version} · ` : "") +
+                summary(backends) +
                 (helix?.job?.state === "failed"
                   ? `. HelixSR ${helix.job.tag} setup failed: show backends for its log.`
                   : "")
@@ -100,6 +108,13 @@ export function BackendsSection(props: Props) {
           }
         />
       </PanelSectionRow>
+      {!collapsed && (
+        <PanelSectionRow>
+          <Field label="MultiFrameGen" bottomSeparator="standard">
+            {version ?? "…"}
+          </Field>
+        </PanelSectionRow>
+      )}
       {!collapsed && (
         <UpdatesCheck
           optiJobState={opti?.job?.state}
