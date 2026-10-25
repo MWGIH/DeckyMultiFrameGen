@@ -271,6 +271,18 @@ export function HelixSRGame({
           />
         </PanelSectionRow>
       )}
+      {Object.entries(game.hidden_ways ?? {}).map(([way, why]) => (
+        <PanelSectionRow key={way}>
+          <Field
+            label={`${WAYS[way] ?? way} not offered`}
+            description={
+              game.installed && game.current === way
+                ? `${why} It's in now: switch or remove it below.`
+                : why
+            }
+          />
+        </PanelSectionRow>
+      ))}
       {ways.length > 1 && (
         <PanelSectionRow>
           <BelowDropdown

@@ -357,7 +357,7 @@ class Plugin:
             return {"ok": False, "error": str(exc)}
 
     async def helixsr_game_status(self, appid: str) -> dict:
-        return await _for_game(appid, HELIXSR.game_status)
+        return game_files.helix_ways(appid, await _for_game(appid, HELIXSR.game_status))
 
     async def helixsr_install_game(self, appid: str, route: str = "", current_launch_options: str = "") -> dict:
         """Installs HelixSR into the game, taking OptiScaler out first if it's there. base_launch_options, when set, are
@@ -366,6 +366,16 @@ class Plugin:
             folder = _game_folder(appid)
         except ValueError as exc:
             return {"ok": False, "error": str(exc)}
+        # nothing is taken out of the game when the way asked for would break it
+        banned = game_files.NO_HELIX_WAYS.get(str(appid), {})
+        if route in banned:
+            return {"ok": False, "error": banned[route]}
+        if not route and banned:
+            # HelixSR's automatic pick could be a way that breaks this game
+            status = game_files.helix_ways(appid, await _for_game(appid, HELIXSR.game_status))
+            route = status.get("route") if status.get("route") in ("direct", "scaler") else ""
+            if not route:
+                return {"ok": False, "error": next(iter(banned.values()))}
         # with HelixSR + MAKO chosen, MAKO stays and its launcher stays in the launch options
         choice = SETTINGS.game_choice(str(appid)).split("+")
         keep = "helixsr+mako" if "mako" in choice and "optiscaler" not in choice else "helixsr"

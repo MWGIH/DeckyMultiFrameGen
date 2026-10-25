@@ -121,6 +121,8 @@ export type HelixGame = {
   name?: string;
   route?: string | null;
   ways?: HelixRoute[];
+  // ways testing found break this game (not offered), with why
+  hidden_ways?: Partial<Record<HelixRoute, string>>;
   current?: string | null;
   installed?: boolean;
   label?: string;

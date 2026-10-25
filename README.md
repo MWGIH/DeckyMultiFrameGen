@@ -117,6 +117,7 @@ Reports so far:
 | Hitman: World of Assassination | not stated | ✅ 35 FPS with DLSS Quality vs 17 with FSR 4, BC-250 at 4K | via [Wccftech](https://wccftech.com/helixsr-mod-dlss-3-7-steam-deck-amd-handhelds-faster-fsr-4/) |
 | Diablo IV | FSR drop-in | ❌ Crashes on load | [HelixSR issue #1](https://github.com/lonewolf0622/HelixSR/issues/1) |
 | Cyberpunk 2077 | HelixSR Scaler (HelixSR 2.0); MAKO alone | ✅ Runs | Steam Deck test for this plugin |
+| Cyberpunk 2077 | FSR drop-in | ❌ The game's FSR 4 option disappears; the plugin doesn't offer the drop-in here | Steam Deck test for this plugin |
 | Cyberpunk 2077 | OptiScaler, OptiScaler + HelixSR, OptiScaler + MAKO, OptiScaler + HelixSR + MAKO | ✅ Runs | Steam Deck test for this plugin |
 
 Tried a game? Open an issue in this repository with the game, the way (FSR drop-in, HelixSR Scaler or OptiScaler +
@@ -165,7 +166,7 @@ Reports so far:
 | --- | --- | --- | --- |
 | Marvel's Spider-Man Remastered | Legion Go 2 (890M) | ✅ FSR 4 Lite 14.1 ms vs FSR 3 13.7 ms (about 3% slower, clearly sharper) | [FSR4 Injector README](https://github.com/Rayekkk/FSR4Injector#features) |
 | HITMAN | Legion Go 2 (890M) | ✅ FSR 4 Lite confirmed (through OptiScaler, during FSR4 Injector's development) | [FSR4 Injector history](https://github.com/Rayekkk/FSR4Injector/commits/main) |
-| Cyberpunk 2077 | Steam Deck | ❌ FSR 4 never active: the game no longer offers FSR 3, so there's nothing to upgrade. The plugin hides FSR4 Injector for it | Steam Deck test for this plugin |
+| Cyberpunk 2077 | Steam Deck | ❌ The game no longer offers FSR 3, so there's nothing to upgrade, and with FSR4 Injector in, the game's own FSR 4 option disappears. The plugin hides FSR4 Injector for it | Steam Deck test for this plugin |
 
 Tried a game on the Deck? Open an issue in this repository with the game, what the game's FSR4 Injector panel said after
 playing (FSR 4 active, not used, or not active and why), and whether the watermark showed.

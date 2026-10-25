@@ -62,9 +62,28 @@ def detect(install_dir: str) -> set[str] | None:
 # Choices testing found don't work in a game, whatever its files say (Steam app id -> part -> why); "Show all Use
 # options" still offers them
 NOT_WORKING = {
-    # its FSR 3 option is gone (the game moved on to FSR 4 / DLSS / XeSS), so FSR4 Injector has nothing to upgrade
-    "1091500": {"fsr4injector": "doesn't work in Cyberpunk 2077"},
+    # its FSR 3 option is gone (the game moved on to FSR 4 / DLSS / XeSS), so FSR4 Injector has nothing to upgrade, and
+    # with it in, the game's FSR 4 option disappears (seen on the Deck)
+    "1091500": {"fsr4injector": "takes away Cyberpunk 2077's FSR 4 option"},
 }
+
+# HelixSR ways into a game (direct = FSR drop-in, scaler = HelixSR Scaler) that testing found break it: not offered
+NO_HELIX_WAYS = {
+    # the drop-in replaces the game's FidelityFX DLL, and the game's FSR 4 option disappears with it (seen on the Deck)
+    "1091500": {"direct": "HelixSR's FSR drop-in takes away Cyberpunk 2077's FSR 4 option: use HelixSR Scaler here."},
+}
+
+
+def helix_ways(appid: str, status: dict) -> dict:
+    """HelixSR's status for a game without the ways that break it; the automatic way moves to one that's left."""
+    banned = NO_HELIX_WAYS.get(str(appid), {})
+    if not banned or not status.get("ok"):
+        return status
+    ways = [w for w in status.get("ways") or [] if w not in banned]
+    route = status.get("route")
+    if route in banned:
+        route = ways[0] if ways else "blocked"
+    return {**status, "ways": ways, "route": route, "hidden_ways": banned}
 
 
 def not_working(appid: str, choice: str) -> str | None:
