@@ -134,13 +134,13 @@ export function BackendsSection(props: Props) {
         backends.map((b) => (
           <div key={b.id}>
             <PanelSectionRow>
+              {/* the status goes in the label: a value on the right would squeeze the description into the left
+                  column (FSR4 Injector's long one wrapped at half width) */}
               <Field
-                label={b.name}
+                label={`${b.name} · ${statusLine(b)}`}
                 description={[b.kind, ...(b.notes ?? [])].join("\n")}
                 bottomSeparator="standard"
-              >
-                {statusLine(b)}
-              </Field>
+              />
             </PanelSectionRow>
             {b.id === "helixsr" && (
               <HelixSRSetup status={helix} onChange={onHelixChange} />
