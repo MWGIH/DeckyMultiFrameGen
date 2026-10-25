@@ -193,14 +193,12 @@ ORIGINAL_DLL_BACKUPS = [
     FSR4_DRIVER_OVERRIDE_FILENAME,
     "amdxc64.dll",
     "amd_fidelityfx_vk.dll",
-    # games such as Cyberpunk 2077 ship their own XeSS: Decky Framegen copied over it without a backup and deleted it
-    # on unpatch, which left the game unable to start without OptiScaler
+    # games such as Cyberpunk 2077 ship their own XeSS: Decky Framegen copies over it, so it's kept as .b
     "libxess.dll",
     "libxess_dx11.dll",
     "libxess_fg.dll",
     "libxell.dll",
 ]
-XESS_FILES = ["libxess.dll", "libxess_dx11.dll", "libxess_fg.dll", "libxell.dll"]
 
 RESTORABLE_BACKUP_FILES = [
     *PROXY_DLL_BACKUPS,
@@ -1636,7 +1634,6 @@ class OptiScaler:
         optiscaler_version: str | None = None,
         fsr4_variant: str | None = None,
         fsr4_upscaler_sha256: str | None = None,
-        xess_backup: bool = True,
     ) -> None:
         normalized_variant = self._normalize_fsr4_variant(fsr4_variant)
         variant_info = FSR4_VARIANTS[normalized_variant]
@@ -1660,8 +1657,6 @@ class OptiScaler:
                 }
             ],
             "patched_at": datetime.now(timezone.utc).isoformat(),
-            # the game's own XeSS DLLs are kept as .b (patches made before this left none)
-            "xess_backup": xess_backup,
         }
         self._write_json_file(marker_path, payload)
 
@@ -1892,7 +1887,6 @@ class OptiScaler:
                 optiscaler_version=result.get("optiscaler_version"),
                 fsr4_variant=result.get("fsr4_variant"),
                 fsr4_upscaler_sha256=result.get("fsr4_upscaler_sha256"),
-                xess_backup=not existing_marker or bool(existing_marker_metadata.get("xess_backup")),
             )
 
             if existing_marker and existing_marker != marker_path:
@@ -1952,10 +1946,6 @@ class OptiScaler:
             metadata = self._read_marker(marker)
             target_dir = Path(metadata.get("target_dir", str(marker.parent)))
             original_launch_options = str(metadata.get("original_launch_options") or "")
-            # an older patch overwrote the game's own XeSS DLLs without keeping them: only Steam can bring them back
-            lost_xess = [] if metadata.get("xess_backup") else [
-                f for f in XESS_FILES if (target_dir / f).exists() and not (target_dir / f"{f}.b").exists()
-            ]
             self._manual_unpatch_directory_impl(target_dir)
             try:
                 marker.unlink()
@@ -1967,14 +1957,7 @@ class OptiScaler:
                 "appid": str(appid),
                 "name": game_info["name"],
                 "launch_options": original_launch_options,
-                "verify_files": bool(lost_xess),
-                "message": f"Unpatched {game_info['name']}."
-                + (
-                    " If the game doesn't start now, verify its files in Steam (Properties, Installed Files):"
-                    " OptiScaler replaced its XeSS files."
-                    if lost_xess
-                    else ""
-                ),
+                "message": f"Unpatched {game_info['name']}.",
             }
         except Exception as exc:
             decky.logger.error(f"[Framegen] unpatch_game failed for {appid}: {exc}")

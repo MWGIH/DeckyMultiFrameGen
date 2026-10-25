@@ -97,7 +97,6 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
         if target and (await asyncio.to_thread(helix_opti.status, target))["installed"]:
             await asyncio.to_thread(helix_opti.uninstall, target)
             removed.append("HelixSR (in OptiScaler)")
-    verify = False
     # also a patch whose OptiScaler DLL has gone (target_dir comes with any Framegen marker)
     if "optiscaler" not in keeps and (await OPTISCALER.get_game_status(appid)).get("target_dir"):
         r = await OPTISCALER.unpatch_game(appid)
@@ -105,7 +104,6 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
             return {"ok": False, "error": f"Couldn't remove OptiScaler: {r.get('message')}"}
         removed.append("OptiScaler")
         new_launch = r.get("launch_options") or ""
-        verify = bool(r.get("verify_files"))
     # HelixSR's own install (FSR drop-in or HelixSR Scaler) goes when HelixSR runs inside OptiScaler instead
     if ("helixsr" not in keeps or in_opti) and HELIXSR.active():
         helix = await asyncio.to_thread(HELIXSR.game_status, folder)
@@ -126,7 +124,7 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
         removed.append("MAKO")
     elif "mako" in keeps and Path(_mako_runner()).is_file():
         new_launch = _with_mako(new_launch)
-    return {"ok": True, "removed": removed, "verify_files": verify,
+    return {"ok": True, "removed": removed,
             "launch_options": new_launch if new_launch != launch else None}
 
 
@@ -316,7 +314,7 @@ class Plugin:
         if "mako" in backend.split("+"):
             await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
         return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4,
-                "removed": cleared["removed"], "verify_files": cleared.get("verify_files", False),
+                "removed": cleared["removed"],
                 "launch_options": cleared["launch_options"]}
 
     # --- MAKO (its own controls are the mako_* methods at the end) ---

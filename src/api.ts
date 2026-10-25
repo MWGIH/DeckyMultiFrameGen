@@ -59,7 +59,6 @@ export const setGameBackend = callable<
     message?: string;
     backend?: GameChoice;
     removed?: string[];
-    verify_files?: boolean;
     launch_options?: string | null;
     helix_in_opti?: HelixInOptiResult | null;
     fsr4?: Fsr4Result | null;

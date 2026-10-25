@@ -187,10 +187,6 @@ export function GameSection({
           toast(
             "Lossless Scaling isn't installed: MAKO's frame generation needs it. Install it from the Steam Store.",
           );
-        if (r.verify_files)
-          toast(
-            "OptiScaler had replaced some of the game's files. If it doesn't start, verify its files in Steam (Properties, Installed Files).",
-          );
         if (r.fsr4)
           toast(
             r.fsr4.ok
