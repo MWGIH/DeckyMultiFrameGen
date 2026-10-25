@@ -51,7 +51,7 @@ Early development.
 - [x] OptiScaler + HelixSR: HelixSR goes in as OptiScaler's FSR 3.X upscaler (OptiScaler.ini points FfxDx12Path at
       it), so the game's own files stay untouched. Use it in games whose anti-cheat blocks HelixSR's FSR drop-in
       (Easy Anti-Cheat in Gears of War: E-Day). Can be combined with MAKO.
-- [x] FSR4 Injector (test branch): installs FSR4 Injector's release and AMD's FSR 4 library from Backends (with
+- [x] FSR4 Injector: installs FSR4 Injector's release and AMD's FSR 4 library from Backends (with
       updates under Check for updates), and the Use choices FSR4 Injector and FSR4 Injector + MAKO put it in the game
       with `WINEDLLOVERRIDES=amdxc64=n,b` in the launch options. AMD's FSR 4 watermark can be switched on per game
       (`FSR_WATERMARK=1`), and the game's panel shows whether FSR 4 ran in the last session.
@@ -172,17 +172,17 @@ playing (FSR 4 active, not used, or not active and why), and whether the waterma
 
 ## Install
 
-**This is the test branch (FSR4 Injector).** Its build is the `test` prerelease, not the latest release.
-
 On your Deck, in Decky's settings turn on **Developer mode**, then under **Developer** choose **Install Plugin from
 URL** and enter:
 
 ```
-https://github.com/MWGIH/DeckyMultiFrameGen/releases/download/test/Decky-MultiFrameGen.zip
+https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
 ```
 
-Or download `Decky-MultiFrameGen.zip` from the [test build](https://github.com/MWGIH/DeckyMultiFrameGen/releases/tag/test)
+Or download `Decky-MultiFrameGen.zip` from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
 and use **Install Plugin from ZIP** (on the Steam Machine, installs from URL can stall: use the ZIP there).
+
+Test builds from other branches are published as the [`test` prerelease](https://github.com/MWGIH/DeckyMultiFrameGen/releases/tag/test).
 
 ## Releasing
 
