@@ -254,7 +254,7 @@ class FSR4Injector:
     def game_status(self, appid: int, install_dir: str, watermark: bool) -> dict:
         m = self.mods()
         if not m:
-            return {"ok": True, "unpacked": False}
+            return {"ok": True, "unpacked": False, "watermark": watermark}
         manifest = self.manifest()
         entry = manifest.entries.get(appid)
         where = self.find(install_dir)

@@ -111,22 +111,14 @@ export function Fsr4Setup({
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [full, setFullState] = useState(readFull);
-  const setFull = (on: boolean) => {
-    setFullState(on);
-    try {
-      localStorage.setItem(FULL_KEY, on ? "1" : "0");
-    } catch {
-      // just not remembered
-    }
-  };
-  if (!status) return null;
+  if (!status) return <FullDetails status={status} onChange={onChange} />;
 
   const job = status.job;
   if (job?.state === "running") {
     const progress =
       job.phase === "amd" && job.total ? Math.min(1, job.done / job.total) : undefined;
     return (
+      <>
       <PanelSectionRow>
         <ProgressBarWithInfo
           label="Installing FSR4 Injector"
@@ -142,6 +134,8 @@ export function Fsr4Setup({
           }
         />
       </PanelSectionRow>
+      <FullDetails status={status} onChange={onChange} />
+      </>
     );
   }
 
@@ -228,14 +222,47 @@ export function Fsr4Setup({
           </ButtonItem>
         </PanelSectionRow>
       )}
+      <FullDetails status={status} onChange={onChange} />
+    </>
+  );
+}
+
+// "Show all FSR4 Injector settings": the toggle at the bottom of FSR4 Injector (in Backends and in the game's panel)
+// that opens its full panel; remembered across both places
+function FullDetails({
+  status,
+  onChange,
+}: {
+  status: Fsr4Status | null;
+  onChange: () => void;
+}) {
+  const [full, setFullState] = useState(readFull);
+  const setFull = (on: boolean) => {
+    setFullState(on);
+    try {
+      localStorage.setItem(FULL_KEY, on ? "1" : "0");
+    } catch {
+      // just not remembered
+    }
+  };
+  return (
+    <>
       <PanelSectionRow>
         <ToggleField
-          label="Show all FSR4 Injector details"
+          label="Show all FSR4 Injector settings"
+          description={full ? undefined : "Version, GPU, AMD's library, launch options, and every game it is in or can go in."}
           checked={full}
           onChange={setFull}
         />
       </PanelSectionRow>
-      {full && <Fsr4FullPanel status={status} onChange={onChange} />}
+      {full &&
+        (status ? (
+          <Fsr4FullPanel status={status} onChange={onChange} />
+        ) : (
+          <PanelSectionRow>
+            <Field label="Loading FSR4 Injector's details…" />
+          </PanelSectionRow>
+        ))}
     </>
   );
 }
@@ -394,57 +421,45 @@ const VERDICTS: Record<string, string> = {
 export function Fsr4Game({
   appid,
   status,
+  onChange,
 }: {
   appid: string;
   status: Fsr4Status | null;
+  onChange?: () => void;
 }) {
   const [game, setGame] = useState<Fsr4Game | null>(null);
   const [busy, setBusy] = useState(false);
+  const [watermarkOn, setWatermarkOn] = useState(false);
   const ready = Boolean(status?.ready);
-  const load = () => fsr4GameStatus(appid).then(setGame);
+  const load = () =>
+    fsr4GameStatus(appid).then((g) => {
+      setGame(g);
+      if (g.watermark !== undefined) setWatermarkOn(g.watermark);
+    });
   useEffect(() => {
     setGame(null);
-    if (ready) load();
+    load(); // also before it's installed: the watermark choice is kept per game
   }, [appid, ready]);
 
-  if (!ready) {
-    return (
-      <PanelSectionRow>
-        <Field
-          label="FSR4 Injector"
-          description={
-            status?.unpacked
-              ? "Download AMD's FSR 4 library under Backends first."
-              : "Install FSR4 Injector under Backends first."
-          }
-        />
-      </PanelSectionRow>
-    );
-  }
-  if (!game) {
-    return (
-      <PanelSectionRow>
-        <Field label="Checking the game for FSR 3.1…" />
-      </PanelSectionRow>
-    );
-  }
-  if (!game.ok) {
-    return (
-      <PanelSectionRow>
-        <Field label="FSR4 Injector" description={game.error} />
-      </PanelSectionRow>
-    );
-  }
-  if (!game.found) {
-    return (
-      <PanelSectionRow>
-        <Field
-          label="FSR4 Injector can't be used here"
-          description="This game has no FSR 3.1 DLL (amd_fidelityfx_dx12.dll, amd_fidelityfx_upscaler_dx12.dll or amd_fidelityfx_loader_dx12.dll). FSR4 Injector only works in DirectX 12 games with FSR 3.1 or newer; FSR 2, FSR 3.0 and Vulkan games aren't supported."
-        />
-      </PanelSectionRow>
-    );
-  }
+  // why FSR4 Injector can't go in yet, if it can't; the watermark and full settings show either way
+  const blocked: { label: string; description?: string } | null = !ready
+    ? {
+        label: "FSR4 Injector isn't installed",
+        description: status?.unpacked
+          ? "Download AMD's FSR 4 library under Backends, FSR4 Injector."
+          : "Install it under Backends, FSR4 Injector.",
+      }
+    : !game
+      ? { label: "Checking the game for FSR 3.1…" }
+      : !game.ok
+        ? { label: "FSR4 Injector", description: game.error }
+        : !game.found
+          ? {
+              label: "FSR4 Injector can't be used here",
+              description:
+                "This game has no FSR 3.1 DLL (amd_fidelityfx_dx12.dll, amd_fidelityfx_upscaler_dx12.dll or amd_fidelityfx_loader_dx12.dll). FSR4 Injector only works in DirectX 12 games with FSR 3.1 or newer; FSR 2, FSR 3.0 and Vulkan games aren't supported.",
+            }
+          : null;
 
   const change = async (on: boolean) => {
     setBusy(true);
@@ -466,12 +481,38 @@ export function Fsr4Game({
   };
 
   const watermark = async (on: boolean) => {
+    setWatermarkOn(on);
     const current = (await readLaunchOptions(Number(appid))) ?? "";
     const r = await fsr4Watermark(appid, on, current);
     if (r.ok) applyLaunchOptions(appid, current, r.launch_options);
     else toast(r.error ?? "Couldn't change the watermark");
-    load();
+    if (ready) load();
   };
+
+  const watermarkToggle = (
+    <PanelSectionRow>
+      <ToggleField
+        label="Show AMD's FSR 4 watermark"
+        description="AMD's library draws which FSR 4 model runs, so you can see FSR 4 is working. Adds FSR_WATERMARK=1 to the launch options."
+        checked={watermarkOn}
+        disabled={busy}
+        onChange={watermark}
+      />
+    </PanelSectionRow>
+  );
+  const full = <FullDetails status={status} onChange={onChange ?? (() => undefined)} />;
+
+  if (blocked || !game) {
+    return (
+      <>
+        <PanelSectionRow>
+          <Field label={blocked?.label} description={blocked?.description} />
+        </PanelSectionRow>
+        {watermarkToggle}
+        {full}
+      </>
+    );
+  }
 
   return (
     <>
@@ -497,15 +538,7 @@ export function Fsr4Game({
           />
         </PanelSectionRow>
       )}
-      <PanelSectionRow>
-        <ToggleField
-          label="Show AMD's FSR 4 watermark"
-          description="AMD's library draws which FSR 4 model runs, so you can see FSR 4 is working. Adds FSR_WATERMARK=1 to the launch options."
-          checked={!!game.watermark}
-          disabled={busy}
-          onChange={watermark}
-        />
-      </PanelSectionRow>
+      {watermarkToggle}
       <PanelSectionRow>
         <ButtonItem
           layout="below"
@@ -519,6 +552,7 @@ export function Fsr4Game({
               : "FSR 4 has no model for this GPU"}
         </ButtonItem>
       </PanelSectionRow>
+      {full}
     </>
   );
 }
