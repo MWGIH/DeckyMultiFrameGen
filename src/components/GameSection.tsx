@@ -39,8 +39,8 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   "helixsr+mako": "HelixSR + MAKO",
   "optiscaler+helixsr": "OptiScaler + HelixSR",
   "optiscaler+helixsr+mako": "OptiScaler + HelixSR + MAKO",
-  fsr4injector: "FSR4 Injector",
-  "fsr4injector+mako": "FSR4 Injector + MAKO",
+  fsr4injector: "FSR4 Injector (FSR 3.1+ games)",
+  "fsr4injector+mako": "FSR4 Injector + MAKO (FSR 3.1+ games)",
 };
 
 const parts = (choice: GameChoice | null | undefined) =>

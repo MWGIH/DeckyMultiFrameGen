@@ -501,10 +501,19 @@ export function Fsr4Game({
     </PanelSectionRow>
   );
   const full = <FullDetails status={status} onChange={onChange ?? (() => undefined)} />;
+  const hint = (
+    <PanelSectionRow>
+      <Field
+        label="FSR 3.1+ games only"
+        description="FSR4 Injector only works in DirectX 12 games that ship FSR 3.1 or newer. In other games (FSR 2, FSR 3.0, DLSS or XeSS only, Vulkan) use OptiScaler instead."
+      />
+    </PanelSectionRow>
+  );
 
   if (blocked || !game) {
     return (
       <>
+        {hint}
         <PanelSectionRow>
           <Field label={blocked?.label} description={blocked?.description} />
         </PanelSectionRow>
@@ -516,6 +525,7 @@ export function Fsr4Game({
 
   return (
     <>
+      {hint}
       <PanelSectionRow>
         <Field
           label={
