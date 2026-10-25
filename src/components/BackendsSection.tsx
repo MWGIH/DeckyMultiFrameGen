@@ -27,21 +27,10 @@ import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
 import { LosslessWarning } from "./LosslessWarning";
 
-// The status on the right of a backend's row, its version on a line of its own under it, so that column stays narrow
-// and the description beside it keeps most of the width
-function Status({ b }: { b: Backend }) {
-  const [line, version] = b.error
-    ? ["Couldn't check", null]
-    : !b.installed
-      ? ["Not installed", null]
-      : ["Installed", b.version];
-  return (
-    <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-      {line}
-      {version && <br />}
-      {version}
-    </div>
-  );
+function statusLine(b: Backend): string {
+  if (b.error) return `Couldn't check: ${b.error}`;
+  if (!b.installed) return "Not installed";
+  return b.version ? `Installed (${b.version})` : "Installed";
 }
 
 type Props = {
@@ -145,17 +134,13 @@ export function BackendsSection(props: Props) {
         backends.map((b) => (
           <div key={b.id}>
             <PanelSectionRow>
+              {/* the status goes in the label: a value on the right would squeeze the description into the left
+                  column (FSR4 Injector's long one wrapped at half width) */}
               <Field
-                label={b.name}
-                description={[
-                  b.kind,
-                  ...(b.notes ?? []),
-                  ...(b.error ? [`Couldn't check: ${b.error}`] : []),
-                ].join("\n")}
+                label={`${b.name} · ${statusLine(b)}`}
+                description={[b.kind, ...(b.notes ?? [])].join("\n")}
                 bottomSeparator="standard"
-              >
-                <Status b={b} />
-              </Field>
+              />
             </PanelSectionRow>
             {b.id === "helixsr" && (
               <HelixSRSetup status={helix} onChange={onHelixChange} />
