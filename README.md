@@ -122,6 +122,54 @@ Reports so far:
 Tried a game? Open an issue in this repository with the game, the way (FSR drop-in, HelixSR Scaler or OptiScaler +
 HelixSR), the result, and the HelixSR log line from the game's panel.
 
+## FSR4 Injector game compatibility
+
+[FSR4 Injector](https://github.com/Rayekkk/FSR4Injector) (by Rayekkk) gets AMD's own, unmodified FSR 4.1 upscaler running
+under Proton. AMD's FSR 4 library loads under Proton but falls back to FSR 3, because it asks the Windows driver which GPU
+it runs on and Wine has no answer. FSR4 Injector puts a small open-source stand-in for that driver DLL (`amdxc64.dll`)
+next to the game, which gives AMD's library the real GPU family, so it picks its FSR 4 model the way it does on Windows.
+Nothing on disk is patched: the game's own FSR 3.1 DLL stays, and AMD's library (`amdxcffx64.dll`, about 82 MB per game)
+is fetched once from AMD's official driver package.
+
+The plugin installs FSR4 Injector from its [releases](https://github.com/Rayekkk/FSR4Injector/releases) under Backends,
+and the Use choices **FSR4 Injector** and **FSR4 Injector + MAKO** put it in a game. Pick **AMD FSR** in the game's
+graphics settings; after you quit, the game's panel says whether FSR 4 ran. **Show all FSR4 Injector settings**, then
+**Find games with FSR 3.1+**, lists the installed games it can work in.
+
+What decides whether a game can use it:
+
+| Game | FSR4 Injector |
+| --- | --- |
+| DirectX 12 with FSR 3.1 or newer (ships `amd_fidelityfx_dx12.dll`, `amd_fidelityfx_upscaler_dx12.dll` or `amd_fidelityfx_loader_dx12.dll`) | ✅ Supported: select AMD FSR in the game |
+| FSR 2 or FSR 3.0 | ❌ Not supported: use OptiScaler |
+| DLSS or XeSS only | ❌ Not supported: use OptiScaler or HelixSR |
+| Vulkan, DirectX 11 or older, native Linux | ❌ Not supported |
+| Anti-cheat (Easy Anti-Cheat, BattlEye and others) | ⚠️ Works the same, but adding DLLs to the game's folder can get you kicked or banned online. The game's panel warns |
+
+The GPU matters too. AMD's FSR 4.1.2 only has models for some GPUs, per FSR4 Injector's README:
+
+| GPU | FSR 4 model | Status upstream |
+| --- | --- | --- |
+| Radeon 880M / 890M (Ryzen Z2 Extreme, Ryzen AI 9 300) | Lite | Verified |
+| **Steam Deck** (Van Gogh), Ryzen Z2 A | Lite | Beta, not tested yet |
+| RX 6000 | RDNA2 model | Beta |
+| RX 7000, Strix Halo | INT8 | Beta |
+| RX 9000 | FP8 | Beta |
+| Radeon 780M (Z1 Extreme) and others without a model | none | Refused: games stay on FSR 3 |
+
+It needs Proton 11 or Proton Experimental.
+
+Reports so far:
+
+| Game | Device | Result | Source |
+| --- | --- | --- | --- |
+| Marvel's Spider-Man Remastered | Legion Go 2 (890M) | ✅ FSR 4 Lite 14.1 ms vs FSR 3 13.7 ms (about 3% slower, clearly sharper) | [FSR4 Injector README](https://github.com/Rayekkk/FSR4Injector#features) |
+| HITMAN | Legion Go 2 (890M) | ✅ FSR 4 Lite confirmed (through OptiScaler, during FSR4 Injector's development) | [FSR4 Injector history](https://github.com/Rayekkk/FSR4Injector/commits/main) |
+| Any game | Steam Deck | Not tested yet | |
+
+Tried a game on the Deck? Open an issue in this repository with the game, what the game's FSR4 Injector panel said after
+playing (FSR 4 active, not used, or not active and why), and whether the watermark showed.
+
 ## Install
 
 **This is the test branch (FSR4 Injector).** Its build is the `test` prerelease, not the latest release.
