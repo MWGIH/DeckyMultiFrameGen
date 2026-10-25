@@ -124,15 +124,17 @@ HelixSR), the result, and the HelixSR log line from the game's panel.
 
 ## Install
 
+**This is the test branch (FSR4 Injector).** Its build is the `test` prerelease, not the latest release.
+
 On your Deck, in Decky's settings turn on **Developer mode**, then under **Developer** choose **Install Plugin from
 URL** and enter:
 
 ```
-https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
+https://github.com/MWGIH/DeckyMultiFrameGen/releases/download/test/Decky-MultiFrameGen.zip
 ```
 
-Or download `Decky-MultiFrameGen.zip` from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
-and use **Install Plugin from ZIP**.
+Or download `Decky-MultiFrameGen.zip` from the [test build](https://github.com/MWGIH/DeckyMultiFrameGen/releases/tag/test)
+and use **Install Plugin from ZIP** (on the Steam Machine, installs from URL can stall: use the ZIP there).
 
 ## Releasing
 
