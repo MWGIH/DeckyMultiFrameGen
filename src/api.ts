@@ -315,6 +315,49 @@ export const fsr4Remove = callable<[], { ok: boolean; error?: string }>(
   "fsr4_remove",
 );
 export const fsr4Games = callable<[], string[]>("fsr4_games");
+
+export type Fsr4Details = {
+  ok: boolean;
+  error?: string;
+  unpacked?: boolean;
+  version?: string | null;
+  folder?: string;
+  gpu?:
+    | (Fsr4Gpu & { pci?: string; family?: number; rev?: number })
+    | null;
+  amd?: {
+    driver: string;
+    fsr: string;
+    file_version: string;
+    size_mb: number;
+    ready: boolean;
+    path: string;
+  };
+  launch_options?: { plain: string; watermark: string };
+  games?: {
+    appid: string;
+    name: string;
+    target_dir: string;
+    verdict: string;
+    reason: string;
+    watermark: boolean;
+  }[];
+};
+export const fsr4Details = callable<[], Fsr4Details>("fsr4_details");
+export const fsr4CompatibleGames = callable<
+  [],
+  {
+    ok: boolean;
+    error?: string;
+    games: {
+      appid: string;
+      name: string;
+      ffx_dll: string;
+      anticheat: boolean;
+      enabled: boolean;
+    }[];
+  }
+>("fsr4_compatible_games");
 export const fsr4GameStatus = callable<[appid: string], Fsr4Game>(
   "fsr4_game_status",
 );

@@ -11,6 +11,8 @@ import {
 } from "@decky/ui";
 import { toaster } from "@decky/api";
 import {
+  fsr4CompatibleGames,
+  fsr4Details,
   fsr4GameOff,
   fsr4GameOn,
   fsr4Games,
@@ -19,6 +21,7 @@ import {
   fsr4Remove,
   fsr4Status,
   fsr4Watermark,
+  type Fsr4Details,
   type Fsr4Game,
   type Fsr4Status,
 } from "../api";
@@ -108,6 +111,15 @@ export function Fsr4Setup({
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [full, setFullState] = useState(readFull);
+  const setFull = (on: boolean) => {
+    setFullState(on);
+    try {
+      localStorage.setItem(FULL_KEY, on ? "1" : "0");
+    } catch {
+      // just not remembered
+    }
+  };
   if (!status) return null;
 
   const job = status.job;
@@ -216,6 +228,157 @@ export function Fsr4Setup({
           </ButtonItem>
         </PanelSectionRow>
       )}
+      <PanelSectionRow>
+        <ToggleField
+          label="Show all FSR4 Injector details"
+          checked={full}
+          onChange={setFull}
+        />
+      </PanelSectionRow>
+      {full && <Fsr4FullPanel status={status} onChange={onChange} />}
+    </>
+  );
+}
+
+const FULL_KEY = "multifg:fsr4Full";
+
+function readFull(): boolean {
+  try {
+    return localStorage.getItem(FULL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// FSR4 Injector's own panel, all of it: its version, the GPU, AMD's library, the launch options it uses, the games it
+// is in with their last session, and the games it could go in
+function Fsr4FullPanel({
+  status,
+  onChange,
+}: {
+  status: Fsr4Status;
+  onChange: () => void;
+}) {
+  const [d, setD] = useState<Fsr4Details | null>(null);
+  const [compatible, setCompatible] = useState<
+    Awaited<ReturnType<typeof fsr4CompatibleGames>> | null
+  >(null);
+  const [scanning, setScanning] = useState(false);
+  useEffect(() => {
+    fsr4Details().then(setD);
+  }, [status.version, status.ready, status.games.join(",")]);
+
+  const scan = async () => {
+    setScanning(true);
+    try {
+      setCompatible(await fsr4CompatibleGames());
+    } finally {
+      setScanning(false);
+    }
+  };
+  const update = async () => {
+    const r = await fsr4Install();
+    if (!r.ok) toast(r.error ?? "Couldn't start");
+    onChange();
+  };
+
+  if (!d) {
+    return (
+      <PanelSectionRow>
+        <Field label="Loading FSR4 Injector's details…" />
+      </PanelSectionRow>
+    );
+  }
+  if (!d.ok || !d.unpacked) {
+    return (
+      <PanelSectionRow>
+        <Field
+          label="FSR4 Injector isn't installed"
+          description={d.error ?? "Install it above to see its details."}
+        />
+      </PanelSectionRow>
+    );
+  }
+  const gpu = d.gpu;
+  const row = (key: string, label: string, description: string) => (
+    <PanelSectionRow key={key}>
+      <Field label={label} description={description} />
+    </PanelSectionRow>
+  );
+  return (
+    <>
+      {row("v", `FSR4 Injector ${d.version ?? ""}`, `From github.com/Rayekkk/FSR4Injector, in ${d.folder}`)}
+      {row(
+        "g",
+        "GPU",
+        gpu
+          ? [
+              `${gpu.arch}${gpu.pci ? ` (PCI ${gpu.pci}, family ${gpu.family}, revision ${gpu.rev})` : ""}`,
+              gpu.model
+                ? `FSR 4 model: ${gpu.model_name}${gpu.verified ? "" : " (beta: not yet confirmed on this GPU by FSR4 Injector's author)"}`
+                : "AMD's FSR 4 has no model for this GPU: games stay on FSR 3",
+            ].join("\n")
+          : "No AMD GPU found",
+      )}
+      {d.amd &&
+        row(
+          "a",
+          "AMD's FSR 4 library",
+          `FSR ${d.amd.fsr} (amdxcffx64.dll ${d.amd.file_version}, ${d.amd.size_mb} MB) from AMD ${d.amd.driver}.\n${d.amd.ready ? `Downloaded and checked: ${d.amd.path}` : "Not downloaded yet"}`,
+        )}
+      {d.launch_options &&
+        row(
+          "l",
+          "Launch options it sets",
+          `${d.launch_options.plain}\nWith the watermark: ${d.launch_options.watermark}`,
+        )}
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={update}>
+          Update or repair FSR4 Injector
+        </ButtonItem>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem
+          layout="below"
+          onClick={() => Navigation.NavigateToExternalWeb(status.eula_url)}
+        >
+          Read AMD's license
+        </ButtonItem>
+      </PanelSectionRow>
+      {row(
+        "gh",
+        `Games with FSR4 Injector (${d.games?.length ?? 0})`,
+        d.games?.length
+          ? "Its result from each game's last session:"
+          : "None yet: set a game's Use to FSR4 Injector.",
+      )}
+      {(d.games ?? []).map((g) =>
+        row(
+          `g${g.appid}`,
+          g.name,
+          `${VERDICTS[g.verdict] ?? g.verdict}. ${g.reason}${g.watermark ? " Watermark on." : ""}`,
+        ),
+      )}
+      <PanelSectionRow>
+        <ButtonItem layout="below" disabled={scanning} onClick={scan}>
+          {scanning ? "Looking through your games…" : "Find games with FSR 3.1+"}
+        </ButtonItem>
+      </PanelSectionRow>
+      {compatible &&
+        (compatible.games.length
+          ? compatible.games.map((g) =>
+              row(
+                `c${g.appid}`,
+                g.name,
+                `${g.enabled ? "FSR4 Injector is in it." : "Set its Use to FSR4 Injector to turn it on."} Ships ${g.ffx_dll}.${g.anticheat ? " ⚠️ Has anti-cheat: online bans are possible." : ""}`,
+              ),
+            )
+          : row(
+              "cn",
+              "No compatible games found",
+              compatible.error ??
+                "None of your installed games ships an FSR 3.1+ DLL (DirectX 12).",
+            ))}
     </>
   );
 }

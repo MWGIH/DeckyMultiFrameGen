@@ -12,7 +12,7 @@ import {
   type OptiGame,
   type OptiStatus,
 } from "../api";
-import { defaultProxyDll, FSR4_RUNTIME_LABEL, PROXY_DLL_OPTIONS } from "../optiscalerOptions";
+import { defaultProxyDll, PROXY_DLL_OPTIONS } from "../optiscalerOptions";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 
 const POLL_MS = 5000;
@@ -121,9 +121,6 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
           />
         </PanelSectionRow>
       )}
-      <PanelSectionRow>
-        <Field label="FSR4 runtime" description={FSR4_RUNTIME_LABEL} />
-      </PanelSectionRow>
       {!status.exists && (
         <PanelSectionRow>
           <ButtonItem layout="below" disabled={busy} onClick={install}>

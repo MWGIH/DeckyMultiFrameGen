@@ -310,6 +310,45 @@ class FSR4Injector:
             return self.mods().install.set_watermark(manifest, appid, launch_options, on)
 
 
+    # --- everything, for the full panel -------------------------------------------------------------------------
+
+    def details(self, names: dict) -> dict:
+        """What FSR4 Injector's own panel shows: version, GPU, AMD's library, launch options to copy, and the games it
+        is in with their last session. names: app id -> game name."""
+        m = self.mods()
+        if not m:
+            return {"ok": True, "unpacked": False}
+        manifest = self.manifest()
+        gpu = self.gpu()
+        recipe = m.dll.RECIPE
+        games = []
+        for appid, entry in sorted(manifest.entries.items()):
+            verdict, reason = m.install.verdict(m.install.read_status(manifest, appid))
+            applied = entry.get("launch_applied") or ""
+            games.append({"appid": str(appid), "name": names.get(str(appid), f"App {appid}"),
+                          "target_dir": entry.get("target_dir"), "verdict": verdict, "reason": reason,
+                          "watermark": m.install.WATERMARK in applied.split(), "enabled_at": entry.get("enabled_at")})
+        return {
+            "ok": True, "unpacked": True, "version": self.version(), "folder": str(self.base),
+            "gpu": {**gpu, "pci": f"1002:{gpu['device']:04x}"} if gpu and "device" in gpu else gpu,
+            "amd": {"driver": recipe.get("driver"), "fsr": recipe.get("fsr"), "file_version": recipe.get("file_version"),
+                    "size_mb": round(recipe.get("dll_size", 0) / (1 << 20)), "ready": self.dll_ready(),
+                    "path": str(self.ffx)},
+            "launch_options": {"plain": f"{m.install.launch_prefix(False)} %command%",
+                               "watermark": f"{m.install.launch_prefix(True)} %command%"},
+            "games": games,
+        }
+
+    def compatible(self, steam_root: str) -> list[dict]:
+        """Installed games with an FSR 3.1+ DLL (FSR4 Injector's own library scan), and whether it is in each."""
+        m = self.mods()
+        if not m:
+            return []
+        manifest = self.manifest()
+        return [{"appid": str(g["appid"]), "name": g["name"], "ffx_dll": g["ffx_dll"], "anticheat": g["anticheat"],
+                 "enabled": g["appid"] in manifest.entries} for g in m.games.scan(steam_root)]
+
+
 def _env() -> dict:
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = env.pop("LD_LIBRARY_PATH_ORIG", "")

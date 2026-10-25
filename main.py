@@ -466,6 +466,24 @@ class Plugin:
         new = await asyncio.to_thread(FSR4.set_watermark, int(appid), current_launch_options or "", bool(on))
         return {"ok": True, "watermark": bool(on), "launch_options": new}
 
+    async def fsr4_details(self) -> dict:
+        """Everything FSR4 Injector's own panel shows (the full view under Backends)."""
+        try:
+            names = {g["appid"]: g["name"] for g in steam_library.installed_games(HOME)}
+            return await asyncio.to_thread(FSR4.details, names)
+        except Exception as exc:
+            decky.logger.exception("fsr4_details")
+            return {"ok": False, "error": str(exc)}
+
+    async def fsr4_compatible_games(self) -> dict:
+        """Installed games FSR4 Injector can go in (they ship FSR 3.1 or newer)."""
+        try:
+            steam = HOME / ".local" / "share" / "Steam"
+            return {"ok": True, "games": await asyncio.to_thread(FSR4.compatible, str(steam))}
+        except Exception as exc:
+            decky.logger.exception("fsr4_compatible_games")
+            return {"ok": False, "error": str(exc), "games": []}
+
     async def fsr4_games(self) -> list[str]:
         """Games FSR4 Injector is in (to take it out of all of them before it's removed)."""
         return (await asyncio.to_thread(FSR4.status))["games"]

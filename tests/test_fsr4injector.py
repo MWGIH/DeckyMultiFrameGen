@@ -92,6 +92,17 @@ class FSR4InjectorTests(unittest.TestCase):
         r = run(self.plugin.set_game_backend("2420110", "mako", r["launch_options"]))
         self.assertEqual((r["removed"], r["launch_options"]), (["FSR4 Injector"], f"{runner} %command% -dx12"))
 
+    def test_full_panel_details(self):
+        unpack_release(self.fsr4)
+        run(self.plugin.set_game_backend("2420110", "fsr4injector", ""))
+        d = run(self.plugin.fsr4_details())
+        self.assertEqual((d["version"], d["gpu"]["pci"], d["amd"]["ready"]), ("1.0.0", "1002:163f", True))
+        self.assertEqual(d["launch_options"]["watermark"], f"{TOKEN} FSR_WATERMARK=1 %command%")
+        self.assertEqual([(g["appid"], g["name"], g["verdict"]) for g in d["games"]],
+                         [("2420110", "Some FSR 3.1 Game", "unknown")])
+        c = run(self.plugin.fsr4_compatible_games())
+        self.assertEqual([(g["appid"], g["enabled"]) for g in c["games"]], [("2420110", True)])
+
     def test_game_without_fsr_3_1(self):
         unpack_release(self.fsr4)
         (self.game_dir / "amd_fidelityfx_dx12.dll").unlink()
