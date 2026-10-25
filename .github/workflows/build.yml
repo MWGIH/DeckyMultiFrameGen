@@ -30,7 +30,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # A test build says so in Decky: <version>-test.<run>, never newer than the next real release
       - name: Mark a test build's version
-        if: github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
         run: node -e 'const f="package.json",p=require("./"+f);p.version+="-test."+process.env.GITHUB_RUN_NUMBER;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
       - run: pnpm typecheck
       - run: python -m unittest discover -s tests -v
@@ -42,11 +42,11 @@ jobs:
       # A push to main whose package.json version has no release yet publishes one, so the plugin can be
       # installed from https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip
       # Pushing a v* tag (or creating a release on GitHub) attaches the ZIP to that release instead.
-      # Any other branch replaces the "test" prerelease, installable from
+      # Any other branch (pushed, or run by hand from the Actions tab) replaces the "test" prerelease, installable from
       # https://github.com/MWGIH/DeckyMultiFrameGen/releases/download/test/Decky-MultiFrameGen.zip
       # (prereleases never become releases/latest, so normal installs and the plugin's update check ignore it)
       - name: Publish test build
-        if: github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
