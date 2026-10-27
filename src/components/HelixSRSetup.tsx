@@ -15,6 +15,7 @@ import {
   helixsrRemove,
   helixsrStatus,
   helixsrLog,
+  helixsrSetPrereleases,
   type HelixJob,
   type HelixStatus,
 } from "../api";
@@ -248,20 +249,22 @@ export function HelixSRSetup({
   const latest = status.latest;
   return (
     <>
-      {status.active_ready && (
-        <PanelSectionRow>
-          <Field
-            label={`HelixSR ${status.active} is set up`}
-            description={
-              status.update_available && latest
-                ? `${latest.tag} is available.`
-                : latest
-                  ? "Up to date. Pick HelixSR for a game above to add it there."
-                  : "Pick HelixSR for a game above to add it there."
-            }
-          />
-        </PanelSectionRow>
-      )}
+      {/* the installed version is in the HelixSR line above: only what is new goes here */}
+      <PanelSectionRow>
+        <ToggleField
+          label="Offer HelixSR pre-releases"
+          description={
+            status.newer_prerelease && !status.prereleases
+              ? `${status.newer_prerelease} is out as a pre-release. Turn this on to install it.`
+              : "Off: only HelixSR's stable releases are offered."
+          }
+          checked={!!status.prereleases}
+          onChange={async (on) => {
+            await helixsrSetPrereleases(on);
+            onChange();
+          }}
+        />
+      </PanelSectionRow>
       {status.active_ready && status.active_hlx === false && (
         <PanelSectionRow>
           <ButtonItem

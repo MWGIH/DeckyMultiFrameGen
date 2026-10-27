@@ -38,6 +38,7 @@ class HelixSR:
         self.log = log_dir / "helixsr-setup.log"
         self.job_file = state_dir / "helixsr-job.json"
         self.releases_cache = state_dir / "helixsr-releases.json"
+        self.settings_file = state_dir / "helixsr-settings.json"
         self._lock = threading.Lock()
         self._installer_ready = {}   # tag -> (release folder's mtime, network built, HLX FSR 4 built)
         self._job_thread = None
@@ -100,8 +101,24 @@ class HelixSR:
             return cached.get("releases", [])
 
     def latest(self) -> dict | None:
-        stable = [r for r in self.releases() if not r["prerelease"]]
-        return stable[0] if stable else None
+        """The newest release games can get: stable ones only, unless the user turned pre-releases on."""
+        pre = self.prereleases()
+        offered = [r for r in self.releases() if pre or not r["prerelease"]]
+        return max(offered, key=lambda r: _version_key(r["tag"])) if offered else None
+
+    def newer_prerelease(self) -> str | None:
+        """A pre-release newer than the newest stable release (HelixSR 3.0.0 came out as one), for the hint."""
+        rels = self.releases()
+        stable = max((_version_key(r["tag"]) for r in rels if not r["prerelease"]), default=())
+        pre = [r["tag"] for r in rels if r["prerelease"] and _version_key(r["tag"]) > stable]
+        return max(pre, key=_version_key) if pre else None
+
+    def prereleases(self) -> bool:
+        return bool((self._read_json(self.settings_file) or {}).get("prereleases"))
+
+    def set_prereleases(self, on: bool) -> dict:
+        self._write_json(self.settings_file, {**(self._read_json(self.settings_file) or {}), "prereleases": bool(on)})
+        return {"ok": True, "prereleases": bool(on)}
 
     def local_releases(self) -> list[str]:
         """Downloaded releases (~/HelixSR/<tag>/ with HelixSR's setup), newest first."""
@@ -206,7 +223,10 @@ class HelixSR:
             # False: the release has HLX FSR 4 (3.0 on) and its setup didn't build it (AMD's download failed)
             "active_hlx": self.hlx_ready(active) if active_ready else None,
             "latest": latest,
-            "update_available": bool(latest and latest["tag"] not in local),
+            "update_available": bool(latest and latest["tag"] not in local
+                                     and (not active or _version_key(latest["tag"]) > _version_key(active))),
+            "prereleases": self.prereleases(),
+            "newer_prerelease": self.newer_prerelease(),
         }
 
     def setup_log(self, lines: int = 80) -> dict:

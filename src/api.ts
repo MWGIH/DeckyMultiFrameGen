@@ -114,6 +114,9 @@ export type HelixStatus = {
   active_hlx?: boolean | null;
   latest: HelixRelease | null;
   update_available: boolean;
+  // pre-releases offered as updates (off by default), and a pre-release newer than the newest stable release
+  prereleases?: boolean;
+  newer_prerelease?: string | null;
 };
 
 export type HelixRoute = "direct" | "scaler";
@@ -154,6 +157,10 @@ export const helixsrInstall = callable<
   [tag?: string],
   { ok: boolean; error?: string; tag?: string }
 >("helixsr_install");
+export const helixsrSetPrereleases = callable<
+  [on: boolean],
+  { ok: boolean; prereleases: boolean }
+>("helixsr_set_prereleases");
 export const helixsrRemove = callable<
   [],
   { ok: boolean; error?: string; removed?: string[] }

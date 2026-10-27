@@ -216,7 +216,7 @@ export function UpdatesCheck({
         <Field
           key="h"
           label={`HelixSR ${h.available} is available`}
-          description={`You have ${h.installed}. Remove HelixSR from your games and add it again afterwards to use the new version.${pluginFirst ? FIRST : ""}`}
+          description={`You have ${h.installed}. Afterwards each game's HelixSR panel has an Update button for the new version.${pluginFirst ? FIRST : ""}`}
         />,
       );
       rows.push(

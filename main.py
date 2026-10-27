@@ -382,6 +382,10 @@ class Plugin:
     async def helixsr_install(self, tag: str = "") -> dict:
         return await asyncio.to_thread(HELIXSR.start_install, tag or None)
 
+    async def helixsr_set_prereleases(self, on: bool) -> dict:
+        """Whether HelixSR's pre-releases are offered as updates (HelixSR 3.0.0 came out as one)."""
+        return await asyncio.to_thread(HELIXSR.set_prereleases, bool(on))
+
     async def helixsr_remove(self) -> dict:
         """HelixSR out of every game, then its files deleted."""
         try:

@@ -128,6 +128,17 @@ class ReleaseStateTests(unittest.TestCase):
             shutil.rmtree(self.home / "HelixSR" / "v1.9.3")
             self.assertIsNone(self.h.opti_release())
 
+    def test_prereleases_only_when_turned_on(self):
+        # HelixSR 3.0.0 came out as a pre-release: offered only with the setting on, and hinted at meanwhile
+        rels = [{"tag": "v3.0.0", "prerelease": True}, {"tag": "v2.0.0", "prerelease": False},
+                {"tag": "v1.9.2", "prerelease": True}]
+        with mock.patch.object(self.h, "releases", return_value=rels):
+            self.assertEqual((self.h.latest()["tag"], self.h.newer_prerelease()), ("v2.0.0", "v3.0.0"))
+            self.h.set_prereleases(True)
+            self.assertEqual(self.h.latest()["tag"], "v3.0.0")
+            self.h.set_prereleases(False)
+            self.assertEqual(self.h.latest()["tag"], "v2.0.0")
+
     def test_download_interrupted_by_a_restart_is_a_failure(self):
         self.h._write_json(self.h.job_file, {"state": "running", "phase": "download", "tag": "v1.9.3"})
         self.assertEqual(self.h.status()["job"]["state"], "failed")
