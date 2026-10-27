@@ -148,18 +148,18 @@ export function HelixSRGame({
         strTitle="This game uses Easy Anti-Cheat"
         strDescription={`${EAC_WARNING} Install HelixSR anyway?`}
         strOKButtonText="Install anyway"
-        onOK={install}
+        onOK={() => install()}
       />,
     );
   };
 
-  const install = async () => {
+  const install = async (way?: HelixRoute) => {
     setBusy(true);
     try {
       const current = (await readLaunchOptions(Number(appid))) ?? "";
       const r = await helixsrInstallGame(
         appid,
-        route === "auto" ? "" : route,
+        way ?? (route === "auto" ? "" : route),
         current,
       );
       if (r.ok) {
@@ -251,7 +251,7 @@ export function HelixSRGame({
         <PanelSectionRow>
           <Field
             label="This game runs on Vulkan"
-            description="HelixSR only works in DirectX 12 games, so it will most likely have no effect here even though the game ships an FSR file it can replace."
+            description="HelixSR's FSR drop-in only works in DirectX 12 games, so it will most likely have no effect here even though the game ships an FSR file it can replace. From HelixSR 3.0, HelixSR Scaler also upscales Vulkan games."
           />
         </PanelSectionRow>
       )}
@@ -311,6 +311,18 @@ export function HelixSRGame({
               : game.installed
                 ? `Switch to ${WAYS[chosen ?? ""] ?? chosen}`
                 : `Install HelixSR (${WAYS[chosen ?? ""] ?? chosen})`}
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
+      {game.installed && game.outdated && game.current && game.current in IN_GAME && (
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            disabled={busy || !ready}
+            description={`This game has HelixSR ${game.installed_version}.`}
+            onClick={() => install(game.current as HelixRoute)}
+          >
+            {`Update to HelixSR ${helix.active}`}
           </ButtonItem>
         </PanelSectionRow>
       )}

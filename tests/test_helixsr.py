@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import unittest
+from unittest import mock
 import zipfile
 from pathlib import Path
 
@@ -116,6 +117,17 @@ class ReleaseStateTests(unittest.TestCase):
         (d / "HelixSR-fsrfg" / helixsr.DLL).write_bytes(b"MZ" + b"HXSRNET1" + b"\0" * 24)
         self.assertIsNone(self.h.opti_release())
 
+    def test_optiscaler_never_gets_3_0(self):
+        # 3.0's HelixSR/helixsr.dll only runs in its own HelixSR Scaler (and has no HelixSR-fsrfg folder)
+        self.add_release("v1.9.3", built=True)
+        d = self.add_release("v3.0.0", built=False)
+        (d / "HelixSR").mkdir()
+        (d / "HelixSR" / "helixsr.dll").write_bytes(b"MZ" + b"HXSRNET1" + b"\0" * 24)
+        with mock.patch.object(self.h, "ready", return_value=True):
+            self.assertEqual((self.h.active(), self.h.opti_release()), ("v3.0.0", "v1.9.3"))
+            shutil.rmtree(self.home / "HelixSR" / "v1.9.3")
+            self.assertIsNone(self.h.opti_release())
+
     def test_download_interrupted_by_a_restart_is_a_failure(self):
         self.h._write_json(self.h.job_file, {"state": "running", "phase": "download", "tag": "v1.9.3"})
         self.assertEqual(self.h.status()["job"]["state"], "failed")
@@ -132,6 +144,43 @@ class SetupProgressTests(unittest.TestCase):
                        "[helixsr-setup] compile k1 2.0 s"]
         self.assertEqual(sp(build), {"setup_percent": 25, "setup_step": "Building the network: fragment tables 3/8"})
         self.assertEqual(sp(build + ["[helixsr-setup] done: the network is built"])["setup_percent"], 100)
+
+    def test_hlx_fsr4_build_has_its_own_step(self):
+        # HelixSR 3.0: after the network, AMD's download and HLX FSR 4's shaders, each with the bar
+        sp = helixsr.setup_progress
+        lines = ["[multifg] 10:00:00 running /x/helixsr-setup.sh", "[helixsr-setup] done: the network is built",
+                 "[helixsr-setup] HLX FSR 4: its shaders are built from AMD's FSR 4 driver file (amdxcffx64.dll 2.4.0.4370)",
+                 "[helixsr-setup] [#####---------------]   20%  0:42  AMD's driver package"]
+        self.assertEqual(sp(lines), {"setup_percent": 20, "setup_step": "Building HLX FSR 4: AMD's driver package"})
+        lines.append("[helixsr-setup] [###########---------]   55%  1:42  HLX FSR 4 shaders")
+        self.assertEqual(sp(lines)["setup_step"], "Building HLX FSR 4: HLX FSR 4 shaders")
+
+
+class SetupDriverTests(unittest.TestCase):
+    """setup_driver.py says yes to the setup's download questions and gives every other question no answer, so
+    HelixSR's game installer changes no game."""
+
+    def test_answers_downloads_and_nothing_else(self):
+        d = support.ROOT / "driver"
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True)
+        script = d / "setup.sh"
+        script.write_text(
+            "#!/usr/bin/env bash\n"
+            "read -r -p 'Download it now? [Y/n] ' r || r=EOF; echo \"dlss=$r\"\n"
+            "python3 -c \"\nimport sys\nprint('tty', sys.stdin.isatty())\n"
+            "print('amd', input('Download it from AMD now? [Y/n] '))\n"
+            "try:\n    input('Game install? [s/f/n] ')\n    print('game answered')\n"
+            "except EOFError:\n    print('game: no answer')\n\"\n"
+            "exit 7\n")
+        log, rc = d / "log", d / "rc"
+        driver = Path(helixsr.__file__).parent / "setup_driver.py"
+        subprocess.run([sys.executable, str(driver), str(log), str(rc), "bash", str(script)], timeout=60)
+        out = log.read_text()
+        for want in ("dlss=y", "tty True", "amd y", "game: no answer"):
+            self.assertIn(want, out)
+        self.assertNotIn("game answered", out)
+        self.assertEqual(rc.read_text().strip(), "7")
 
 
 def fake_exe(imports):

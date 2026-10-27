@@ -110,6 +110,8 @@ export type HelixStatus = {
   local: string[];
   active: string | null;
   active_ready: boolean;
+  // false: the release has HLX FSR 4 (HelixSR 3.0 on) and its setup didn't build it
+  active_hlx?: boolean | null;
   latest: HelixRelease | null;
   update_available: boolean;
 };
@@ -133,6 +135,9 @@ export type HelixGame = {
   opti_logging?: boolean | null;
   launch_options_now?: string | null;
   graphics?: "vulkan" | null;
+  // HelixSR's version in the game, and whether it's older than the release in use (installing again updates it)
+  installed_version?: string | null;
+  outdated?: boolean;
   runtime_log?: { path: string; modified: number; lines: string[] } | null;
   in_game?: string;
   launch_options?: string | null;

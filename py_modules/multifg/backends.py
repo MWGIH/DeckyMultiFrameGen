@@ -37,7 +37,7 @@ UPSTREAM = {
         "name": "HelixSR",
         "plugin": "HelixSR Manager",
         "repo": "PeroTuncay/DeckyHelixSRManager",
-        "kind": "DLSS-style upscaling on AMD GPUs",
+        "kind": "DLSS and FSR 4 upscaling networks on GPUs without them",
     },
     MAKO: {
         "name": "MAKO",

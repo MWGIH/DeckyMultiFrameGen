@@ -133,7 +133,9 @@ function confirmInstall(tag: string, onOk: () => void) {
       strDescription={
         "This downloads HelixSR from its GitHub releases and runs its setup. The setup downloads NVIDIA's DLSS DLL " +
         "from NVIDIA's GitHub (NVIDIA's license applies), builds the upscaling network for your GPU, then deletes " +
-        "NVIDIA's DLL. It takes a few minutes and needs Proton installed in Steam. Keep the Deck awake meanwhile."
+        "NVIDIA's DLL. From HelixSR 3.0 it also downloads about 420 MB of AMD's driver package from AMD (AMD's " +
+        "license applies) and builds HLX FSR 4, its FSR drop-in, from one file in it. It takes a few minutes and " +
+        "needs Proton installed in Steam. Keep the Deck awake meanwhile."
       }
       strOKButtonText="Install"
       onOK={onOk}
@@ -258,6 +260,18 @@ export function HelixSRSetup({
                   : "Pick HelixSR for a game above to add it there."
             }
           />
+        </PanelSectionRow>
+      )}
+      {status.active_ready && status.active_hlx === false && (
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            label="HLX FSR 4 isn't built"
+            description="The FSR drop-in needs it; HelixSR Scaler works without it. AMD's download or the build failed (see the setup log). Running the setup again only builds what is missing."
+            onClick={() => status.active && start(status.active)}
+          >
+            Build HLX FSR 4
+          </ButtonItem>
         </PanelSectionRow>
       )}
       {job?.state === "failed" && (

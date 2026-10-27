@@ -15,6 +15,7 @@ its setup/helixsr_install.py is only a text front end: for those releases the co
 import contextlib
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -105,13 +106,12 @@ def opti_logging(folder):
         text = (Path(folder) / "OptiScaler.ini").read_text(errors="replace")
     except OSError:
         return None
-    import re
     section = re.search(r"(?ms)^\[Log\][^\n]*\n(.*?)(?=^\[|\Z)", text)
     m = re.search(r"(?m)^[ \t]*LogToFile[ \t]*=[ \t]*(\S*)", section.group(1)) if section else None
     return bool(m and m.group(1).lower() == "true")
 
 
-def describe20(b, j):
+def describe20(b, j, here=None):
     way = j.get("installed")
     log = None
     # helixsr.log; for HelixSR Scaler also OptiScaler's own log, which is there even when the game stops before
@@ -133,13 +133,22 @@ def describe20(b, j):
             exes = [f for f in Path(j["exe_folder"]).iterdir() if f.suffix.lower() == ".exe" and f.is_file()]
             imports = b.exe_imports(max(exes, key=lambda f: f.stat().st_size)) if exes else set()
             graphics = "vulkan" if "vulkan-1.dll" in imports and "d3d12.dll" not in imports else None
+    # from HelixSR 3.0 (HelixSR/helixsr.dll in the release) HelixSR Scaler also upscales DirectX 11 and Vulkan games;
+    # only the FSR drop-in still needs DirectX 12
+    if graphics and here is not None and way != "fsr" and (Path(here) / "HelixSR" / "helixsr.dll").is_file():
+        graphics = None
+    # an install of an earlier HelixSR than the release in use (here, ~/HelixSR/<tag>): installing again updates it
+    num = lambda v: tuple(int(x) for x in re.findall(r"\d+", v or "")[:3])
+    outdated = bool(way and here is not None and num(j.get("version")) and num(j.get("version")) < num(Path(here).name))
     rec = j.get("recommended")
     if j.get("blocked"):
         label = f"{' / '.join(j.get('inputs') or [])} only: HelixSR Scaler isn't offered in games with anti-cheat"
     elif rec == "scaler":
         label = f"{' / '.join(j.get('inputs') or ['FSR 3.1'])}: HelixSR Scaler (select DLSS in the game)"
     elif rec == "fsr":
-        label = "FSR 3.1: FSR drop-in (HelixSR replaces the game's FSR DLL: select AMD FSR in the game)"
+        hlx = here is not None and (Path(here) / "HLX-FSR4").is_dir()
+        label = (f"FSR 3.1: FSR drop-in ({'HLX FSR 4' if hlx else 'HelixSR'} replaces the game's FSR DLL: "
+                 "select AMD FSR in the game)")
     else:
         label = "HelixSR found no upscaler it can take over in this game"
     return {
@@ -159,6 +168,8 @@ def describe20(b, j):
         "scaler_name": j.get("scaler_dll"),
         "opti_logging": opti_logging(j["exe_folder"]) if way == "scaler" and j.get("exe_folder") else None,
         "launch_options_now": scaler_launch_options(j),
+        "installed_version": j.get("version") if way else None,
+        "outdated": outdated,
     }
 
 
@@ -168,7 +179,9 @@ def main20(here, cmd, args):
 
     if cmd == "ready":
         st = call20(b, here, "status")
-        return {"ok": True, "ready": bool(st.get("network_ready")), "version": st.get("version")}
+        # hlx_ready: HLX FSR 4 built (HelixSR 3.0 on), None for a release without it
+        return {"ok": True, "ready": bool(st.get("network_ready")), "version": st.get("version"),
+                "hlx_ready": st.get("hlx_ready")}
     if cmd == "remove_all":
         extra = [x for f in args for x in ("--folder", f)]
         games = call20(b, here, "games", *extra)["games"]
@@ -190,7 +203,7 @@ def main20(here, cmd, args):
             return {"ok": True, "found": False}
         want = Path(folder).resolve()
         game = next((g for g in j["games"] if Path(g["folder"]).resolve() == want), None)
-        return {"ok": True, **(describe20(b, game) if game else {"found": False})}
+        return {"ok": True, **(describe20(b, game, here) if game else {"found": False})}
     if cmd == "install":
         route = args[1] if len(args) > 1 else None
         way = WAY_OUT.get(route, "auto")
@@ -199,7 +212,7 @@ def main20(here, cmd, args):
         if way == "scaler":
             extra += ["--anticheat-ok", "yes"]
         j = call20(b, here, "install", "--game", folder, "--way", way, *extra)["game"]
-        d = describe20(b, j)
+        d = describe20(b, j, here)
         return {"ok": True, **d, "route": d["current"], "in_game": IN_GAME.get(j.get("installed"), ""),
                 "launch_options": scaler_launch_options(j)}
     if cmd == "uninstall":
@@ -209,7 +222,7 @@ def main20(here, cmd, args):
             if "not installed" in str(e.code):
                 return {"ok": True, "installed": False, "current": None}
             raise
-        return {"ok": True, **describe20(b, j)}
+        return {"ok": True, **describe20(b, j, here)}
     return {"ok": False, "error": f"unknown command {cmd}"}
 
 

@@ -217,7 +217,7 @@ async def _add_helix_to_opti(appid: str) -> dict:
     tag = await asyncio.to_thread(HELIXSR.opti_release)
     if not tag:
         return {"ok": False, "needs": OPTI_RELEASE,
-                "error": f"OptiScaler needs HelixSR {OPTI_RELEASE}: HelixSR 2.0 only runs in its own HelixSR Scaler."}
+                "error": f"OptiScaler needs HelixSR {OPTI_RELEASE}: HelixSR 2.0 and newer only run in their own HelixSR Scaler."}
     return await asyncio.to_thread(helix_opti.install, HELIXSR.release_dir(tag), target, tag)
 
 

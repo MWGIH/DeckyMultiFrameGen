@@ -22,6 +22,7 @@ RELEASES_API = "https://api.github.com/repos/lonewolf0622/HelixSR/releases?per_p
 RELEASES_TTL = 3600          # seconds between GitHub checks (60 unauthenticated API calls per hour)
 _TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,40}")
 BRIDGE = Path(__file__).resolve().parent / "helix_bridge.py"
+DRIVER = Path(__file__).resolve().parent / "setup_driver.py"
 DLL = "amd_fidelityfx_dx12.dll"
 # The newest HelixSR that runs inside a stock OptiScaler (the one Decky Framegen installs): HelixSR 2.0's DLL needs its
 # own OptiScaler build, HelixSR Scaler 1.1.0 (its Dx12Upscaler=ffx); stock OptiScaler 0.9.4 falls back to FSR 2.1.2
@@ -38,7 +39,7 @@ class HelixSR:
         self.job_file = state_dir / "helixsr-job.json"
         self.releases_cache = state_dir / "helixsr-releases.json"
         self._lock = threading.Lock()
-        self._installer_ready = {}   # tag -> (release folder's mtime, its installer's answer)
+        self._installer_ready = {}   # tag -> (release folder's mtime, network built, HLX FSR 4 built)
         self._job_thread = None
 
     # --- environment ---------------------------------------------------------------------------------------------
@@ -58,6 +59,10 @@ class HelixSR:
         env["XDG_DATA_HOME"] = str(self.home / ".local" / "share")
         env["PATH"] = env.get("PATH", "") + ":/usr/local/bin:/usr/bin:/bin"
         return env
+
+    def driver_python(self) -> str:
+        """The system's Python for setup_driver.py (standard library only; HelixSR's portable one may not exist yet)."""
+        return shutil.which("python3", path="/usr/bin:/bin") or self.python()
 
     def python(self) -> str:
         """HelixSR's portable Python when its setup made one, else the system's (the installer needs no packages)."""
@@ -122,35 +127,45 @@ class HelixSR:
         return (ready or local or [None])[0]
 
     def opti_release(self) -> str | None:
-        """The newest set-up release whose DLL a stock OptiScaler can load (before HelixSR 2.0's HelixSR-fsrfg)."""
+        """The newest set-up release whose DLL a stock OptiScaler can load: a 1.x one (2.0 has its HelixSR-fsrfg DLL,
+        3.0 HelixSR/helixsr.dll, both only for their own HelixSR Scaler)."""
         for tag in self.local_releases():
-            if not (self.release_dir(tag) / "HelixSR-fsrfg").exists() and self.ready(tag):
+            if _version_key(tag)[:1] < (2,) and not (self.release_dir(tag) / "HelixSR-fsrfg").exists() \
+                    and self.ready(tag):
                 return tag
         return None
 
     def ready(self, tag: str) -> bool:
         """The setup built the upscaling network: found where releases so far put it, else the release's own
         installer is asked (its layout can change between releases)."""
+        return self._ask_ready(tag)[0]
+
+    def hlx_ready(self, tag: str) -> bool | None:
+        """HLX FSR 4 (HelixSR 3.0's FSR drop-in) is built; None for a release without it."""
+        return self._ask_ready(tag)[1]
+
+    def _ask_ready(self, tag: str) -> tuple:
         d = self.release_dir(tag)
         if helix_opti.built_dll(d):
-            return True
+            return True, None
         try:
             mtime = d.stat().st_mtime
         except OSError:
-            return False
+            return False, None
         cached = self._installer_ready.get(tag)
         if cached and cached[0] == mtime:
-            return cached[1]
-        ok = False
+            return cached[1:]
+        ok, hlx = False, None
         if (d / "setup" / "helixsr_install.py").exists():
             try:
                 p = subprocess.run([self.python(), "-I", str(BRIDGE), str(d), "ready"], env=self.env(),
                                    stdin=subprocess.DEVNULL, capture_output=True, timeout=60)
-                ok = bool(json.loads(p.stdout.decode(errors="replace").strip().splitlines()[-1]).get("ready"))
+                r = json.loads(p.stdout.decode(errors="replace").strip().splitlines()[-1])
+                ok, hlx = bool(r.get("ready")), r.get("hlx_ready")
             except (OSError, subprocess.SubprocessError, IndexError, ValueError):
                 ok = False
-        self._installer_ready[tag] = (mtime, ok)
-        return ok
+        self._installer_ready[tag] = (mtime, ok, hlx)
+        return ok, hlx
 
     # --- install job: download, verify, extract, run HelixSR's setup ---------------------------------------------
 
@@ -181,12 +196,15 @@ class HelixSR:
         local = self.local_releases()
         latest = self.latest()
         active = self.active()
+        active_ready = bool(active and self.ready(active))
         return {
             "job": job or None,
             "log": _tail(self.log, 12),
             "local": local,
             "active": active,
-            "active_ready": bool(active and self.ready(active)),
+            "active_ready": active_ready,
+            # False: the release has HLX FSR 4 (3.0 on) and its setup didn't build it (AMD's download failed)
+            "active_hlx": self.hlx_ready(active) if active_ready else None,
             "latest": latest,
             "update_available": bool(latest and latest["tag"] not in local),
         }
@@ -249,10 +267,11 @@ class HelixSR:
             self._log(f"error: {e}")
 
     def _start_setup(self, d: Path, job: dict) -> None:
-        """HelixSR's own setup, unchanged: --yes agrees to the NVIDIA DLSS download the user confirmed in the plugin.
-        stdin is empty, so after building the network its game installer stops at its first question; games are
-        installed one by one from the plugin instead. A wrapper shell records the exit code, so the result is known
-        even if Decky restarts the plugin meanwhile."""
+        """HelixSR's own setup, unchanged, through setup_driver.py: it answers yes to the downloads the user confirmed
+        in the plugin (NVIDIA's DLSS DLL, AMD's driver package for HLX FSR 4) and gives HelixSR's game installer no
+        answer after the build, so no game is changed; games are installed one by one from the plugin instead. Not
+        --yes: from HelixSR 2.0 the setup passes it to its game installer, which then installs into every game. The
+        driver runs detached and records the exit code, so the result is known even if Decky restarts the plugin."""
         rc = self.state_dir / "helixsr-setup.rc"
         rc.unlink(missing_ok=True)
         tmp = self.state_dir / "helixsr-tmp"
@@ -260,14 +279,15 @@ class HelixSR:
         tmp.mkdir(parents=True)
         env = self.env()
         env["TMPDIR"] = str(tmp)
-        self._log(f"running {d / 'helixsr-setup.sh'} --yes")
-        with open(self.log, "ab") as log:
-            proc = subprocess.Popen(["bash", "-c", '"$@"; echo $? > "$0"', str(rc), "bash", str(d / "helixsr-setup.sh"),
-                                     "--yes"], cwd=str(d), env=env, stdin=subprocess.DEVNULL, stdout=log,
-                                    stderr=subprocess.STDOUT, start_new_session=True)
+        self._log(f"running {d / 'helixsr-setup.sh'}")
+        self.log.parent.mkdir(parents=True, exist_ok=True)
+        proc = subprocess.Popen([self.driver_python(), "-I", str(DRIVER), str(self.log), str(rc), "bash",
+                                 str(d / "helixsr-setup.sh")], cwd=str(d), env=env, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         job.update(pid=proc.pid, rc_file=str(rc), setup_started=time.time())
         self._write_json(self.job_file, job)
         proc.wait()
+        self._installer_ready.clear()   # the setup changed files the cached answers don't see (HLX FSR 4's DLL)
         self.status()  # records the result
 
     def _job_alive(self, job: dict) -> bool:
@@ -428,10 +448,12 @@ def setup_progress(lines: list[str]) -> dict:
             step = m.group(1).strip()
             if step.startswith("done"):
                 pct, stage = 100, "done"
-            elif not step.startswith("building the network"):
+            elif not step.startswith(("building the network", "HLX FSR 4: its shaders")):
                 pct, stage = None, None   # a step after the build started is a new one (done, installing games)
     if pct is not None:
-        return {"setup_percent": pct, "setup_step": f"Building the network: {stage}" if stage else "Building the network"}
+        # HelixSR 3.0 builds HLX FSR 4 after the network, with a bar of its own (AMD's download, then its shaders)
+        what = "Building HLX FSR 4" if stage and ("HLX" in stage or "AMD" in stage) else "Building the network"
+        return {"setup_percent": pct, "setup_step": f"{what}: {stage}" if stage else what}
     return {"setup_percent": None, "setup_step": step}
 
 

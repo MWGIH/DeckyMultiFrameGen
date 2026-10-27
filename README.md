@@ -8,8 +8,8 @@ without juggling several plugins:
 
 - **OptiScaler** (from [Decky Framegen](https://github.com/xXJSONDeruloXx/Decky-Framegen)): upscaling and frame
   generation for DirectX 12 games.
-- **HelixSR** (from [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager)): DLSS-style upscaling on
-  AMD GPUs, on its own or through OptiScaler.
+- **HelixSR** (from [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager)): DLSS and (from HelixSR
+  3.0) FSR 4 upscaling networks on GPUs without them, on its own or through OptiScaler.
 - **MAKO** (from [MAKO](https://github.com/eugeniosegala/MAKO)): frame generation, scaling and shaders as a Vulkan
   layer. Frame generation needs [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/)
   installed in Steam; the scaler and shaders don't.
@@ -99,11 +99,17 @@ What decides whether a game can use HelixSR:
 | DirectX 12 with FSR 3.1 | FSR drop-in (select AMD FSR in the game) |
 | DirectX 12 with DLSS, XeSS or FSR 2 | HelixSR Scaler, or OptiScaler + HelixSR |
 | DirectX 12 with anti-cheat that checks game files (Easy Anti-Cheat) | OptiScaler + HelixSR only; the drop-in stops the game |
-| Vulkan, DirectX 11 or older, native Linux | Not supported |
+| Vulkan or DirectX 11 | HelixSR Scaler from HelixSR 3.0 (untested here); not supported before |
+| DirectX 10 or older, native Linux | Not supported |
 
-OptiScaler + HelixSR uses HelixSR 1.9.3: HelixSR 2.0's DLL only runs inside its own OptiScaler build (HelixSR
-Scaler 1.1.0), and the OptiScaler Decky Framegen installs (0.9.4) falls back to FSR 2.1.2 with it. The plugin sets
-1.9.3 up next to 2.0 when needed.
+From HelixSR 3.0 the FSR drop-in is HLX FSR 4 (AMD's FSR 4 network on HelixSR's own pipeline). Its setup builds it from
+one file of AMD's driver package, about 420 MB downloaded from AMD; when that fails, HelixSR Scaler still works and the
+Backends panel offers to build HLX FSR 4 again. HelixSR 3.0 has no frame generation of its own (OptiScaler's and MAKO's
+are unaffected).
+
+OptiScaler + HelixSR uses HelixSR 1.9.3: from 2.0 HelixSR's DLL only runs inside its own OptiScaler build (HelixSR
+Scaler), and the OptiScaler Decky Framegen installs (0.9.4) falls back to FSR 2.1.2 with it. The plugin sets 1.9.3 up
+next to the newer release when needed.
 
 Reports so far:
 
