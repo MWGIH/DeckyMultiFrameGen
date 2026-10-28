@@ -111,6 +111,21 @@ class FSR4InjectorTests(unittest.TestCase):
         self.assertFalse(r["fsr4"]["ok"])
         self.assertIsNone(r["launch_options"])
 
+    def test_deep_fsr_3_1_dll_is_found_where_the_use_list_found_it(self):
+        unpack_release(self.fsr4)
+        (self.game_dir / "amd_fidelityfx_dx12.dll").unlink()
+        deep = self.game_dir.parent / "Engine" / "Plugins" / "Marketplace" / "FSR3" / "Binaries" / "ThirdParty" / "Win64"
+        deep.mkdir(parents=True)
+        (deep / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"MZ ffx")
+        self.assertIn("fsr4injector", run(self.plugin.get_game("2420110"))["choices"])
+        s = run(self.plugin.fsr4_game_status("2420110"))
+        self.assertTrue(s["found"])
+        self.assertEqual(s["target_dir"], str(deep))
+        self.assertEqual([g["appid"] for g in run(self.plugin.fsr4_compatible_games())["games"]], ["2420110"])
+        r = run(self.plugin.set_game_backend("2420110", "fsr4injector", ""))
+        self.assertTrue(r["fsr4"]["ok"])
+        self.assertTrue((deep / "amdxc64.dll").exists())
+
     def test_remove_needs_games_turned_off(self):
         unpack_release(self.fsr4)
         r = run(self.plugin.set_game_backend("2420110", "fsr4injector", ""))
