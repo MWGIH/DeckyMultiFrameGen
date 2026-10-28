@@ -159,10 +159,16 @@ export function GameSection({
     }
   };
   const [switching, setSwitching] = useState(false);
+  // Switching swaps DLLs and launch options the running game already loaded, so it waits until the game is closed
+  const gameRunning = selected?.source === "running";
   const [optiChanged, setOptiChanged] = useState(0);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
   const choose = async (choice: GameChoice) => {
     if (!selected || choice === detail?.backend) return;
+    if (gameRunning) {
+      toast("Close the game before changing Use.");
+      return;
+    }
     const id = Number(selected.appid);
     setSwitching(true);
     try {
@@ -265,6 +271,14 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
+          {detail?.ok && gameRunning && (
+            <PanelSectionRow>
+              <Field
+                label="⚠️ Close the game to change Use"
+                description="Changing it while the game runs swaps files the game has open and can crash it, and new launch options only apply on the next start. Exit the game, then pick again."
+              />
+            </PanelSectionRow>
+          )}
           {detail?.ok && (
             <PanelSectionRow>
               <BelowDropdown
@@ -280,7 +294,7 @@ export function GameSection({
                   )
                   .map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
-                disabled={switching}
+                disabled={switching || gameRunning}
                 onChange={(o) => choose(o.data as GameChoice)}
               />
             </PanelSectionRow>
