@@ -216,7 +216,7 @@ class HelixSR:
         active_ready = bool(active and self.ready(active))
         return {
             "job": job or None,
-            "log": _tail(self.log, 12),
+            "log": setup_output(_tail(self.log, 60))[-12:],
             "local": local,
             "active": active,
             "active_ready": active_ready,
@@ -475,6 +475,18 @@ def setup_progress(lines: list[str]) -> dict:
         what = "Building HLX FSR 4" if stage and ("HLX" in stage or "AMD" in stage) else "Building the network"
         return {"setup_percent": pct, "setup_step": f"{what}: {stage}" if stage else what}
     return {"setup_percent": None, "setup_step": step}
+
+
+def setup_output(lines: list[str]) -> list[str]:
+    """The setup's output for the panel: the network build redraws its bar line ('\\r') several times a second,
+    so a run of bar lines keeps only its newest; the progress bar above shows the rest."""
+    out: list[str] = []
+    for line in lines:
+        if out and _BAR.search(line) and _BAR.search(out[-1]):
+            out[-1] = line
+        else:
+            out.append(line)
+    return out
 
 
 def _tail(p: Path, n: int) -> list[str]:

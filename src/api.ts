@@ -411,6 +411,7 @@ export type Updates = {
     current?: string;
     latest?: string | null;
     update_available?: boolean;
+    test_builds?: boolean;
     url?: string | null;
     sha256?: string | null;
   };
@@ -420,3 +421,5 @@ export type Updates = {
   fsr4injector?: PartUpdate;
 };
 export const checkUpdates = callable<[], Updates>("check_updates");
+export const getTestBuilds = callable<[], boolean>("get_test_builds");
+export const setTestBuilds = callable<[on: boolean], boolean>("set_test_builds");

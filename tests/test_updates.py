@@ -24,6 +24,34 @@ class UpdateTests(unittest.TestCase):
         with mock.patch.object(updates, "latest_release", return_value={"tag_name": "v0.6.0", "assets": []}):
             self.assertFalse(updates.self_update("0.5.5")["update_available"])
 
+    def test_test_builds_follow_the_test_prerelease(self):
+        zip_ = {"name": updates.SELF_ZIP, "browser_download_url": "https://x/test.zip", "digest": "sha256:ab"}
+        test = {"tag_name": "test", "name": "Test build 0.9.7-test.12 (claude/x)", "assets": [zip_]}
+        with mock.patch.object(updates, "_get", return_value=test) as get:
+            r = updates.self_update("0.9.5", test_builds=True)
+        self.assertTrue(get.call_args[0][0].endswith("/releases/tags/test"))
+        self.assertEqual((r["latest"], r["update_available"], r["url"]), ("0.9.7-test.12", True, "https://x/test.zip"))
+        with mock.patch.object(updates, "_get", return_value=test):
+            self.assertFalse(updates.self_update("0.9.7-test.12", test_builds=True)["update_available"])
+        # test builds turned off: a test build is offered the release, even one with a lower number
+        rel = {"tag_name": "v0.9.5", "assets": [zip_]}
+        with mock.patch.object(updates, "latest_release", return_value=rel):
+            self.assertTrue(updates.self_update("0.9.7-test.12")["update_available"])
+            self.assertFalse(updates.self_update("0.9.5")["update_available"])
+
+    def test_test_builds_setting_defaults_to_the_installed_kind(self):
+        import tempfile
+        from pathlib import Path
+        from multifg.settings import Settings
+        with tempfile.TemporaryDirectory() as d:
+            s = Settings(Path(d) / "settings.json")
+            self.assertTrue(s.test_builds("0.9.7-test.12"))
+            self.assertFalse(s.test_builds("0.9.5"))
+            s.set_test_builds(False)
+            self.assertFalse(s.test_builds("0.9.7-test.12"))
+            s.set_test_builds(True)
+            self.assertTrue(s.test_builds("0.9.5"))
+
     def test_check_updates_reports_each_part_and_survives_errors(self):
         def fake_get(url):
             if "MAKO" in url:

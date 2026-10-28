@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { OptiLog } from "./OptiLog";
-import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, ProgressBarWithInfo, showModal } from "@decky/ui";
+import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, showModal } from "@decky/ui";
+import { ProgressRow } from "./ProgressRow";
 import { toaster } from "@decky/api";
 import {
   optiscalerGameStatus,
@@ -70,19 +71,15 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
   if (job?.state === "running") {
     const progress = job.phase === "download" && job.size ? Math.min(1, job.downloaded / job.size) : undefined;
     return (
-      <PanelSectionRow>
-        <ProgressBarWithInfo
-          label="Installing OptiScaler"
-          description={
-            job.phase === "download"
-              ? `Downloading ${job.asset ?? ""} (${Math.round(job.downloaded / MB)} of ${Math.round(job.size / MB)} MB)`
-              : "Unpacking into ~/fgmod"
-          }
-          nProgress={progress === undefined ? undefined : progress * 100}
-          indeterminate={progress === undefined}
-          sOperationText={progress === undefined ? undefined : `${Math.round(progress * 100)}%`}
-        />
-      </PanelSectionRow>
+      <ProgressRow
+        title="Installing OptiScaler"
+        percent={progress === undefined ? undefined : progress * 100}
+        detail={
+          job.phase === "download"
+            ? `Downloading ${job.asset ?? ""} (${Math.round(job.downloaded / MB)} of ${Math.round(job.size / MB)} MB)`
+            : "Unpacking into ~/fgmod"
+        }
+      />
     );
   }
 

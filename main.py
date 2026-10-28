@@ -674,6 +674,14 @@ class Plugin:
 
     # --- updates ---
 
+    async def get_test_builds(self) -> bool:
+        """Whether MultiFrameGen updates from the "test" prerelease instead of its releases."""
+        return SETTINGS.test_builds(decky.DECKY_PLUGIN_VERSION)
+
+    async def set_test_builds(self, on: bool) -> bool:
+        await asyncio.to_thread(SETTINGS.set_test_builds, bool(on))
+        return bool(on)
+
     async def check_updates(self) -> dict:
         """What can be updated: this plugin (a new release), and each installed backend (the version this plugin
         brings, or for HelixSR its newest release). Upstream releases of Decky Framegen and MAKO newer than the ones
@@ -686,7 +694,8 @@ class Plugin:
                 return {"error": str(exc)}
 
         async def plugin():
-            return await asyncio.to_thread(updates.self_update, decky.DECKY_PLUGIN_VERSION)
+            current = decky.DECKY_PLUGIN_VERSION
+            return await asyncio.to_thread(updates.self_update, current, SETTINGS.test_builds(current))
 
         async def optiscaler():
             installed = backends.optiscaler_status(HOME)["version"]

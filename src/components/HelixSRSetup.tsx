@@ -4,12 +4,12 @@ import {
   ConfirmModal,
   Field,
   PanelSectionRow,
-  ProgressBarWithInfo,
   showModal,
   ToggleField,
 } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
+import { ProgressRow } from "./ProgressRow";
 import {
   helixsrInstall,
   helixsrRemove,
@@ -62,32 +62,6 @@ function SetupLog() {
   );
 }
 
-// Steam's own progress bar: the stage on the left, its percentage on the right, the detail wrapping below
-function Stage({
-  title,
-  percent,
-  detail,
-}: {
-  title: string;
-  percent?: number;
-  detail?: string | null;
-}) {
-  return (
-    <PanelSectionRow>
-      <ProgressBarWithInfo
-        layout="below"
-        sOperationText={title}
-        sTimeRemaining={
-          percent === undefined ? undefined : `${Math.round(percent)}%`
-        }
-        nProgress={percent ?? 0}
-        indeterminate={percent === undefined}
-        description={detail ?? undefined}
-      />
-    </PanelSectionRow>
-  );
-}
-
 // Download (download, checksum, unpack) and HelixSR's own setup, each with its own bar
 function JobProgress({ job }: { job: HelixJob }) {
   const fraction =
@@ -117,12 +91,12 @@ function JobProgress({ job }: { job: HelixJob }) {
         };
   return (
     <>
-      <Stage
+      <ProgressRow
         title={`Download ${job.tag}`}
         percent={download.percent}
         detail={download.detail}
       />
-      <Stage title="Setup" percent={setup.percent} detail={setup.detail} />
+      <ProgressRow title="Setup" percent={setup.percent} detail={setup.detail} />
     </>
   );
 }

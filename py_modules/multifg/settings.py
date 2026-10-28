@@ -21,6 +21,17 @@ class Settings:
         tmp.write_text(json.dumps(data, indent=1, sort_keys=True))
         tmp.replace(self.path)
 
+    def test_builds(self, current_version: str) -> bool:
+        """Whether this plugin updates from the "test" prerelease. Until it's set, a test build keeps to test builds
+        and a release to releases."""
+        value = self.load().get("test_builds")
+        return bool(value) if value is not None else "-test." in (current_version or "")
+
+    def set_test_builds(self, on: bool) -> None:
+        data = self.load()
+        data["test_builds"] = bool(on)
+        self.save(data)
+
     def game_choice(self, appid: str) -> str:
         return self.load().get("games", {}).get(appid, {}).get("backend", "none")
 
