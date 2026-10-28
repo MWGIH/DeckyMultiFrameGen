@@ -16,7 +16,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import helix_opti
+from . import helix_opti, updates
 
 RELEASES_API = "https://api.github.com/repos/lonewolf0622/HelixSR/releases?per_page=20"
 RELEASES_TTL = 3600          # seconds between GitHub checks (60 unauthenticated API calls per hour)
@@ -78,12 +78,8 @@ class HelixSR:
         if not refresh and cached.get("checked", 0) > time.time() - RELEASES_TTL:
             return cached.get("releases", [])
         try:
-            p = subprocess.run(["curl", "-fsSL", "--retry", "2", "-H", "Accept: application/vnd.github+json",
-                                RELEASES_API], env=self.env(), capture_output=True, timeout=30)
-            if p.returncode:
-                raise RuntimeError(p.stderr.decode(errors="replace")[-200:])
             out = []
-            for r in json.loads(p.stdout):
+            for r in updates._get(RELEASES_API):
                 asset = _release_zip(r.get("assets", []))
                 if r.get("draft") or not asset or not _TAG.fullmatch(r.get("tag_name") or ""):
                     continue
