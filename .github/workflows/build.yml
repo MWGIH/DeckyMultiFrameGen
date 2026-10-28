@@ -52,7 +52,9 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           gh release delete test --cleanup-tag --yes >/dev/null 2>&1 || true
-          gh release create test out/Decky-MultiFrameGen.zip --prerelease --target "$GITHUB_SHA" \
+          # the plugin's update check reads the test build's version from version.txt (no GitHub API call)
+          echo "$version" > out/version.txt
+          gh release create test out/Decky-MultiFrameGen.zip out/version.txt --prerelease --target "$GITHUB_SHA" \
             --title "Test build $version ($GITHUB_REF_NAME)" \
             --notes "Test build of branch $GITHUB_REF_NAME at $GITHUB_SHA. Not a release: install it only to test."
       - name: Publish release

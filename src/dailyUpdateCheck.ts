@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { toaster } from "@decky/api";
 import { checkUpdates, type Updates } from "./api";
 
 const LAST_KEY = "multifg:lastUpdateCheck";
 const NOTIFIED_KEY = "multifg:notifiedUpdates";
+const AVAILABLE_KEY = "multifg:availableUpdates"; // the last check's updates, for the line above Show backends
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TICK_MS = 60 * 60 * 1000; // looks every hour whether a day has passed since the last check
 
@@ -38,13 +40,44 @@ export function availableUpdates(u: Updates): string[] {
   return out;
 }
 
-async function checkIfDue() {
+function readAvailable(): string[] {
+  try {
+    const list = JSON.parse(read(AVAILABLE_KEY) ?? "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+const listeners = new Set<(found: string[]) => void>();
+
+// Every check (the daily one and Check for updates) leaves what it found here
+export function rememberUpdates(u: Updates): string[] {
+  const found = availableUpdates(u);
+  write(AVAILABLE_KEY, JSON.stringify(found));
+  listeners.forEach((l) => l(found));
+  return found;
+}
+
+// What the last check found, kept up to date while the panel is open
+export function useAvailableUpdates(): string[] {
+  const [found, setFound] = useState(readAvailable);
+  useEffect(() => {
+    listeners.add(setFound);
+    return () => {
+      listeners.delete(setFound);
+    };
+  }, []);
+  return found;
+}
+
+async function checkIfDue(force = false) {
   const last = Number(read(LAST_KEY) ?? 0);
-  if (Date.now() - last < DAY_MS) return;
+  if (!force && Date.now() - last < DAY_MS) return;
   write(LAST_KEY, String(Date.now()));
   let found: string[];
   try {
-    found = availableUpdates(await checkUpdates());
+    found = rememberUpdates(await checkUpdates());
   } catch {
     return; // offline: tried again tomorrow
   }
@@ -61,8 +94,10 @@ async function checkIfDue() {
 
 // Started once when the plugin loads; returns the function that stops it
 export function startDailyUpdateCheck(): () => void {
-  const first = setTimeout(checkIfDue, 60 * 1000); // a minute after Steam starts, not during its own startup
-  const id = setInterval(checkIfDue, TICK_MS);
+  // a minute after Steam starts (not during its own startup), and every Steam start: the line above Show backends
+  // then shows what's new, also after MultiFrameGen was updated
+  const first = setTimeout(() => checkIfDue(true), 60 * 1000);
+  const id = setInterval(() => checkIfDue(), TICK_MS);
   return () => {
     clearTimeout(first);
     clearInterval(id);

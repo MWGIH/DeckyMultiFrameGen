@@ -26,6 +26,7 @@ import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
 import { LosslessWarning } from "./LosslessWarning";
+import { useAvailableUpdates } from "../dailyUpdateCheck";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -82,6 +83,10 @@ export function BackendsSection(props: Props) {
       .then(setVersion)
       .catch(() => undefined);
   }, []);
+  // the installed MultiFrameGen isn't an update (it was found before this one was installed)
+  const updates = useAvailableUpdates().filter(
+    (u) => !(version && u === `MultiFrameGen ${version}`),
+  );
   const toggle = () => {
     setCollapsed(!collapsed);
     try {
@@ -92,6 +97,14 @@ export function BackendsSection(props: Props) {
   };
   return (
     <PanelSection title="Backends">
+      {updates.length > 0 && (
+        <PanelSectionRow>
+          <Field
+            label={updates.length > 1 ? "Updates available" : "Update available"}
+            description={`${updates.join(", ")}.${collapsed ? " Show backends, then Check for updates." : " Check for updates below."}`}
+          />
+        </PanelSectionRow>
+      )}
       <PanelSectionRow>
         <ToggleField
           label="Show backends"
