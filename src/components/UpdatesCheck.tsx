@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
+import { ButtonItem, Field, PanelSectionRow, ToggleField } from "@decky/ui";
 import { toaster, useQuickAccessVisible } from "@decky/api";
 import {
   checkUpdates,
   fsr4Install,
+  getTestBuilds,
+  setTestBuilds,
   helixsrInstall,
   optiscalerInstall,
   type Updates,
@@ -13,8 +15,6 @@ import { availableUpdates } from "../dailyUpdateCheck";
 import { promptRestart } from "../restartPrompt";
 
 const PLUGIN_NAME = "Decky MultiFrameGen"; // plugin.json's name: Decky replaces the installed copy with that name
-const INSTALL_URL =
-  "https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest/download/Decky-MultiFrameGen.zip";
 
 const toast = (body: string) => toaster.toast({ title: "Updates", body });
 
@@ -63,6 +63,11 @@ export function UpdatesCheck({
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [u, setU] = useState<Updates | null>(null);
+  const [testBuilds, setTestBuildsState] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getTestBuilds().then(setTestBuildsState, () => setTestBuildsState(false));
+  }, []);
 
   const check = async () => {
     setChecking(true);
@@ -83,6 +88,17 @@ export function UpdatesCheck({
     } finally {
       setChecking(false);
     }
+  };
+
+  // switching channels checks again, so the build to switch to shows straight away
+  const toggleTest = async (on: boolean) => {
+    setTestBuildsState(on);
+    try {
+      await setTestBuilds(on);
+    } catch (e) {
+      toast(`Couldn't save: ${e}`);
+    }
+    check();
   };
 
   // an update that ran in the background has finished: its notice goes once the list is checked again
@@ -139,11 +155,22 @@ export function UpdatesCheck({
         />,
       );
     else if (p.update_available && p.url && p.latest) {
+      const backToRelease = !p.test_builds && p.current?.includes("-test.");
       rows.push(
         <Field
           key="p"
-          label={`MultiFrameGen ${p.latest} is available`}
-          description={`You have ${p.current}. Its update also brings newer OptiScaler and MAKO files when upstream has them.`}
+          label={
+            p.test_builds
+              ? `Test build ${p.latest} is available`
+              : backToRelease
+                ? `MultiFrameGen ${p.latest} (release) is available`
+                : `MultiFrameGen ${p.latest} is available`
+          }
+          description={
+            backToRelease
+              ? `You have test build ${p.current}. Updating goes back to the release.`
+              : `You have ${p.current}. Its update also brings newer OptiScaler and MAKO files when upstream has them.`
+          }
         />,
       );
       rows.push(
@@ -159,7 +186,7 @@ export function UpdatesCheck({
               )
               .catch(() =>
                 toast(
-                  `Couldn't start the update. Install it from Decky's settings with this URL: ${INSTALL_URL}`,
+                  `Couldn't start the update. Install it from Decky's settings with this URL: ${p.url}`,
                 ),
               )
           }
@@ -330,6 +357,15 @@ export function UpdatesCheck({
 
   return (
     <>
+      <PanelSectionRow>
+        <ToggleField
+          label="Use test builds"
+          description="Updates MultiFrameGen from the test build instead of its releases. Turn it off to go back to the release."
+          checked={!!testBuilds}
+          disabled={testBuilds === null || checking || busy}
+          onChange={toggleTest}
+        />
+      </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem layout="below" disabled={checking || busy} onClick={check}>
           {checking ? "Checking for updates…" : "Check for updates"}

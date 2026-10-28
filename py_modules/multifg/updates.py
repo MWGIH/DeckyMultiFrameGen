@@ -51,15 +51,30 @@ def latest_tag(repo: str, prefix: str = "") -> str | None:
     return max(tags, key=version_key) if tags else None
 
 
-def self_update(current: str) -> dict:
-    rel = latest_release(SELF_REPO)
-    tag = rel.get("tag_name") or ""
+def is_test_build(version: str | None) -> bool:
+    return "-test." in (version or "")
+
+
+def self_update(current: str, test_builds: bool = False) -> dict:
+    """This plugin's update: the newest release, or with test_builds the "test" prerelease (a branch's build).
+    A test build installed while test builds are off is offered the release, so turning them off goes back to it."""
+    if test_builds:
+        rel = _get(f"{GITHUB}/{SELF_REPO}/releases/tags/test")
+        # the workflow names it "Test build <version> (<branch>)"
+        m = re.search(r"Test build (\S+)", rel.get("name") or "")
+        latest = m.group(1) if m else None
+        available = bool(latest) and latest != current
+    else:
+        rel = latest_release(SELF_REPO)
+        latest = (rel.get("tag_name") or "").lstrip("v") or None
+        available = newer(latest, current) or (is_test_build(current) and bool(latest))
     asset = next((a for a in rel.get("assets", []) if a.get("name") == SELF_ZIP), None)
     digest = (asset or {}).get("digest") or ""
     return {
         "current": current,
-        "latest": tag.lstrip("v") or None,
-        "update_available": newer(tag, current) and asset is not None,
+        "latest": latest,
+        "test_builds": test_builds,
+        "update_available": available and asset is not None,
         "url": asset["browser_download_url"] if asset else None,
         "sha256": digest[7:] if digest.startswith("sha256:") else None,
     }
