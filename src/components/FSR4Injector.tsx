@@ -549,19 +549,20 @@ export function Fsr4Game({
         </PanelSectionRow>
       )}
       {watermarkToggle}
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          disabled={busy || (!game.enabled && !game.gpu_supported)}
-          onClick={() => change(!game.enabled)}
-        >
-          {game.enabled
-            ? "Take FSR4 Injector out of this game"
-            : game.gpu_supported
+      {!game.enabled && (
+        // choosing Use puts it in; this is for when that didn't work. Changing Use takes it out.
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            disabled={busy || !game.gpu_supported}
+            onClick={() => change(true)}
+          >
+            {game.gpu_supported
               ? "Put FSR4 Injector in this game"
               : "FSR 4 has no model for this GPU"}
-        </ButtonItem>
-      </PanelSectionRow>
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
       {full}
     </>
   );

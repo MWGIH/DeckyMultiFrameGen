@@ -167,7 +167,6 @@ PATCH_CLEANUP_FILES = [
     *INJECTOR_FILENAMES,
     *VARIANT_EXTRA_FILENAMES,
     "nvapi64.dll",
-    "nvapi64.dll.b",
     "nvngx.ini",
     "dlss-enabler-upscaler.dll",
     "fakenvapi.log",
@@ -200,9 +199,25 @@ ORIGINAL_DLL_BACKUPS = [
     "libxell.dll",
 ]
 
+# DLLs a patch deletes or copies over that a game could ship itself (nvngx.dll, a d3d12/nvapi64 of its own): the game's
+# copy is kept as .b on the first patch too, so unpatching (or switching the game's Use) always puts it back
+OTHER_GAME_FILE_BACKUPS = [
+    "nvngx.dll",
+    "_nvngx.dll",
+    "nvngx-wrapper.dll",
+    "dlss-enabler.dll",
+    "dlss-enabler-upscaler.dll",
+    "OptiScaler.dll",
+    "nvapi64.dll",
+    "fakenvapi.dll",
+    "dlssg_to_fsr3_amd_is_better.dll",
+    "dlssg_to_fsr3_amd_is_better-3.0.dll",
+]
+
 RESTORABLE_BACKUP_FILES = [
     *PROXY_DLL_BACKUPS,
     *ORIGINAL_DLL_BACKUPS,
+    *OTHER_GAME_FILE_BACKUPS,
 ]
 
 SUPPORT_FILES = [
@@ -241,7 +256,6 @@ LEGACY_FILES = [
     "dlssg_to_fsr3.ini",
     "dlssg_to_fsr3.log",
     "nvapi64.dll",
-    "nvapi64.dll.b",
     "fakenvapi.log",
     "dlss-enabler.dll",
     "dlss-enabler-upscaler.dll",
@@ -382,6 +396,26 @@ class OptiScaler:
             if not source.exists() or backup.exists():
                 continue
             if already_patched or self._is_bundled_proxy_copy(source, fgmod_path):
+                continue
+            shutil.move(source, backup)
+            backed_up.append(filename)
+        return backed_up
+
+    def _backup_other_game_files(self, directory: Path, fgmod_path: Path, already_patched: bool) -> list[str]:
+        """Before a first patch: the game's own copies of OTHER_GAME_FILE_BACKUPS go aside as .b (never a file that
+        an earlier patch or HelixSR Scaler copied in)."""
+        backed_up: list[str] = []
+        if already_patched:
+            return backed_up
+        for filename in OTHER_GAME_FILE_BACKUPS:
+            source = directory / filename
+            backup = directory / f"{filename}.b"
+            if not source.is_file() or backup.exists() or self._is_managed_support_file(source, fgmod_path):
+                continue
+            try:
+                if b"OptiScaler" in source.read_bytes():
+                    continue
+            except OSError:
                 continue
             shutil.move(source, backup)
             backed_up.append(filename)
@@ -1216,24 +1250,16 @@ class OptiScaler:
                 f"Manual patch started for {directory} with FSR4 variant {selected_variant} ({selected_variant_info['label']})"
             )
 
+            already_patched = self._has_patch_fingerprint(directory)
             backed_up_proxies = self._backup_preexisting_proxy_files(directory, fgmod_path)
             decky.logger.info(
                 f"Backed up pre-existing proxy files: {backed_up_proxies}"
                 if backed_up_proxies
                 else "No pre-existing proxy files required backup"
             )
-
-            removed_patch_files = []
-            for filename in dict.fromkeys(PATCH_CLEANUP_FILES):
-                path = directory / filename
-                if path.exists():
-                    path.unlink()
-                    removed_patch_files.append(filename)
-            decky.logger.info(
-                f"Removed stale patch files: {removed_patch_files}"
-                if removed_patch_files
-                else "No stale patch files found to remove"
-            )
+            backed_up_other = self._backup_other_game_files(directory, fgmod_path, already_patched)
+            if backed_up_other:
+                decky.logger.info(f"Backed up the game's own files: {backed_up_other}")
 
             backed_up_originals = []
             removed_managed_support = []
@@ -1241,6 +1267,9 @@ class OptiScaler:
                 source = directory / dll
                 backup = directory / f"{dll}.b"
                 if not source.exists() or backup.exists():
+                    continue
+                # an earlier patch's copy (removed below), never the game's
+                if already_patched and dll in VARIANT_EXTRA_FILENAMES:
                     continue
                 if allow_managed_support_cleanup and self._is_managed_support_file(source, fgmod_path):
                     source.unlink()
@@ -1254,6 +1283,18 @@ class OptiScaler:
                 f"Backed up original game DLLs: {backed_up_originals}"
                 if backed_up_originals
                 else "No original game DLLs required backup"
+            )
+
+            removed_patch_files = []
+            for filename in dict.fromkeys(PATCH_CLEANUP_FILES):
+                path = directory / filename
+                if path.exists():
+                    path.unlink()
+                    removed_patch_files.append(filename)
+            decky.logger.info(
+                f"Removed stale patch files: {removed_patch_files}"
+                if removed_patch_files
+                else "No stale patch files found to remove"
             )
 
             variant_renamed = self._fsr4_variant_renamed_proxy_path(fgmod_path, selected_variant, dll_name)
