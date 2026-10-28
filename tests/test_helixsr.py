@@ -166,6 +166,13 @@ class SetupProgressTests(unittest.TestCase):
         lines.append("[helixsr-setup] [###########---------]   55%  1:42  HLX FSR 4 shaders")
         self.assertEqual(sp(lines)["setup_step"], "Building HLX FSR 4: HLX FSR 4 shaders")
 
+    def test_output_keeps_only_the_newest_bar_line(self):
+        bar = "[helixsr-setup] [#####---------------]   %d%%  0:3%d  shaders 2/352"
+        lines = ["[helixsr-setup] building the network (about two minutes)", bar % (28, 3), bar % (30, 4), bar % (33, 9)]
+        self.assertEqual(helixsr.setup_output(lines), [lines[0], bar % (33, 9)])
+        done = lines + ["[helixsr-setup] done: the network is built", bar % (20, 1)]
+        self.assertEqual(helixsr.setup_output(done), [lines[0], bar % (33, 9), done[4], bar % (20, 1)])
+
 
 class SetupDriverTests(unittest.TestCase):
     """setup_driver.py says yes to the setup's download questions and gives every other question no answer, so
