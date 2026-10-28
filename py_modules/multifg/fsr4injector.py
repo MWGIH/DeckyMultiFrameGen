@@ -18,7 +18,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import updates
+from . import game_files, updates
 from .helixsr import _extract
 
 REPO = "Rayekkk/FSR4Injector"
@@ -26,7 +26,6 @@ ARCHIVE = "FSR4Injector-{version}.zip"
 EULA_URL = "https://www.amd.com/en/legal/eula/amd-software-eula.html"
 # Upstream modules used here, in import order (fsr4_install imports fsr4_dll)
 MODULES = ("fsr4_dll", "fsr4_gpu", "fsr4_install", "fsr4_games")
-MAX_DEPTH = 5
 
 
 class FSR4Injector:
@@ -67,6 +66,9 @@ class FSR4Injector:
             mods = type("Upstream", (), {})()
             for name in MODULES:
                 setattr(mods, name.removeprefix("fsr4_"), importlib.import_module(name))
+            # upstream's library scan stops 5 folders down; look as deep as the Use list's detection does, so a game
+            # it shows FSR 3.1+ for is found here too
+            mods.games.MAX_DEPTH = max(getattr(mods.games, "MAX_DEPTH", 0), game_files.MAX_DEPTH)
             self._mods = (version, mods)
             self._manifest = None
             return mods
@@ -246,7 +248,9 @@ class FSR4Injector:
                 hit = next((f for f in files if f.lower() in names), None)
                 if hit:
                     found = (root, hit)
-            if root.count("/") - base_depth >= MAX_DEPTH:
+            if os.path.basename(root) == game_files.SCALER_BACKUP:
+                dirs[:] = []   # HelixSR Scaler's copy of the game's files, not where the game loads them from
+            if root.count("/") - base_depth >= game_files.MAX_DEPTH:
                 dirs[:] = []
         return {"target_dir": found[0] if found else None, "ffx_dll": found[1] if found else None,
                 "anticheat": anticheat}

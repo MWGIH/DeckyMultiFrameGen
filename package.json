@@ -1,6 +1,6 @@
 {
   "name": "decky-multi-framegen",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "description": "Install and pick OptiScaler, HelixSR or MAKO frame generation per game from one Decky plugin.",
   "type": "module",
   "scripts": {

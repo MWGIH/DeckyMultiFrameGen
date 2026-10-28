@@ -25,7 +25,7 @@ class GameFilesTests(unittest.TestCase):
         self.assertNotIn("helixsr+mako", g["choices"])
         self.assertNotIn("optiscaler+helixsr", g["choices"])
         self.assertIn("optiscaler+mako", g["choices"])
-        self.assertIn({"choice": "fsr4injector+mako", "needs": ["FSR 3.1+"], "reason": None}, g["hidden"])
+        self.assertIn({"choice": "fsr4injector+mako", "needs": ["FSR 3.1+ (DirectX 12)"], "reason": None}, g["hidden"])
 
     def test_dlss_game_gets_helixsr_but_not_fsr4_injector(self):
         (self.exe / "nvngx_dlss.dll").write_bytes(b"")
@@ -57,7 +57,7 @@ class GameFilesTests(unittest.TestCase):
         self.assertNotIn("fsr4injector+mako", g["choices"])
         self.assertIn("fsr4injector", g["all_choices"])
         self.assertIn("helixsr", g["choices"])
-        self.assertIn({"choice": "fsr4injector", "needs": ["FSR 3.1+"], "reason": "takes away Cyberpunk 2077's FSR 4 option"},
+        self.assertIn({"choice": "fsr4injector", "needs": ["FSR 3.1+ (DirectX 12)"], "reason": "takes away Cyberpunk 2077's FSR 4 option"},
                       g["hidden"])
 
     def test_helixsr_drop_in_not_offered_in_cyberpunk(self):

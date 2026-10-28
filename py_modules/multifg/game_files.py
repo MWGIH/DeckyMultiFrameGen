@@ -11,7 +11,7 @@ from . import optiscaler as opti
 
 UPSCALERS = {
     # FSR 3.1+ through AMD's FidelityFX API: the DLL FSR4 Injector goes next to (DirectX 12 only)
-    "fsr31": ("FSR 3.1+", ("amd_fidelityfx_dx12.dll", "amd_fidelityfx_upscaler_dx12.dll",
+    "fsr31": ("FSR 3.1+ (DirectX 12)", ("amd_fidelityfx_dx12.dll", "amd_fidelityfx_upscaler_dx12.dll",
                            "amd_fidelityfx_loader_dx12.dll")),
     "fsr31_vk": ("FSR 3.1 (Vulkan)", ("amd_fidelityfx_vk.dll",)),
     "fsr2": ("FSR 2 / 3.0", ("ffx_fsr2_api_dx12_x64.dll", "ffx_fsr2_api_x64.dll", "ffx_fsr2_api_vk_x64.dll",
@@ -19,7 +19,7 @@ UPSCALERS = {
     "dlss": ("DLSS", ("nvngx_dlss.dll",)),
     "xess": ("XeSS", ("libxess.dll",)),
 }
-MAX_DEPTH = 6
+MAX_DEPTH = 8   # Unreal games keep plugin DLLs deep (Engine/Plugins/.../Binaries/ThirdParty/Win64); FSR4 Injector uses it too
 SCALER_BACKUP = "HelixSR-Scaler-backup"
 _OPTI_COPIES = {n.lower() for n in opti.SUPPORT_FILES}
 _NAMES = {name: key for key, (_, names) in UPSCALERS.items() for name in names}
