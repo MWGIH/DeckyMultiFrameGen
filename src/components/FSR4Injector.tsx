@@ -5,11 +5,11 @@ import {
   Field,
   Navigation,
   PanelSectionRow,
-  ProgressBarWithInfo,
   showModal,
   ToggleField,
 } from "@decky/ui";
 import { toaster } from "@decky/api";
+import { ProgressRow } from "./ProgressRow";
 import {
   fsr4CompatibleGames,
   fsr4Details,
@@ -119,21 +119,15 @@ export function Fsr4Setup({
       job.phase === "amd" && job.total ? Math.min(1, job.done / job.total) : undefined;
     return (
       <>
-      <PanelSectionRow>
-        <ProgressBarWithInfo
-          label="Installing FSR4 Injector"
-          description={
-            job.phase === "amd"
-              ? `Fetching AMD's FSR 4 library from AMD (${Math.round(job.done / MB)} of ${Math.round(job.total / MB)} MB)`
-              : `Downloading FSR4 Injector ${job.version ?? ""} from GitHub`
-          }
-          nProgress={progress === undefined ? undefined : progress * 100}
-          indeterminate={progress === undefined}
-          sOperationText={
-            progress === undefined ? undefined : `${Math.round(progress * 100)}%`
-          }
-        />
-      </PanelSectionRow>
+      <ProgressRow
+        title="Installing FSR4 Injector"
+        percent={progress === undefined ? undefined : progress * 100}
+        detail={
+          job.phase === "amd"
+            ? `Fetching AMD's FSR 4 library from AMD (${Math.round(job.done / MB)} of ${Math.round(job.total / MB)} MB)`
+            : `Downloading FSR4 Injector ${job.version ?? ""} from GitHub`
+        }
+      />
       <FullDetails status={status} onChange={onChange} />
       </>
     );
