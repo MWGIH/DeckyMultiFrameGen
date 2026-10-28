@@ -8,7 +8,6 @@ import {
   optiscalerPatchGame,
   optiscalerStatus,
   optiscalerUninstall,
-  optiscalerUnpatchGame,
   type OptiGame,
   type OptiStatus,
 } from "../api";
@@ -91,7 +90,7 @@ export function OptiScalerSetup({ status, onChange }: { status: OptiStatus | nul
     showModal(
       <ConfirmModal
         strTitle="Remove OptiScaler"
-        strDescription="Removes OptiScaler's files from ~/fgmod. Unpatch your games first: patched games keep their copy until you do."
+        strDescription="Removes OptiScaler's files from ~/fgmod. Set your games' Use to something else first: patched games keep their copy until you do."
         strOKButtonText="Remove"
         onOK={async () => {
           setBusy(true);
@@ -178,11 +177,12 @@ export function OptiScalerGame({
   }
 
   const id = Number(appid);
-  const patch = async () => {
+  // Choosing Use patches the game; this repatches it with another proxy DLL, or patches it when that didn't work
+  const patch = async (dllName: string) => {
     setBusy(true);
     try {
       const current = (await readLaunchOptions(id)) ?? "";
-      const r = await optiscalerPatchGame(appid, dll, current);
+      const r = await optiscalerPatchGame(appid, dllName, current);
       if (r.status === "success") {
         if (r.launch_options && !writeLaunchOptions(id, r.launch_options)) {
           toast(`Patched, but couldn't set the launch options. Set them in Steam: ${r.launch_options}`);
@@ -200,33 +200,20 @@ export function OptiScalerGame({
       onChange?.();
     }
   };
-
-  const unpatch = async () => {
-    setBusy(true);
-    try {
-      const r = await optiscalerUnpatchGame(appid);
-      if (r.status === "success") {
-        writeLaunchOptions(id, r.launch_options ?? "");
-        toast(r.message ?? "Unpatched");
-      } else {
-        toast(r.message ?? "Unpatching failed");
-      }
-    } finally {
-      setBusy(false);
-      load();
-      onChange?.();
-    }
+  const changeDll = (dllName: string) => {
+    setDll(dllName);
+    if (game.patched && dllName !== game.dll_name) patch(dllName);
   };
 
   return (
     <>
       <PanelSectionRow>
         <Field
-          label={game.patched ? "OptiScaler patched" : "OptiScaler not patched"}
+          label={busy ? "Patching OptiScaler…" : game.patched ? "OptiScaler patched" : "OptiScaler not patched"}
           description={
             game.patched
               ? `${game.message ?? ""} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`
-              : game.message
+              : `${game.message ?? ""} Choosing Use patches the game by itself; that didn't happen here, so patch it below.`.trim()
           }
         />
       </PanelSectionRow>
@@ -240,21 +227,17 @@ export function OptiScalerGame({
       <PanelSectionRow>
         <DropdownItem
           label="Proxy DLL"
-          description={PROXY_DLL_OPTIONS.find((o) => o.value === dll)?.hint}
+          description={`${PROXY_DLL_OPTIONS.find((o) => o.value === dll)?.hint ?? ""}${game.patched ? " Changing it repatches the game." : ""}`}
           rgOptions={PROXY_DLL_OPTIONS.map((o) => ({ data: o.value, label: o.label }))}
           selectedOption={dll}
-          onChange={(o) => setDll(String(o.data))}
+          disabled={busy}
+          onChange={(o) => changeDll(String(o.data))}
         />
       </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" disabled={busy} onClick={patch}>
-          {game.patched ? "Repatch with these settings" : "Patch this game"}
-        </ButtonItem>
-      </PanelSectionRow>
-      {game.patched && (
+      {!game.patched && (
         <PanelSectionRow>
-          <ButtonItem layout="below" disabled={busy} onClick={unpatch}>
-            Unpatch this game
+          <ButtonItem layout="below" disabled={busy} onClick={() => patch(dll)}>
+            {busy ? "Patching…" : "Patch this game"}
           </ButtonItem>
         </PanelSectionRow>
       )}

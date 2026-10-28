@@ -29,6 +29,7 @@ import { OptiScalerGame } from "./OptiScaler";
 import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
+import { defaultProxyDll } from "../optiscalerOptions";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
   none: "Off",
@@ -173,7 +174,12 @@ export function GameSection({
     setSwitching(true);
     try {
       const current = detail?.installed ? await readLaunchOptions(id) : null;
-      const r = await setGameBackend(selected.appid, choice, current);
+      const r = await setGameBackend(
+        selected.appid,
+        choice,
+        current,
+        defaultProxyDll(selected.appid),
+      );
       if (r.ok) {
         setDetail((d) => (d ? { ...d, backend: choice } : d));
         if (
@@ -185,7 +191,15 @@ export function GameSection({
           );
         }
         if (r.removed?.length)
-          toast(`Removed ${r.removed.join(" and ")} from this game.`);
+          toast(
+            `Removed ${r.removed.join(" and ")} from this game. Its own files are back.`,
+          );
+        if (r.opti)
+          toast(
+            r.opti.ok
+              ? `OptiScaler is in (${r.opti.dll_name}). In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`
+              : `OptiScaler wasn't patched in: ${r.opti.error}`,
+          );
         if (
           parts(choice).includes("mako") &&
           backends?.find((b) => b.id === "mako")?.lossless_scaling === false

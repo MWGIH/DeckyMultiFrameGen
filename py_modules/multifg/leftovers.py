@@ -31,22 +31,7 @@ def sweep(directory: Path, fgmod: Path | None = None) -> list[str]:
     d = Path(directory)
     if not d.is_dir():
         return []
-    done: list[str] = []
-
-    backup = d / SCALER_BACKUP
-    if backup.is_dir():
-        for f in sorted(backup.rglob("*")):
-            if f.is_file():
-                dst = d / f.relative_to(backup)
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                f.replace(dst)
-                done.append(f"{dst.name} restored")
-        shutil.rmtree(backup, ignore_errors=True)
-
-    for original in sorted(d.glob("*.original.dll")):
-        dst = d / (original.name[: -len(".original.dll")] + ".dll")
-        original.replace(dst)
-        done.append(f"{dst.name} restored")
+    done = restore_helix_backups(d)
 
     # an OptiScaler build under a proxy name: Decky Framegen's or HelixSR Scaler's (never one the game shipped)
     for name in PROXIES:
@@ -78,3 +63,39 @@ def sweep(directory: Path, fgmod: Path | None = None) -> list[str]:
             shutil.rmtree(d / name, ignore_errors=True)
             done.append(f"{name} removed")
     return done
+
+
+def restore_helix_backups(directory: Path) -> list[str]:
+    """The game's files HelixSR kept aside in directory put back, and the backups deleted: HelixSR Scaler's backup
+    folder, the drop-in's <name>.original.dll and an earlier HelixSR's HelixSR/backup folder. Run after HelixSR's own
+    removal too, in case it left any."""
+    d = Path(directory)
+    if not d.is_dir():
+        return []
+    done: list[str] = []
+    for backup in (d / SCALER_BACKUP, d / "HelixSR" / "backup"):
+        if backup.is_dir():
+            for f in sorted(backup.rglob("*")):
+                if f.is_file():
+                    dst = d / f.relative_to(backup)
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    f.replace(dst)
+                    done.append(f"{dst.name} restored")
+            shutil.rmtree(backup, ignore_errors=True)
+    for original in sorted(d.glob("*.original.dll")):
+        dst = d / (original.name[: -len(".original.dll")] + ".dll")
+        original.replace(dst)
+        done.append(f"{dst.name} restored")
+    return done
+
+
+def helix_backup_folders(game_folder: Path, exe_folder: Path | None = None) -> list[Path]:
+    """The folders under a game where HelixSR's drop-in left a <name>.original.dll (it goes next to the game's FSR
+    DLL, which isn't always next to the .exe), plus the .exe folder (HelixSR Scaler's backup)."""
+    folders = [Path(exe_folder)] if exe_folder else []
+    root = Path(game_folder)
+    if root.is_dir():
+        for original in root.rglob("amd_fidelityfx*.original.dll"):
+            if original.parent not in folders:
+                folders.append(original.parent)
+    return folders

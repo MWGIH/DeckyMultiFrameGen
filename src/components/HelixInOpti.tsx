@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { HelixLog } from "./HelixLog";
 import {
   helixsrInstall,
   helixsrOptiAdd,
-  helixsrOptiRemove,
   helixsrOptiStatus,
   type HelixInOpti,
   type HelixStatus,
@@ -29,6 +28,21 @@ export function HelixInOptiGame({
   useEffect(() => {
     load();
   }, [appid, refresh, helix?.active, helix?.job?.state]);
+  // With OptiScaler + HelixSR chosen, HelixSR goes into OptiScaler by itself, also once HelixSR's setup finishes
+  // after the game was patched. Tried once per game while the panel is open; a failure shows below.
+  const tried = useRef<string | null>(null);
+  useEffect(() => {
+    if (!st?.ok || !st.patched || st.installed || st.needs || !helix?.active_ready) return;
+    if (tried.current === appid) return;
+    tried.current = appid;
+    setBusy(true);
+    helixsrOptiAdd(appid)
+      .then((r) => toast(r.ok ? "HelixSR added to OptiScaler" : `HelixSR wasn't added: ${r.error ?? ""}`))
+      .finally(() => {
+        setBusy(false);
+        load();
+      });
+  }, [st, helix?.active_ready]);
 
   if (!helix?.active_ready) {
     return (
@@ -53,7 +67,7 @@ export function HelixInOptiGame({
       <PanelSectionRow>
         <Field
           label="HelixSR in OptiScaler"
-          description="Patch the game with OptiScaler above. HelixSR is added to it at the same time."
+          description="OptiScaler isn't patched into the game yet (see above). HelixSR is added to it as soon as it is."
         />
       </PanelSectionRow>
     );
@@ -143,22 +157,6 @@ export function HelixInOptiGame({
               : outdated
                 ? `Use HelixSR ${st.active}`
                 : "Add HelixSR again"}
-          </ButtonItem>
-        </PanelSectionRow>
-      )}
-      {st.installed && (
-        <PanelSectionRow>
-          <ButtonItem
-            layout="below"
-            disabled={busy}
-            onClick={() =>
-              run(
-                () => helixsrOptiRemove(appid),
-                "HelixSR removed from OptiScaler",
-              )
-            }
-          >
-            Remove HelixSR from OptiScaler
           </ButtonItem>
         </PanelSectionRow>
       )}

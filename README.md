@@ -38,6 +38,11 @@ Early development.
       Play setup) inside this plugin, with the MAKO Renderer downloaded from MAKO's releases; choosing MAKO for a game
       adds MAKO's launcher to its launch options.
 - [x] Switching a game to another backend takes the previous one out of the game and restores its launch options.
+- [x] Choosing Use sets the game up by itself: OptiScaler is patched in or out, HelixSR (HelixSR Scaler, or OptiScaler
+      + HelixSR) and FSR4 Injector go in or out, with no separate patch buttons. Every game file a backend replaces or
+      deletes is kept aside first (OptiScaler: `<name>.b`; HelixSR: `<name>.original.dll` or its backup folder) and
+      put back when the game's Use changes, and the backup is deleted once it's restored. Changing OptiScaler's proxy
+      DLL or HelixSR's Method in the game's panel repatches straight away.
 - [x] OptiScaler + MAKO together: OptiScaler upscales in the game and MAKO's launcher goes into OptiScaler's launch
       options.
 - [x] HelixSR + MAKO together: HelixSR upscales in the game (its own install) and MAKO's launcher stays in the game's
@@ -75,7 +80,8 @@ has to be a DLL the game loads early, and one the game or its launcher doesn't m
 | `winhttp.dll`, `wininet.dll` | Loaded by games that go online at start (store, telemetry, news). Last resorts. |
 | `OptiScaler.asi` | Only for games that already have an ASI loader (Ultimate ASI Loader); the loader loads OptiScaler. No launch option needed. |
 
-If the game stops loading or crashes after patching, unpatch, pick the next name in this order and patch again:
+If the game stops loading or crashes after patching, pick the next name under Proxy DLL in the game's panel (the plugin
+repatches the game with it), in this order:
 `dxgi.dll`, `winmm.dll`, `version.dll`, `dbghelp.dll`, `winhttp.dll`, `wininet.dll`. If the game starts but OptiScaler's
 menu never appears, the game doesn't load that name: try the next one too. If none works, OptiScaler can't hook the
 game; MAKO still can, since it works outside the game.

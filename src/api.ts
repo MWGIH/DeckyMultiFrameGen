@@ -53,7 +53,7 @@ export const listInstalledGames = callable<
 >("list_installed_games");
 export const getGame = callable<[appid: string], GameDetail>("get_game");
 export const setGameBackend = callable<
-  [appid: string, backend: GameChoice, current_launch_options: string | null],
+  [appid: string, backend: GameChoice, current_launch_options: string | null, dll_name: string],
   {
     ok: boolean;
     message?: string;
@@ -64,6 +64,8 @@ export const setGameBackend = callable<
     fsr4?: Fsr4Result | null;
     // HelixSR put in on choosing HelixSR / HelixSR + MAKO (null when it was already in or needs a decision)
     helix?: { ok: boolean; error?: string; route?: string } | null;
+    // OptiScaler patched in on choosing a choice with it (null when it already was or isn't installed)
+    opti?: { ok: boolean; error?: string; dll_name?: string } | null;
   }
 >("set_game_backend");
 export const logError = callable<[message: string], void>("log_error");

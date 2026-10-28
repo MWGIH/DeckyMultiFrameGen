@@ -42,7 +42,11 @@ class Settings:
         data = self.load()
         games = data.setdefault("games", {})
         if backend == "none":
-            games.pop(appid, None)
+            # the game's other settings (e.g. its OptiScaler proxy DLL) stay for the next time it's set up
+            game = games.get(appid, {})
+            game.pop("backend", None)
+            if not game:
+                games.pop(appid, None)
         else:
             games.setdefault(appid, {})["backend"] = backend
         self.save(data)

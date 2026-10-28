@@ -13,7 +13,6 @@ import { HelixLog } from "./HelixLog";
 import {
   helixsrGameStatus,
   helixsrInstallGame,
-  helixsrUninstallGame,
   type HelixGame,
   type HelixRoute,
   type HelixStatus,
@@ -86,6 +85,9 @@ export function HelixSRGame({
   const load = () =>
     helixsrGameStatus(appid).then(async (g) => {
       setGame(g);
+      // Method shows the way HelixSR is in now
+      if (g.installed && g.current && (g.ways ?? []).includes(g.current as HelixRoute))
+        setRoute(g.current as HelixRoute);
       if (g.installed && g.current === "scaler" && g.launch_options_now) {
         const current = await readLaunchOptions(Number(appid));
         if (current !== null && !hasOverrides(current))
@@ -182,20 +184,11 @@ export function HelixSRGame({
     }
   };
 
-  const remove = async () => {
-    setBusy(true);
-    try {
-      const r = await helixsrUninstallGame(appid);
-      if (r.ok) {
-        await syncLaunchOptions(appid, null);
-        toast("Removed. The game's own files are back.");
-      } else {
-        toast(r.error ?? "Removing failed");
-      }
-    } finally {
-      setBusy(false);
-      load();
-    }
+  // Changing Method switches the way HelixSR is in the game right away
+  const changeMethod = (value: HelixRoute | "auto") => {
+    setRoute(value);
+    const way = value === "auto" ? (game.route as HelixRoute) : value;
+    if (game.installed && way && way !== game.current && ready) install(way);
   };
 
   return (
@@ -277,7 +270,7 @@ export function HelixSRGame({
             label={`${WAYS[way] ?? way} not offered`}
             description={
               game.installed && game.current === way
-                ? `${why} It's in now: switch or remove it below.`
+                ? `${why} It's in now: pick another Method, or change Use to take it out.`
                 : why
             }
           />
@@ -295,22 +288,22 @@ export function HelixSRGame({
               ...ways.map((w) => ({ data: w, label: WAYS[w] })),
             ]}
             selectedOption={route}
-            onChange={(o) => setRoute(o.data)}
+            disabled={busy || !ready}
+            onChange={(o) => changeMethod(o.data)}
           />
         </PanelSectionRow>
       )}
-      {ways.length > 0 && !(game.installed && game.current === chosen) && (
+      {ways.length > 0 && !game.installed && (
         <PanelSectionRow>
           <ButtonItem
             layout="below"
             disabled={busy || !ready}
+            description="Choosing Use puts HelixSR in by itself, except in games with anti-cheat (and when it didn't work)."
             onClick={askInstall}
           >
             {!ready
               ? "Waiting for HelixSR's setup"
-              : game.installed
-                ? `Switch to ${WAYS[chosen ?? ""] ?? chosen}`
-                : `Install HelixSR (${WAYS[chosen ?? ""] ?? chosen})`}
+              : `Install HelixSR (${WAYS[chosen ?? ""] ?? chosen})`}
           </ButtonItem>
         </PanelSectionRow>
       )}
@@ -323,13 +316,6 @@ export function HelixSRGame({
             onClick={() => install(game.current as HelixRoute)}
           >
             {`Update to HelixSR ${helix.active}`}
-          </ButtonItem>
-        </PanelSectionRow>
-      )}
-      {game.installed && (
-        <PanelSectionRow>
-          <ButtonItem layout="below" disabled={busy} onClick={remove}>
-            Remove HelixSR from this game
           </ButtonItem>
         </PanelSectionRow>
       )}

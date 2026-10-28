@@ -117,7 +117,7 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
     if ("helixsr" not in keeps or in_opti) and HELIXSR.active():
         helix = await asyncio.to_thread(HELIXSR.game_status, folder)
         if helix.get("installed"):
-            r = await asyncio.to_thread(HELIXSR.uninstall_game, folder)
+            r = await asyncio.to_thread(_uninstall_helix, folder, helix)
             if not r.get("ok"):
                 return {"ok": False, "error": f"Couldn't remove HelixSR: {r.get('error')}"}
             removed.append("HelixSR")
@@ -135,6 +135,33 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
         new_launch = _with_mako(new_launch)
     return {"ok": True, "removed": removed,
             "launch_options": new_launch if new_launch != launch else None}
+
+
+def _uninstall_helix(folder: str, status: dict) -> dict:
+    """HelixSR out of the game with its own removal, then any of the game's files it kept aside and didn't put back
+    restored (and those backups deleted)."""
+    r = HELIXSR.uninstall_game(folder)
+    if r.get("ok"):
+        restored = []
+        for d in leftovers.helix_backup_folders(Path(folder), status.get("exe_folder")):
+            restored += leftovers.restore_helix_backups(d)
+        if restored:
+            decky.logger.info(f"HelixSR backups restored in {folder}: {restored}")
+    return r
+
+
+async def _auto_patch_opti(appid: str, dll_name: str, launch: str, keep: str) -> dict:
+    """OptiScaler patched into a game just set to a choice with it: with the proxy DLL the game was last patched with,
+    else dll_name (the panel's default for the game). Returns {ok, error?, dll_name, launch_options}."""
+    dll = SETTINGS.game_value(appid, "opti_dll") or dll_name or "dxgi.dll"
+    result = await OPTISCALER.patch_game(appid, dll, _without_mako(launch), FSR4_VARIANT)
+    if result.get("status") != "success":
+        return {"ok": False, "error": result.get("message") or "Patching failed"}
+    SETTINGS.set_game_value(appid, "opti_dll", dll)
+    options = result.get("launch_options") or ""
+    if "mako" in keep.split("+") and Path(_mako_runner()).is_file():
+        options = _with_mako(options)
+    return {"ok": True, "dll_name": dll, "launch_options": options}
 
 
 async def _auto_install_helix(appid: str, folder: str, launch: str) -> dict | None:
@@ -310,8 +337,11 @@ class Plugin:
             "hidden": hidden,
         }
 
-    async def set_game_backend(self, appid: str, backend: str, current_launch_options: str | None = None) -> dict:
-        """Saves the game's choice and, given its launch options, takes the other backends out of the game."""
+    async def set_game_backend(self, appid: str, backend: str, current_launch_options: str | None = None,
+                               dll_name: str = "") -> dict:
+        """Saves the game's choice and, given its launch options, takes the other backends out of the game and puts
+        the chosen ones in (OptiScaler, patched with dll_name unless the game had another before; HelixSR; FSR4
+        Injector)."""
         try:
             appid = _valid_appid(appid)
         except ValueError as exc:
@@ -330,6 +360,14 @@ class Plugin:
                 if not cleared["ok"]:
                     return {"ok": False, "message": cleared["error"]}
         SETTINGS.set_game_choice(appid, backend)
+        # OptiScaler is patched in as soon as the game is set to a choice with it
+        opti = None
+        if "optiscaler" in backend.split("+") and folder and (HOME / "fgmod" / "OptiScaler.dll").is_file() \
+                and not await _opti_target(appid):
+            launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options
+            opti = await _auto_patch_opti(appid, dll_name, launch or "", backend)
+            if opti["ok"]:
+                cleared["launch_options"] = opti["launch_options"]
         # FSR4 Injector has nothing to pick per game: it goes in as soon as the game is set to it
         fsr4 = None
         if "fsr4injector" in backend.split("+") and folder and await asyncio.to_thread(FSR4.ready) \
@@ -353,6 +391,7 @@ class Plugin:
         if "mako" in backend.split("+"):
             await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
         return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4, "helix": helix,
+                "opti": opti,
                 "removed": cleared["removed"],
                 "launch_options": cleared["launch_options"]}
 
@@ -425,6 +464,18 @@ class Plugin:
         cleared = await _clear_game(str(appid), folder, keep, current_launch_options or "")
         if not cleared["ok"]:
             return cleared
+        # switching to another way: the current one goes first, so the game's files it kept aside are back before
+        # the new way keeps them again
+        if route:
+            now = await _for_game(appid, HELIXSR.game_status)
+            if now.get("installed") and now.get("current") != route:
+                r = await _for_game(appid, lambda folder: _uninstall_helix(folder, now))
+                if not r.get("ok"):
+                    return {"ok": False, "error": f"Couldn't remove HelixSR's {now.get('current')}: {r.get('error')}"}
+                if now.get("current") == "scaler":
+                    cleared["launch_options"] = _without_overrides(
+                        cleared["launch_options"] if cleared["launch_options"] is not None
+                        else current_launch_options or "")
         result = await _for_game(appid, lambda folder: HELIXSR.install_game(folder, route or None))
         if result.get("ok") and keep == "helixsr+mako":
             await _opti_frame_generation_off(str(appid), result)
@@ -451,7 +502,7 @@ class Plugin:
         return {"ok": logging is not None, "logging": logging}
 
     async def helixsr_uninstall_game(self, appid: str) -> dict:
-        return await _for_game(appid, HELIXSR.uninstall_game)
+        return await _for_game(appid, lambda folder: _uninstall_helix(folder, HELIXSR.game_status(folder)))
 
     # HelixSR inside OptiScaler (game choice optiscaler+helixsr)
 
@@ -598,6 +649,8 @@ class Plugin:
             return {"status": "error", "message": cleared["error"]}
         launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options or ""
         result = await OPTISCALER.patch_game(str(appid), dll_name, launch, FSR4_VARIANT)
+        if result.get("status") == "success":
+            SETTINGS.set_game_value(str(appid), "opti_dll", dll_name)
         if result.get("launch_options") and "mako" in keep.split("+") and Path(_mako_runner()).is_file():
             result["launch_options"] = _with_mako(result["launch_options"])
         if result.get("status") == "success" and "mako" in keep.split("+"):
