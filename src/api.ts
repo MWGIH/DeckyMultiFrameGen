@@ -175,6 +175,9 @@ export const helixsrInstallGame = callable<
   [appid: string, route: string, current_launch_options: string],
   HelixGame & { removed?: string[]; base_launch_options?: string | null }
 >("helixsr_install_game");
+export const optiscalerPlain = callable<[appid: string, on?: boolean], boolean>(
+  "optiscaler_plain",
+);
 export const optiscalerLogging = callable<
   [appid: string, on?: boolean],
   {

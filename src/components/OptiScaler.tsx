@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { OptiLog } from "./OptiLog";
-import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, showModal } from "@decky/ui";
+import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, showModal, ToggleField } from "@decky/ui";
 import { ProgressRow } from "./ProgressRow";
 import { toaster } from "@decky/api";
 import {
   optiscalerGameStatus,
   optiscalerInstall,
   optiscalerPatchGame,
+  optiscalerPlain,
   optiscalerStatus,
   optiscalerUninstall,
   type OptiGame,
@@ -147,6 +148,7 @@ export function OptiScalerGame({
   const [game, setGame] = useState<OptiGame | null>(null);
   const [dll, setDll] = useState<string>(defaultProxyDll(appid));
   const [busy, setBusy] = useState(false);
+  const [plain, setPlain] = useState(false);
 
   const load = () =>
     optiscalerGameStatus(appid).then((g) => {
@@ -156,6 +158,7 @@ export function OptiScalerGame({
   useEffect(() => {
     setGame(null);
     load();
+    optiscalerPlain(appid).then(setPlain);
   }, [appid]);
 
   if (!status?.exists) {
@@ -229,6 +232,18 @@ export function OptiScalerGame({
           selectedOption={dll}
           disabled={busy}
           onChange={(o) => changeDll(String(o.data))}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ToggleField
+          label="Without the FSR 4.1 Deck files"
+          description="For a game that won't start with OptiScaler: patches stock OptiScaler 0.9.4 with FSR 4.0.2 instead of the build with FSR 4.1.1 for the Steam Deck (its own amdxc64.dll). Changing it repatches the game."
+          checked={plain}
+          disabled={busy}
+          onChange={async (on) => {
+            setPlain(await optiscalerPlain(appid, on));
+            if (game.patched) patch(dll);
+          }}
         />
       </PanelSectionRow>
       {!game.patched && (

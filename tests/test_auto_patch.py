@@ -85,6 +85,27 @@ class AutoPatchTests(unittest.TestCase):
         self.assertEqual((f["libxess.dll"], f["libxell.dll"]), (newer, older))
         self.assertNotIn("libxess.dll.b", f)
 
+    def test_a_game_can_do_without_the_fsr_4_1_deck_files(self):
+        fgmod = self.d.parents[5] / "fgmod"
+        valve = fgmod / "fsr4-rdna2-valve-411-pre10"
+        (valve / "OptiScaler.dll").write_bytes(b"MZ pre10 build")
+        (valve / "amdxc64.dll").write_bytes(b"Valve amdxc64")
+        (fgmod / "fsr4-rdna2-3").mkdir()
+        (fgmod / "fsr4-rdna2-3" / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"FSR4 int8")
+        p = main.Plugin()
+        r = run(p.set_game_backend("4242", "optiscaler", ""))
+        self.assertTrue(r["opti"]["ok"], r)
+        self.assertEqual(self.files()["dxgi.dll"], b"MZ pre10 build")
+        self.assertTrue(run(p.optiscaler_plain("4242", True)))
+        r = run(p.optiscaler_patch_game("4242", "dxgi.dll", r["launch_options"]))
+        self.assertEqual(r["status"], "success", r)
+        f = self.files()
+        self.assertEqual(f["dxgi.dll"], b"MZ OptiScaler build")
+        self.assertEqual(f["amd_fidelityfx_upscaler_dx12.dll"], b"FSR4 int8")
+        self.assertEqual(f["amdxc64.dll.b"], GAME_FILES["amdxc64.dll"])
+        self.assertNotIn("amdxc64.dll", f)
+        self.assertIn("LoadCustomAmdxc64OnRdna2=false", (self.d / "OptiScaler.ini").read_text())
+
     def test_the_proxy_dll_is_remembered_and_mako_kept_out_of_the_saved_options(self):
         p = main.Plugin()
         r = run(p.set_game_backend("4242", "optiscaler", "", "version.dll"))
