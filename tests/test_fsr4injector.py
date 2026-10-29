@@ -126,6 +126,30 @@ class FSR4InjectorTests(unittest.TestCase):
         self.assertTrue(r["fsr4"]["ok"])
         self.assertTrue((deep / "amdxc64.dll").exists())
 
+    def test_unreal_game_gets_the_shim_next_to_its_exe(self):
+        unpack_release(self.fsr4)
+        (self.game_dir / "amd_fidelityfx_dx12.dll").unlink()
+        root = self.game_dir.parent
+        deep = root / "Engine" / "Plugins" / "FSR" / "Binaries" / "ThirdParty" / "Win64"
+        deep.mkdir(parents=True)
+        (deep / "amd_fidelityfx_loader_dx12.dll").write_bytes(b"MZ ffx")
+        exe_dir = root / "PBZ" / "Binaries" / "Win64"
+        exe_dir.mkdir(parents=True)
+        (exe_dir / "PBZ-Win64-Shipping.exe").write_bytes(b"MZ game")
+        (root / "PBZ.exe").write_bytes(b"MZ launcher")
+        self.assertEqual(run(self.plugin.fsr4_game_status("2420110"))["target_dir"], str(exe_dir))
+        # where 0.9.10 put it: flagged, and moved by switching Use off and on
+        self.fsr4.manifest().entries[2420110] = {"target_dir": str(deep), "files": {}, "launch_original": ""}
+        self.fsr4.manifest().save()
+        s = run(self.plugin.fsr4_game_status("2420110"))
+        self.assertEqual(s["verdict"], "failed")
+        self.assertIn("Set Use to Off", s["reason"])
+        r = self.fsr4.enable(2420110, str(root), "", False)
+        self.assertTrue(r["ok"])
+        self.assertTrue((exe_dir / "amdxc64.dll").exists())
+        self.assertFalse((deep / "amdxc64.dll").exists())
+        self.assertEqual(self.fsr4.manifest().entries[2420110]["target_dir"], str(exe_dir))
+
     def test_remove_needs_games_turned_off(self):
         unpack_release(self.fsr4)
         r = run(self.plugin.set_game_backend("2420110", "fsr4injector", ""))

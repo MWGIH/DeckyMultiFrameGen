@@ -490,7 +490,8 @@ class Plugin:
         if not target:
             return {"ok": False, "error": "Patch the game with OptiScaler first"}
         logging = await asyncio.to_thread(helix_opti.opti_logging, target, None if on is None else bool(on))
-        return {"ok": logging is not None, "logging": logging, "path": str(Path(target) / "OptiScaler.log")}
+        log = await asyncio.to_thread(helix_opti.opti_log, target)
+        return {"ok": logging is not None, "logging": logging, "path": str(Path(target) / "OptiScaler.log"), "log": log}
 
     async def helixsr_scaler_logging(self, appid: str, on: bool) -> dict:
         """OptiScaler's log file on or off for HelixSR Scaler in the game (off by default: without it a game that stops

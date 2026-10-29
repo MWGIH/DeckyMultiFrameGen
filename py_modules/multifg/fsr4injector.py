@@ -252,8 +252,8 @@ class FSR4Injector:
                 dirs[:] = []   # HelixSR Scaler's copy of the game's files, not where the game loads them from
             if root.count("/") - base_depth >= game_files.MAX_DEPTH:
                 dirs[:] = []
-        return {"target_dir": found[0] if found else None, "ffx_dll": found[1] if found else None,
-                "anticheat": anticheat}
+        return {"target_dir": _load_dir(install_dir, found[0]) if found else None,
+                "ffx_dll": found[1] if found else None, "anticheat": anticheat}
 
     def game_status(self, appid: int, install_dir: str, watermark: bool) -> dict:
         m = self.mods()
@@ -263,6 +263,9 @@ class FSR4Injector:
         entry = manifest.entries.get(appid)
         where = self.find(install_dir)
         verdict, reason = m.install.verdict(m.install.read_status(manifest, appid))
+        if entry and where["target_dir"] and entry.get("target_dir") != where["target_dir"]:
+            verdict, reason = "failed", ("FSR4 Injector is in a folder the game doesn't load it from (plugin 0.9.10 "
+                                         "and older). Set Use to Off and back to FSR4 Injector to move it.")
         applied = (entry or {}).get("launch_applied") or ""
         return {"ok": True, "unpacked": True, "ready": self.ready(), "found": bool(where["target_dir"]),
                 "ffx_dll": where["ffx_dll"], "anticheat": where["anticheat"], "enabled": entry is not None,
@@ -272,7 +275,7 @@ class FSR4Injector:
                 "gpu_supported": bool((self.gpu() or {}).get("model"))}
 
     def enable(self, appid: int, install_dir: str, launch_options: str, watermark: bool) -> dict:
-        """Puts the two DLLs next to the game's FidelityFX DLL; returns the launch options to apply."""
+        """Puts the two DLLs where the game loads amdxc64.dll from (see _load_dir); returns the launch options."""
         m = self.mods()
         if not self.ready():
             return {"ok": False, "error": "Install FSR4 Injector under Backends first."}
@@ -285,8 +288,13 @@ class FSR4Injector:
                                           "only works in DirectX 12 games with FSR 3.1 or newer."}
         game = {"appid": appid, "target_dir": where["target_dir"]}
         with self.lock:
+            manifest = self.manifest()
+            entry = manifest.entries.get(appid)
+            if entry and entry.get("target_dir") != where["target_dir"]:
+                # in a folder Windows doesn't load it from (before 0.9.11, next to an Unreal game's FFX DLL): moved
+                launch_options = m.install.disable(manifest, appid, launch_options)["launch_options"]
             try:
-                options = m.install.enable(self.manifest(), game, str(self.shim()), str(self.ffx), launch_options,
+                options = m.install.enable(manifest, game, str(self.shim()), str(self.ffx), launch_options,
                                            gpu, True, watermark)
             except m.install.InstallError as exc:
                 return {"ok": False, "error": str(exc)}
@@ -351,6 +359,29 @@ class FSR4Injector:
         manifest = self.manifest()
         return [{"appid": str(g["appid"]), "name": g["name"], "ffx_dll": g["ffx_dll"], "anticheat": g["anticheat"],
                  "enabled": g["appid"] in manifest.entries} for g in m.games.scan(steam_root)]
+
+
+def _load_dir(install_dir: str, ffx_dir: str) -> str:
+    """Where FSR4 Injector's amdxc64.dll has to go. AMD's FidelityFX DLL loads amdxc64.dll by name, and Windows looks
+    for it next to the game's .exe, not next to the DLL asking: so the FFX DLL's folder only works when the .exe is
+    there too. Unreal games keep the FFX DLL in an engine plugin folder (Engine/Plugins/.../ThirdParty/Win64) and the
+    .exe in <Project>/Binaries/Win64 (Phantom Blade Zero: the shim was never loaded there)."""
+    try:
+        if any(f.lower().endswith(".exe") for f in os.listdir(ffx_dir)):
+            return ffx_dir
+    except OSError:
+        return ffx_dir
+    shipping = []
+    base_depth = install_dir.rstrip("/").count("/")
+    for root, dirs, files in os.walk(install_dir):
+        if any(f.lower().endswith("-win64-shipping.exe") for f in files):
+            shipping.append(root)
+        if os.path.basename(root) == game_files.SCALER_BACKUP:
+            dirs[:] = []
+        if root.count("/") - base_depth >= game_files.MAX_DEPTH:
+            dirs[:] = []
+    # an Unreal game has one; the shortest path is the game's own (not a crash reporter or tool)
+    return min(shipping, key=lambda d: d.count("/")) if shipping else ffx_dir
 
 
 def _env() -> dict:

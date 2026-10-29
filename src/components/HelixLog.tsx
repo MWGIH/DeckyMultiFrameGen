@@ -1,38 +1,46 @@
 import { useState } from "react";
 import { Field, PanelSectionRow, ToggleField } from "@decky/ui";
 
-const KEY = "multifg:helixLogShown";
+function key(name: string): string {
+  return name === "HelixSR"
+    ? "multifg:helixLogShown"
+    : `multifg:${name}LogShown`;
+}
 
-function saved(): boolean {
+function saved(name: string): boolean {
   try {
-    return localStorage.getItem(KEY) === "1";
+    return localStorage.getItem(key(name)) === "1";
   } catch {
     return false;
   }
 }
 
-// HelixSR's log from the game: a one-line summary, the lines themselves only when shown (they take a lot of room).
+// HelixSR's (or OptiScaler's) log from the game: a one-line summary, the lines themselves only when shown (they take
+// a lot of room).
 export function HelixLog({
   log,
   missing,
+  name = "HelixSR",
 }: {
   log?: { lines: string[]; modified: number } | null;
-  missing: string;
+  missing?: string;
+  name?: string;
 }) {
-  const [shown, setShown] = useState(saved);
+  const [shown, setShown] = useState(() => saved(name));
   const toggle = () => {
     setShown(!shown);
     try {
-      localStorage.setItem(KEY, shown ? "0" : "1");
+      localStorage.setItem(key(name), shown ? "0" : "1");
     } catch {
       // the choice just isn't remembered
     }
   };
   if (!log) {
+    if (!missing) return null;
     return (
       <PanelSectionRow>
         <Field
-          label="HelixSR hasn't run in this game yet"
+          label={`${name} hasn't run in this game yet`}
           description={missing}
         />
       </PanelSectionRow>
@@ -42,16 +50,16 @@ export function HelixLog({
     <>
       <PanelSectionRow>
         <ToggleField
-          label="Show HelixSR log"
+          label={`Show ${name} log`}
           checked={shown}
           onChange={toggle}
-          description={`HelixSR last ran in this game ${new Date(log.modified * 1000).toLocaleString()}`}
+          description={`${name} last ran in this game ${new Date(log.modified * 1000).toLocaleString()}`}
         />
       </PanelSectionRow>
       {shown && (
         <PanelSectionRow>
           <Field
-            label="HelixSR log"
+            label={`${name} log`}
             description={
               <div
                 style={{
