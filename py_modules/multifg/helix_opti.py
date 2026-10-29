@@ -197,6 +197,19 @@ def opti_logging(target_dir: str | Path, on: bool | None = None) -> bool | None:
     return (ini_get(text, "Log", "LogToFile") or "").lower() == "true"
 
 
+def opti_log(target_dir: str | Path, lines: int = 15) -> dict | None:
+    """The end of OptiScaler.log in target_dir (where a game that stops got to), or None when there is none."""
+    log = Path(target_dir) / "OptiScaler.log"
+    try:
+        size = log.stat().st_size
+        with open(log, "rb") as f:
+            f.seek(max(0, size - 16384))   # the log grows by megabytes; its end is what counts
+            text = f.read().decode(errors="replace")
+        return {"path": str(log), "modified": log.stat().st_mtime, "lines": text.splitlines()[-lines:]}
+    except OSError:
+        return None
+
+
 def uninstall(target_dir: str | Path) -> dict:
     """HelixSR out of OptiScaler: OptiScaler.ini gets its earlier values back and the mod's folder goes."""
     t = Path(target_dir)

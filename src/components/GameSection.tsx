@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
 import { BelowDropdown } from "./BelowDropdown";
+import { ProgressRow } from "./ProgressRow";
 import { GAME_NOTES } from "../gameNotes";
 import { toaster } from "@decky/api";
 import {
@@ -29,6 +30,7 @@ import { OptiScalerGame } from "./OptiScaler";
 import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
+import { GameFiles } from "./GameFiles";
 import { defaultProxyDll } from "../optiscalerOptions";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
@@ -159,7 +161,8 @@ export function GameSection({
       // just not remembered
     }
   };
-  const [switching, setSwitching] = useState(false);
+  // The choice being patched in (or "none" while a method is taken out); null when nothing is running
+  const [switching, setSwitching] = useState<GameChoice | null>(null);
   // Switching swaps DLLs and launch options the running game already loaded, so it waits until the game is closed
   const gameRunning = selected?.source === "running";
   const [optiChanged, setOptiChanged] = useState(0);
@@ -171,7 +174,14 @@ export function GameSection({
       return;
     }
     const id = Number(selected.appid);
-    setSwitching(true);
+    const gameName = detail?.name ?? selected.name ?? "the game";
+    setSwitching(choice);
+    // Patching swaps DLLs and launch options: starting the game before it's done can load half of it
+    toast(
+      choice === "none"
+        ? `Removing ${CHOICE_LABELS[detail?.backend ?? "none"]} from ${gameName}. Please wait before starting the game.`
+        : `Patching ${gameName} for ${CHOICE_LABELS[choice].replace(/ \(.*\)$/, "")}. Please wait before starting the game.`,
+    );
     try {
       const current = detail?.installed ? await readLaunchOptions(id) : null;
       const r = await setGameBackend(
@@ -229,11 +239,12 @@ export function GameSection({
           );
         }
         setOptiChanged((n) => n + 1);
+        toast(`${gameName} is ready. You can start the game now.`);
       } else {
         toast(r.message ?? "Couldn't save the choice");
       }
     } finally {
-      setSwitching(false);
+      setSwitching(null);
     }
   };
 
@@ -308,10 +319,20 @@ export function GameSection({
                   )
                   .map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
-                disabled={switching || gameRunning}
+                disabled={switching !== null || gameRunning}
                 onChange={(o) => choose(o.data as GameChoice)}
               />
             </PanelSectionRow>
+          )}
+          {switching !== null && (
+            <ProgressRow
+              title={
+                switching === "none"
+                  ? "Removing from the game, please wait…"
+                  : `Patching ${CHOICE_LABELS[switching].replace(/ \(.*\)$/, "")}, please wait…`
+              }
+              detail="Don't start the game until this is done."
+            />
           )}
           {detail?.ok && (
             <PanelSectionRow>
@@ -327,6 +348,7 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
+          {detail?.ok && detail.installed && <GameFiles files={detail.files} />}
           {detail?.ok &&
             detail.installed &&
             parts(detail.backend).includes("helixsr") &&

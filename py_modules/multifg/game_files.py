@@ -59,6 +59,31 @@ def detect(install_dir: str) -> set[str] | None:
     return found
 
 
+LISTED = {*_NAMES, "amdxc64.dll", "amdxcffx64.dll", "nvngx.dll", "dxgi.dll", "winmm.dll", "version.dll",
+          "helixsr.dll", "optiscaler.ini"}
+
+
+def listing(install_dir: str, limit: int = 40) -> list[str] | None:
+    """The game's .exe files and upscaler-related files (with backups), relative to its folder: shown in the panel so
+    where a game keeps them can be seen on the Deck. None when its folder can't be read."""
+    if not install_dir or not os.path.isdir(install_dir):
+        return None
+    out: list[str] = []
+    base_depth = install_dir.rstrip(os.sep).count(os.sep)
+    for root, dirs, files in os.walk(install_dir):
+        dirs.sort()
+        for f in sorted(files):
+            name = f.lower()
+            own = name[:-2] if name.endswith(".b") else name.replace(".original.dll", ".dll")
+            if (name.endswith(".exe") and "crash" not in name) or own in LISTED:
+                out.append(os.path.relpath(os.path.join(root, f), install_dir))
+        if os.path.basename(root) == SCALER_BACKUP or root.count(os.sep) - base_depth >= MAX_DEPTH:
+            dirs[:] = []
+        if len(out) >= limit:
+            return out[:limit]
+    return out
+
+
 # Choices testing found don't work in a game, whatever its files say (Steam app id -> part -> why); "Show all Use
 # options" still offers them
 NOT_WORKING = {

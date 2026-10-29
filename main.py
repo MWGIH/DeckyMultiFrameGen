@@ -22,6 +22,9 @@ OPTISCALER = OptiScaler()
 OPTI_JOB = OptiInstallJob(OPTISCALER)
 # The Steam Deck's GPU is RDNA2: always Valve's FSR 4.1.1 build with RDNA2 settings, no choice offered
 FSR4_VARIANT = "rdna2-valve-411-pre10"
+OPTI_PLAIN_VARIANT = "rdna23-int8"   # per game, see _opti_variant
+# games that only start with OptiScaler patched without the FSR 4.1.1 Deck files (seen on the Deck): the default there
+OPTI_PLAIN_GAMES = {"4115450"}   # Phantom Blade Zero
 MAKO = MakoPlugin()  # MAKO Decky's backend (vendored); its methods are exposed below as mako_<name>
 FSR4 = FSR4Injector(Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_SETTINGS_DIR))
 _APPID = re.compile(r"\d{1,10}")
@@ -150,11 +153,22 @@ def _uninstall_helix(folder: str, status: dict) -> dict:
     return r
 
 
+def _opti_variant(appid: str) -> str:
+    """The FSR 4 files OptiScaler is patched in with: Decky Framegen's Valve RDNA2 4.1.1 build (its pre-0.10 OptiScaler
+    and a custom amdxc64.dll), or, for a game set to do without them, stock OptiScaler 0.9.4 with FSR 4.0.2c (Phantom
+    Blade Zero stops while setting up its graphics device with the 4.1.1 build in)."""
+    return OPTI_PLAIN_VARIANT if _opti_plain(appid) else FSR4_VARIANT
+
+
+def _opti_plain(appid: str) -> bool:
+    return bool(SETTINGS.game_value(appid, "opti_plain", appid in OPTI_PLAIN_GAMES))
+
+
 async def _auto_patch_opti(appid: str, dll_name: str, launch: str, keep: str) -> dict:
     """OptiScaler patched into a game just set to a choice with it: with the proxy DLL the game was last patched with,
     else dll_name (the panel's default for the game). Returns {ok, error?, dll_name, launch_options}."""
     dll = SETTINGS.game_value(appid, "opti_dll") or dll_name or "dxgi.dll"
-    result = await OPTISCALER.patch_game(appid, dll, _without_mako(launch), FSR4_VARIANT)
+    result = await OPTISCALER.patch_game(appid, dll, _without_mako(launch), _opti_variant(appid))
     if result.get("status") != "success":
         return {"ok": False, "error": result.get("message") or "Patching failed"}
     SETTINGS.set_game_value(appid, "opti_dll", dll)
@@ -313,10 +327,11 @@ class Plugin:
         installed = bool(game and game["install_found"])
         current = SETTINGS.game_choice(appid)
         # only the choices that can work with the upscalers the game ships (and whatever it is set to now)
-        found = None
+        found = files = None
         if installed:
             try:
                 found = await asyncio.to_thread(game_files.detect, game["install_path"])
+                files = await asyncio.to_thread(game_files.listing, game["install_path"])
             except Exception:
                 decky.logger.exception("game_files.detect")
         choices = [c for c in backends.GAME_CHOICES
@@ -334,6 +349,7 @@ class Plugin:
             "choices": choices,
             "all_choices": list(backends.GAME_CHOICES),   # for the panel's "Show all Use options"
             "upscalers": game_files.labels(found) if found is not None else None,
+            "files": files,
             "hidden": hidden,
         }
 
@@ -481,6 +497,14 @@ class Plugin:
             await _opti_frame_generation_off(str(appid), result)
         return {**result, "removed": cleared["removed"], "base_launch_options": cleared["launch_options"]}
 
+    async def optiscaler_plain(self, appid: str, on: bool | None = None) -> bool:
+        """Whether the game is patched without the FSR 4.1.1 Deck files (see _opti_variant); set when on is given. The
+        panel repatches the game after a change."""
+        appid = _valid_appid(appid)
+        if on is not None:
+            SETTINGS.set_game_value(appid, "opti_plain", bool(on))
+        return _opti_plain(appid)
+
     async def optiscaler_logging(self, appid: str, on: bool | None = None) -> dict:
         """OptiScaler's log file (off by default) in the game's OptiScaler.ini: switched when on is given."""
         try:
@@ -490,7 +514,8 @@ class Plugin:
         if not target:
             return {"ok": False, "error": "Patch the game with OptiScaler first"}
         logging = await asyncio.to_thread(helix_opti.opti_logging, target, None if on is None else bool(on))
-        return {"ok": logging is not None, "logging": logging, "path": str(Path(target) / "OptiScaler.log")}
+        log = await asyncio.to_thread(helix_opti.opti_log, target)
+        return {"ok": logging is not None, "logging": logging, "path": str(Path(target) / "OptiScaler.log"), "log": log}
 
     async def helixsr_scaler_logging(self, appid: str, on: bool) -> dict:
         """OptiScaler's log file on or off for HelixSR Scaler in the game (off by default: without it a game that stops
@@ -648,7 +673,7 @@ class Plugin:
         if not cleared["ok"]:
             return {"status": "error", "message": cleared["error"]}
         launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options or ""
-        result = await OPTISCALER.patch_game(str(appid), dll_name, launch, FSR4_VARIANT)
+        result = await OPTISCALER.patch_game(str(appid), dll_name, launch, _opti_variant(str(appid)))
         if result.get("status") == "success":
             SETTINGS.set_game_value(str(appid), "opti_dll", dll_name)
         if result.get("launch_options") and "mako" in keep.split("+") and Path(_mako_runner()).is_file():
