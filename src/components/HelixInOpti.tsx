@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { HelixLog } from "./HelixLog";
+import { ProgressRow } from "./ProgressRow";
 import {
   helixsrInstall,
   helixsrOptiAdd,
@@ -24,6 +25,7 @@ export function HelixInOptiGame({
 }) {
   const [st, setSt] = useState<HelixInOpti | null>(null);
   const [busy, setBusy] = useState(false);
+  const [autoAdding, setAutoAdding] = useState(false);
   const load = () => helixsrOptiStatus(appid).then(setSt);
   useEffect(() => {
     load();
@@ -36,10 +38,19 @@ export function HelixInOptiGame({
     if (tried.current === appid) return;
     tried.current = appid;
     setBusy(true);
+    setAutoAdding(true);
+    toast("Adding HelixSR to OptiScaler. Please wait before starting the game.");
     helixsrOptiAdd(appid)
-      .then((r) => toast(r.ok ? "HelixSR added to OptiScaler" : `HelixSR wasn't added: ${r.error ?? ""}`))
+      .then((r) =>
+        toast(
+          r.ok
+            ? "HelixSR added to OptiScaler. You can start the game now."
+            : `HelixSR wasn't added: ${r.error ?? ""}`,
+        ),
+      )
       .finally(() => {
         setBusy(false);
+        setAutoAdding(false);
         load();
       });
   }, [st, helix?.active_ready]);
@@ -121,6 +132,12 @@ export function HelixInOptiGame({
 
   return (
     <>
+      {autoAdding && (
+        <ProgressRow
+          title="Adding HelixSR to OptiScaler, please wait…"
+          detail="Don't start the game until this is done."
+        />
+      )}
       <PanelSectionRow>
         <Field
           label={
