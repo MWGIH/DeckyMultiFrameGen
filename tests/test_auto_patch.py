@@ -106,6 +106,12 @@ class AutoPatchTests(unittest.TestCase):
         self.assertNotIn("amdxc64.dll", f)
         self.assertIn("LoadCustomAmdxc64OnRdna2=false", (self.d / "OptiScaler.ini").read_text())
 
+    def test_phantom_blade_zero_is_patched_without_the_deck_files_by_default(self):
+        p = main.Plugin()
+        self.assertTrue(run(p.optiscaler_plain("4115450")))
+        self.assertFalse(run(p.optiscaler_plain("4242")))
+        self.assertFalse(run(p.optiscaler_plain("4115450", False)))
+
     def test_the_proxy_dll_is_remembered_and_mako_kept_out_of_the_saved_options(self):
         p = main.Plugin()
         r = run(p.set_game_backend("4242", "optiscaler", "", "version.dll"))

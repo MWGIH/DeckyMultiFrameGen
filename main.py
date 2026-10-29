@@ -23,6 +23,8 @@ OPTI_JOB = OptiInstallJob(OPTISCALER)
 # The Steam Deck's GPU is RDNA2: always Valve's FSR 4.1.1 build with RDNA2 settings, no choice offered
 FSR4_VARIANT = "rdna2-valve-411-pre10"
 OPTI_PLAIN_VARIANT = "rdna23-int8"   # per game, see _opti_variant
+# games that only start with OptiScaler patched without the FSR 4.1.1 Deck files (seen on the Deck): the default there
+OPTI_PLAIN_GAMES = {"4115450"}   # Phantom Blade Zero
 MAKO = MakoPlugin()  # MAKO Decky's backend (vendored); its methods are exposed below as mako_<name>
 FSR4 = FSR4Injector(Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_SETTINGS_DIR))
 _APPID = re.compile(r"\d{1,10}")
@@ -155,7 +157,11 @@ def _opti_variant(appid: str) -> str:
     """The FSR 4 files OptiScaler is patched in with: Decky Framegen's Valve RDNA2 4.1.1 build (its pre-0.10 OptiScaler
     and a custom amdxc64.dll), or, for a game set to do without them, stock OptiScaler 0.9.4 with FSR 4.0.2c (Phantom
     Blade Zero stops while setting up its graphics device with the 4.1.1 build in)."""
-    return OPTI_PLAIN_VARIANT if SETTINGS.game_value(appid, "opti_plain", False) else FSR4_VARIANT
+    return OPTI_PLAIN_VARIANT if _opti_plain(appid) else FSR4_VARIANT
+
+
+def _opti_plain(appid: str) -> bool:
+    return bool(SETTINGS.game_value(appid, "opti_plain", appid in OPTI_PLAIN_GAMES))
 
 
 async def _auto_patch_opti(appid: str, dll_name: str, launch: str, keep: str) -> dict:
@@ -497,7 +503,7 @@ class Plugin:
         appid = _valid_appid(appid)
         if on is not None:
             SETTINGS.set_game_value(appid, "opti_plain", bool(on))
-        return bool(SETTINGS.game_value(appid, "opti_plain", False))
+        return _opti_plain(appid)
 
     async def optiscaler_logging(self, appid: str, on: bool | None = None) -> dict:
         """OptiScaler's log file (off by default) in the game's OptiScaler.ini: switched when on is given."""
