@@ -62,6 +62,29 @@ class AutoPatchTests(unittest.TestCase):
         self.assertEqual(self.files(), GAME_FILES)
         self.assertEqual(sorted(x.name for x in self.d.iterdir()), sorted(GAME_FILES))
 
+    def test_the_games_newer_xess_and_xell_stay_in_use(self):
+        def dll(version):
+            a, b, c, d = version
+            return b"MZ" + b"\0" * 64 + b"\xbd\x04\xef\xfe" + b"\0\0\1\0" + \
+                ((a << 16) | b).to_bytes(4, "little") + ((c << 16) | d).to_bytes(4, "little")
+        newer, older = dll((2, 1, 5, 0)), dll((1, 3, 0, 0))
+        (self.d / "libxess.dll").write_bytes(newer)
+        (self.d / "libxell.dll").write_bytes(older)
+        fgmod = self.d.parents[5] / "fgmod"
+        (fgmod / "libxess.dll").write_bytes(dll((2, 0, 1, 0)))
+        (fgmod / "libxell.dll").write_bytes(dll((1, 4, 0, 0)))
+        p = main.Plugin()
+        r = run(p.set_game_backend("4242", "optiscaler", ""))
+        self.assertTrue(r["opti"]["ok"], r)
+        f = self.files()
+        self.assertEqual(f["libxess.dll"], newer)                    # the game's is newer: kept in use
+        self.assertEqual(f["libxell.dll"], dll((1, 4, 0, 0)))        # Decky Framegen's is newer
+        self.assertEqual((f["libxess.dll.b"], f["libxell.dll.b"]), (newer, older))
+        run(p.set_game_backend("4242", "none", r["launch_options"]))
+        f = self.files()
+        self.assertEqual((f["libxess.dll"], f["libxell.dll"]), (newer, older))
+        self.assertNotIn("libxess.dll.b", f)
+
     def test_the_proxy_dll_is_remembered_and_mako_kept_out_of_the_saved_options(self):
         p = main.Plugin()
         r = run(p.set_game_backend("4242", "optiscaler", "", "version.dll"))

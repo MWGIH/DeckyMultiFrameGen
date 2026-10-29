@@ -80,3 +80,24 @@ class GameFilesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ListingTests(unittest.TestCase):
+    def test_lists_exes_and_upscaler_files_with_their_folders(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            for rel in ("PBZ.exe", "PBZ/Binaries/Win64/PBZ-Win64-Shipping.exe", "PBZ/Binaries/Win64/other.dll",
+                        "Engine/Plugins/FSR/Binaries/ThirdParty/Win64/amd_fidelityfx_upscaler_dx12.original.dll",
+                        "Engine/Plugins/FSR/Binaries/ThirdParty/Win64/amd_fidelityfx_loader_dx12.dll",
+                        "Engine/Binaries/Win64/CrashReportClient.exe"):
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_bytes(b"MZ")
+            self.assertEqual(game_files.listing(d), [
+                "PBZ.exe",
+                "Engine/Plugins/FSR/Binaries/ThirdParty/Win64/amd_fidelityfx_loader_dx12.dll",
+                "Engine/Plugins/FSR/Binaries/ThirdParty/Win64/amd_fidelityfx_upscaler_dx12.original.dll",
+                "PBZ/Binaries/Win64/PBZ-Win64-Shipping.exe",
+            ])
+        self.assertIsNone(game_files.listing("/nonexistent"))

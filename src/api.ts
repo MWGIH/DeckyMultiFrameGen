@@ -42,6 +42,7 @@ export type GameDetail = {
   choices?: GameChoice[];
   all_choices?: GameChoice[];
   upscalers?: string[] | null; // what the game ships (FSR 3.1+, DLSS, ...); null when its files couldn't be read
+  files?: string[] | null; // the game's .exe and upscaler files, relative to its folder
   hidden?: { choice: GameChoice; needs: string[]; reason?: string | null }[];
 };
 
@@ -176,7 +177,13 @@ export const helixsrInstallGame = callable<
 >("helixsr_install_game");
 export const optiscalerLogging = callable<
   [appid: string, on?: boolean],
-  { ok: boolean; logging?: boolean | null; path?: string; error?: string }
+  {
+    ok: boolean;
+    logging?: boolean | null;
+    path?: string;
+    log?: { lines: string[]; modified: number } | null;
+    error?: string;
+  }
 >("optiscaler_logging");
 export const helixsrScalerLogging = callable<
   [appid: string, on: boolean],

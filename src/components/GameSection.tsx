@@ -30,6 +30,7 @@ import { OptiScalerGame } from "./OptiScaler";
 import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
+import { GameFiles } from "./GameFiles";
 import { defaultProxyDll } from "../optiscalerOptions";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
@@ -347,6 +348,7 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
+          {detail?.ok && detail.installed && <GameFiles files={detail.files} />}
           {detail?.ok &&
             detail.installed &&
             parts(detail.backend).includes("helixsr") &&

@@ -233,6 +233,25 @@ SUPPORT_FILES = [
     "fakenvapi.ini",
 ]
 
+# XeSS / XeLL files a game can ship newer than Decky Framegen's: the game's copy stays in use when it is newer (Phantom
+# Blade Zero stopped while setting up its graphics device with Decky Framegen's older copies in place)
+KEEP_NEWER_GAME_FILES = ("libxess.dll", "libxess_dx11.dll", "libxess_fg.dll", "libxell.dll")
+
+
+def pe_file_version(path: Path) -> tuple[int, int, int, int] | None:
+    """A DLL's file version from its VS_FIXEDFILEINFO, or None when it has none."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    at = data.find(b"\xbd\x04\xef\xfe")
+    if at < 0 or len(data) < at + 16:
+        return None
+    ms = int.from_bytes(data[at + 8:at + 12], "little")
+    ls = int.from_bytes(data[at + 12:at + 16], "little")
+    return (ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF)
+
+
 MARKER_FILENAME = "FRAMEGEN_PATCH"
 
 BAD_EXE_SUBSTRINGS = [
@@ -1366,6 +1385,18 @@ class OptiScaler:
                     copied_support.append(extra_file["name"])
                 else:
                     missing_support.append(extra_file["name"])
+
+            kept_newer = []
+            for filename in KEEP_NEWER_GAME_FILES:
+                game_copy, dest = directory / f"{filename}.b", directory / filename
+                if not (game_copy.exists() and dest.exists()):
+                    continue
+                theirs, ours = pe_file_version(game_copy), pe_file_version(dest)
+                if theirs and ours and theirs > ours:
+                    shutil.copy2(game_copy, dest)   # the backup stays, so unpatching works as before
+                    kept_newer.append(f"{filename} {'.'.join(map(str, theirs))}")
+            if kept_newer:
+                decky.logger.info(f"Kept the game's newer files: {kept_newer}")
 
             if copied_support:
                 decky.logger.info(f"Copied support files: {copied_support}")

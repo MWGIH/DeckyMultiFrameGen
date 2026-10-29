@@ -313,10 +313,11 @@ class Plugin:
         installed = bool(game and game["install_found"])
         current = SETTINGS.game_choice(appid)
         # only the choices that can work with the upscalers the game ships (and whatever it is set to now)
-        found = None
+        found = files = None
         if installed:
             try:
                 found = await asyncio.to_thread(game_files.detect, game["install_path"])
+                files = await asyncio.to_thread(game_files.listing, game["install_path"])
             except Exception:
                 decky.logger.exception("game_files.detect")
         choices = [c for c in backends.GAME_CHOICES
@@ -334,6 +335,7 @@ class Plugin:
             "choices": choices,
             "all_choices": list(backends.GAME_CHOICES),   # for the panel's "Show all Use options"
             "upscalers": game_files.labels(found) if found is not None else None,
+            "files": files,
             "hidden": hidden,
         }
 
@@ -490,7 +492,8 @@ class Plugin:
         if not target:
             return {"ok": False, "error": "Patch the game with OptiScaler first"}
         logging = await asyncio.to_thread(helix_opti.opti_logging, target, None if on is None else bool(on))
-        return {"ok": logging is not None, "logging": logging, "path": str(Path(target) / "OptiScaler.log")}
+        log = await asyncio.to_thread(helix_opti.opti_log, target)
+        return {"ok": logging is not None, "logging": logging, "path": str(Path(target) / "OptiScaler.log"), "log": log}
 
     async def helixsr_scaler_logging(self, appid: str, on: bool) -> dict:
         """OptiScaler's log file on or off for HelixSR Scaler in the game (off by default: without it a game that stops
