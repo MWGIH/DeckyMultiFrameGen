@@ -42,6 +42,7 @@ export type GameDetail = {
   choices?: GameChoice[];
   all_choices?: GameChoice[];
   upscalers?: string[] | null; // what the game ships (FSR 3.1+, DLSS, ...); null when its files couldn't be read
+  files?: string[] | null; // the game's .exe and upscaler files, relative to its folder
   hidden?: { choice: GameChoice; needs: string[]; reason?: string | null }[];
 };
 
