@@ -139,6 +139,32 @@ class ReleaseStateTests(unittest.TestCase):
             self.h.set_prereleases(False)
             self.assertEqual(self.h.latest()["tag"], "v2.0.0")
 
+    def test_releases_come_from_github_pages_and_known_zips_are_kept(self):
+        listed = [{"tag": "v3.0.1", "prerelease": True, "published_at": "2026-10-30T00:00:00Z"},
+                  {"tag": "v2.0.0", "prerelease": False, "published_at": "2026-10-20T00:00:00Z"}]
+        zip301 = {"name": "HelixSR-3.0.1.zip", "browser_download_url": "https://github.com/z/HelixSR-3.0.1.zip",
+                  "size": 1024, "digest": "sha256:" + "a" * 64}
+        self.h._write_json(self.h.releases_cache, {"checked": 0, "releases": [
+            {"tag": "v2.0.0", "name": "HelixSR-2.0.0.zip", "url": "https://github.com/z/HelixSR-2.0.0.zip",
+             "size": 5, "prerelease": True, "published_at": None, "sha256": None}]})
+        with mock.patch.object(helixsr.updates, "release_list", return_value=listed), \
+                mock.patch.object(helixsr.updates, "release_assets", return_value=[zip301]) as assets, \
+                mock.patch.object(helixsr.updates, "_get", side_effect=AssertionError("no API call")):
+            rels = self.h.releases(refresh=True)
+        assets.assert_called_once_with(helixsr.REPO, "v3.0.1")   # v2.0.0's zip was already known
+        self.assertEqual([(r["tag"], r["prerelease"], r["sha256"]) for r in rels],
+                         [("v3.0.1", True, "a" * 64), ("v2.0.0", False, None)])
+
+    def test_releases_fall_back_to_the_api_then_the_cache(self):
+        api = [{"tag_name": "v2.0.0", "prerelease": False, "published_at": "2026-10-20T00:00:00Z",
+                "assets": [{"name": "HelixSR-2.0.0.zip", "browser_download_url": "https://github.com/z/2.zip"}]}]
+        with mock.patch.object(helixsr.updates, "release_list", side_effect=RuntimeError("layout changed")), \
+                mock.patch.object(helixsr.updates, "_get", return_value=api):
+            self.assertEqual([r["tag"] for r in self.h.releases(refresh=True)], ["v2.0.0"])
+        with mock.patch.object(helixsr.updates, "release_list", side_effect=RuntimeError("offline")), \
+                mock.patch.object(helixsr.updates, "_get", side_effect=RuntimeError("offline")):
+            self.assertEqual([r["tag"] for r in self.h.releases(refresh=True)], ["v2.0.0"])
+
     def test_download_interrupted_by_a_restart_is_a_failure(self):
         self.h._write_json(self.h.job_file, {"state": "running", "phase": "download", "tag": "v1.9.3"})
         self.assertEqual(self.h.status()["job"]["state"], "failed")

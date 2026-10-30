@@ -18,8 +18,10 @@ from pathlib import Path
 
 from . import helix_opti, updates
 
-RELEASES_API = "https://api.github.com/repos/lonewolf0622/HelixSR/releases?per_page=20"
-RELEASES_TTL = 3600          # seconds between GitHub checks (60 unauthenticated API calls per hour)
+REPO = "lonewolf0622/HelixSR"
+RELEASES_API = f"https://api.github.com/repos/{REPO}/releases?per_page=20"
+RELEASES_TTL = 3600          # seconds between GitHub checks
+RELEASES_PAGES = 2           # github.com lists 10 releases a page: the newest 20, like RELEASES_API
 _TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,40}")
 BRIDGE = Path(__file__).resolve().parent / "helix_bridge.py"
 DRIVER = Path(__file__).resolve().parent / "setup_driver.py"
@@ -73,28 +75,49 @@ class HelixSR:
     # --- releases ------------------------------------------------------------------------------------------------
 
     def releases(self, refresh: bool = False) -> list[dict]:
-        """Published HelixSR releases with their zip, newest first (cached; the cache is used offline)."""
+        """Published HelixSR releases with their zip, newest first (cached; the cache is used offline or when GitHub
+        refuses). Read from github.com's release pages, which the API's hourly limit doesn't cover; the API only when
+        those pages can't be read."""
         cached = self._read_json(self.releases_cache) or {}
         if not refresh and cached.get("checked", 0) > time.time() - RELEASES_TTL:
             return cached.get("releases", [])
         try:
-            out = []
-            for r in updates._get(RELEASES_API):
-                asset = _release_zip(r.get("assets", []))
-                if r.get("draft") or not asset or not _TAG.fullmatch(r.get("tag_name") or ""):
-                    continue
-                digest = asset.get("digest") or ""
-                out.append({
-                    "tag": r["tag_name"], "name": asset["name"], "url": asset["browser_download_url"],
-                    "size": asset.get("size"), "prerelease": bool(r.get("prerelease")),
-                    "published_at": r.get("published_at"),
-                    "sha256": digest[7:].lower() if re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest) else None,
-                })
+            try:
+                out = self._releases_from_pages(cached)
+            except Exception:
+                out = self._releases_from_api()
             out.sort(key=lambda r: r["published_at"] or "", reverse=True)
             self._write_json(self.releases_cache, {"checked": time.time(), "releases": out})
             return out
         except Exception:
             return cached.get("releases", [])
+
+    def _releases_from_pages(self, cached: dict) -> list[dict]:
+        """The releases list page says which releases there are and which are pre-releases; a release's files are
+        read once from its own file list and kept (a published release's zip doesn't change)."""
+        known = {r["tag"]: r for r in cached.get("releases", []) if r.get("url")}
+        out = []
+        for r in updates.release_list(REPO, pages=RELEASES_PAGES):
+            tag = r["tag"]
+            if not _TAG.fullmatch(tag):
+                continue
+            if tag in known:
+                out.append({**known[tag], "prerelease": r["prerelease"],
+                            "published_at": r["published_at"] or known[tag].get("published_at")})
+                continue
+            asset = _release_zip(updates.release_assets(REPO, tag))
+            if asset:
+                out.append(_release_entry(tag, asset, r["prerelease"], r["published_at"]))
+        return out
+
+    def _releases_from_api(self) -> list[dict]:
+        out = []
+        for r in updates._get(RELEASES_API):
+            asset = _release_zip(r.get("assets", []))
+            if r.get("draft") or not asset or not _TAG.fullmatch(r.get("tag_name") or ""):
+                continue
+            out.append(_release_entry(r["tag_name"], asset, bool(r.get("prerelease")), r.get("published_at")))
+        return out
 
     def latest(self) -> dict | None:
         """The newest release games can get: stable ones only, unless the user turned pre-releases on."""
@@ -395,6 +418,15 @@ class HelixSR:
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(data))
         tmp.replace(p)
+
+
+def _release_entry(tag: str, asset: dict, prerelease: bool, published_at: str | None) -> dict:
+    digest = asset.get("digest") or ""
+    return {
+        "tag": tag, "name": asset["name"], "url": asset["browser_download_url"], "size": asset.get("size"),
+        "prerelease": bool(prerelease), "published_at": published_at,
+        "sha256": digest[7:].lower() if re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest) else None,
+    }
 
 
 def _release_zip(assets: list) -> dict | None:

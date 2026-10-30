@@ -75,6 +75,61 @@ class UpdateTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "hourly limit"):
                 updates._get(url)
 
+    def test_release_pages_are_read_without_the_api(self):
+        fx = Path(__file__).parent / "fixtures" / "github"
+        repo = "MWGIH/DeckyMultiFrameGen"
+        rels = updates.parse_release_list((fx / "releases.html").read_text(), repo)
+        self.assertEqual((len(rels), rels[0]), (10, {"tag": "v0.9.16", "prerelease": False,
+                                                     "published_at": "2026-10-30T23:13:19Z"}))
+        self.assertEqual([r["tag"] for r in rels if r["prerelease"]], ["test"])
+        assets = updates.parse_release_assets((fx / "expanded_assets.html").read_text(), repo, "v0.9.16")
+        self.assertEqual(assets, [{
+            "name": "Decky-MultiFrameGen.zip",
+            "browser_download_url": f"https://github.com/{repo}/releases/download/v0.9.16/Decky-MultiFrameGen.zip",
+            "size": 530 * 1024,
+            "digest": "sha256:584615f8c34df3bfb746deed9c286a3436ad63fc8d580608d2da790575a49274"}])
+
+    def test_latest_release_reads_the_redirect_and_file_list(self):
+        fx = Path(__file__).parent / "fixtures" / "github"
+        with mock.patch.object(updates, "latest_release_tag", return_value="v0.9.16"), \
+                mock.patch.object(updates, "_page", return_value=(fx / "expanded_assets.html").read_text()), \
+                mock.patch.object(updates, "_get", side_effect=AssertionError("no API call")):
+            rel = updates.latest_release(updates.SELF_REPO)
+        self.assertEqual((rel["tag_name"], rel["assets"][0]["name"]), ("v0.9.16", "Decky-MultiFrameGen.zip"))
+
+    def test_prefixed_tags_come_from_the_releases_page(self):
+        page = "".join(
+            f'<section data-release-anchor="{t}"><a href="/x/y/releases/tag/{t}">{t}</a>'
+            f'{"<span>Pre-release</span>" if pre else ""}</section>'
+            for t, pre in [("render-v4.7.0", False), ("plugin-v4.8.0", True), ("plugin-v4.7.0-beta.1", False),
+                           ("plugin-v4.6.0", False)])
+        with mock.patch.object(updates, "_page", return_value=page), \
+                mock.patch.object(updates, "_get", side_effect=AssertionError("no API call")):
+            self.assertEqual(updates.latest_tag("x/y", "plugin-v"), "plugin-v4.6.0")
+
+    def test_api_is_the_fallback_and_a_used_up_limit_keeps_the_last_answer(self):
+        with mock.patch.object(updates, "latest_release_tag", return_value=None), \
+                mock.patch.object(updates, "_get", return_value={"tag_name": "v1"}):
+            self.assertEqual(updates.upstream("a/b", "0.5")["latest"], "v1")
+        with mock.patch.object(updates, "latest_release_tag", return_value=None), \
+                mock.patch.object(updates, "_get", side_effect=RuntimeError(updates.LIMIT_MESSAGE)):
+            r = updates.upstream("a/b", "0.5")
+        self.assertEqual((r["latest"], r["newer_upstream"]), ("v1", True))
+
+    def test_api_answers_are_kept_on_disk(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "cache.json"
+            updates._CACHE.clear()
+            with mock.patch.object(updates, "_CACHE_FILE", f):
+                updates._CACHE["u"] = ('W/"e"', {"tag_name": "v2"})
+                updates._save_cache()
+            updates._CACHE.clear()
+            with mock.patch.object(updates, "_CACHE_FILE", None):
+                updates.use_cache_file(f)
+            self.assertEqual(updates._CACHE["u"], ('W/"e"', {"tag_name": "v2"}))
+            updates._CACHE.clear()
+
     def test_test_builds_setting_defaults_to_the_installed_kind(self):
         import tempfile
         from pathlib import Path
@@ -95,6 +150,8 @@ class UpdateTests(unittest.TestCase):
             raise RuntimeError("offline")
         with mock.patch.object(updates, "_get", side_effect=fake_get), \
                 mock.patch.object(updates, "latest_release_tag", return_value=None), \
+                mock.patch.object(updates, "_page", side_effect=RuntimeError("offline")), \
+                mock.patch.object(main.FSR4, "version", return_value="1.0"), \
                 mock.patch.object(main.HELIXSR, "releases", return_value=[]):
             r = asyncio.run(main.Plugin().check_updates())
         self.assertEqual(set(r), {"plugin", "optiscaler", "helixsr", "mako", "fsr4injector"})
@@ -103,6 +160,17 @@ class UpdateTests(unittest.TestCase):
         self.assertNotIn("error", r["optiscaler"])   # only the upstream check failed
         self.assertIn("upstream_error", r["optiscaler"])
         self.assertEqual((r["mako"]["latest"], r["mako"]["newer_upstream"]), ("plugin-v99.0.0", True))
+
+    def test_fsr4injector_not_installed_checks_nothing(self):
+        with mock.patch.object(main.FSR4, "version", return_value=None), \
+                mock.patch.object(main.FSR4, "latest", side_effect=AssertionError("no check")), \
+                mock.patch.object(updates, "_page", side_effect=RuntimeError("offline")), \
+                mock.patch.object(updates, "_get", side_effect=RuntimeError(updates.LIMIT_MESSAGE)), \
+                mock.patch.object(updates, "latest_release_tag", return_value=None), \
+                mock.patch.object(main.HELIXSR, "releases", return_value=[]):
+            r = asyncio.run(main.Plugin().check_updates())
+        self.assertEqual(r["fsr4injector"]["update_available"], False)
+        self.assertNotIn("error", r["optiscaler"])
         self.assertFalse(r["helixsr"]["update_available"])
 
 

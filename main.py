@@ -27,6 +27,7 @@ OPTI_PLAIN_VARIANT = "rdna23-int8"   # per game, see _opti_variant
 OPTI_PLAIN_GAMES = {"4115450"}   # Phantom Blade Zero
 MAKO = MakoPlugin()  # MAKO Decky's backend (vendored); its methods are exposed below as mako_<name>
 FSR4 = FSR4Injector(Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_SETTINGS_DIR))
+updates.use_cache_file(Path(decky.DECKY_PLUGIN_RUNTIME_DIR) / "github-api-cache.json")
 _APPID = re.compile(r"\d{1,10}")
 
 
@@ -716,6 +717,8 @@ class Plugin:
                 return await work()
             except Exception as exc:
                 decky.logger.warning(f"update check: {exc}")
+                if updates.is_rate_limited(exc):
+                    return {"update_available": False}   # nothing kept to answer from yet: the next check will
                 return {"error": str(exc)}
 
         async def plugin():
@@ -745,6 +748,8 @@ class Plugin:
 
         async def fsr4injector():
             installed = FSR4.version()
+            if not installed:
+                return {"installed": None, "available": None, "update_available": False}
             rel = await asyncio.to_thread(FSR4.latest, True)
             available = rel["version"] if rel else None
             return {"installed": installed, "available": available,
