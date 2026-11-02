@@ -28,6 +28,7 @@ import {
 } from "./api";
 import { Content as MakoContent } from "./mako/components/Content";
 import { startDailyUpdateCheck } from "./dailyUpdateCheck";
+import { PLUGIN_NAME, reopenAfterUpdate } from "./reopenAfterUpdate";
 import { useTouchScroll } from "./touchScroll";
 
 const PICKED_KEY = "multifg:picked";
@@ -170,8 +171,9 @@ function Content() {
 
 export default definePlugin(() => {
   const stopUpdateCheck = startDailyUpdateCheck();
+  reopenAfterUpdate().catch(() => {});
   return {
-    name: "Decky MultiFrameGen",
+    name: PLUGIN_NAME,
     titleView: <div className={staticClasses.Title}>MultiFrameGen</div>,
     alwaysRender: true,
     content: <Content />,
