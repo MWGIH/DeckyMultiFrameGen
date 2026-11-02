@@ -58,7 +58,8 @@ class FSR4Injector:
         with self.lock:
             if self._mods and self._mods[0] == version:
                 return self._mods[1]
-            for name in MODULES + ("fsr4_env",):
+            # fsr4_env, and from 1.1.0 the dk_* helpers the fsr4_* modules import, come from the release too
+            for name in [n for n in sys.modules if n in MODULES or n == "fsr4_env" or n.startswith("dk_")]:
                 sys.modules.pop(name, None)
             path = str(self.plugin_dir)
             if path not in sys.path:

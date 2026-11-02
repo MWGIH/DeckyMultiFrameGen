@@ -111,7 +111,21 @@ def opti_logging(folder):
     return bool(m and m.group(1).lower() == "true")
 
 
+def no_scaler_with_anticheat(j: dict) -> dict:
+    """HelixSR 3.1 treats games with anti-cheat like any other and offers (and recommends) HelixSR Scaler there; the
+    plugin keeps to what HelixSR did before: only the FSR drop-in in a game with anti-cheat (HelixSR Scaler swaps the
+    game's DLLs, which risks an online ban; OptiScaler + HelixSR is the way for those games)."""
+    if not j.get("anticheat") or "scaler" not in (j.get("ways") or []) and j.get("recommended") != "scaler":
+        return j
+    ways = [w for w in j.get("ways") or [] if w != "scaler"]
+    rec = j.get("recommended")
+    if rec == "scaler":
+        rec = "fsr" if "fsr" in ways else None
+    return {**j, "ways": ways, "recommended": rec, "blocked": j.get("blocked") or (None if rec else "anti-cheat")}
+
+
 def describe20(b, j, here=None):
+    j = no_scaler_with_anticheat(j)
     way = j.get("installed")
     log = None
     # helixsr.log; for HelixSR Scaler also OptiScaler's own log, which is there even when the game stops before
@@ -207,6 +221,18 @@ def main20(here, cmd, args):
     if cmd == "install":
         route = args[1] if len(args) > 1 else None
         way = WAY_OUT.get(route, "auto")
+        if way == "auto":
+            # HelixSR's own pick, as the plugin shows it (HelixSR 3.1 would pick HelixSR Scaler in a game with
+            # anti-cheat)
+            games = call20(b, here, "games", "--folder", folder)["games"]
+            want = Path(folder).resolve()
+            game = next((g for g in games if Path(g["folder"]).resolve() == want), None)
+            if game and game.get("anticheat"):
+                rec = no_scaler_with_anticheat(game).get("recommended")
+                if not rec:
+                    raise SystemExit(f"{game.get('name')} has anti-cheat ({', '.join(game['anticheat'])}) and no "
+                                     "FSR 3.1: HelixSR Scaler isn't offered there. Use OptiScaler + HelixSR instead.")
+                way = rec
         extra = ["--scaler", str(here / "helixsr-scaler")]
         # a way picked in the plugin: the user confirmed it (anti-cheat warning included)
         if way == "scaler":

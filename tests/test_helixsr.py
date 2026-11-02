@@ -338,3 +338,24 @@ class InstallerBridgeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AntiCheatTests(unittest.TestCase):
+    """HelixSR 3.1 offers HelixSR Scaler in games with anti-cheat; the plugin keeps it to the FSR drop-in there."""
+
+    def setUp(self):
+        from multifg import helix_bridge
+        self.f = helix_bridge.no_scaler_with_anticheat
+
+    def test_scaler_taken_out_and_fsr_recommended(self):
+        j = self.f({"anticheat": ["Easy Anti-Cheat"], "ways": ["scaler", "fsr"], "recommended": "scaler",
+                    "blocked": None})
+        self.assertEqual((j["ways"], j["recommended"], j["blocked"]), (["fsr"], "fsr", None))
+
+    def test_no_fsr_leaves_it_blocked(self):
+        j = self.f({"anticheat": ["BattlEye"], "ways": ["scaler"], "recommended": "scaler", "blocked": None})
+        self.assertEqual((j["ways"], j["recommended"], j["blocked"]), ([], None, "anti-cheat"))
+
+    def test_games_without_anticheat_unchanged(self):
+        j = {"anticheat": [], "ways": ["scaler", "fsr"], "recommended": "scaler", "blocked": None}
+        self.assertIs(self.f(j), j)
