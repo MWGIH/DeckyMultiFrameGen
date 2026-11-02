@@ -20,46 +20,47 @@ without juggling several plugins:
 See [CREDITS.md](CREDITS.md) for who made what.
 
 **See it in action:** the [Gaming On Steam](https://www.youtube.com/@gaming_onsteam) YouTube channel tests this plugin on
-the Steam Deck, with game-by-game results and performance updates as it develops.
+the Steam Deck, with game-by-game results and performance updates.
 
 ## Status
 
-Early development.
+**Version 1.0.0 is out.** Install it from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
+(see [Install](#install)). What it does:
 
-- [x] Detects the game you're on: the running game, else the game page open in your library, else one you pick.
-- [x] Shows which backends are installed, including installs made by the original plugins.
-- [x] Remembers which backend each game should use.
-- [x] HelixSR: downloads the official release, runs HelixSR's own setup from the plugin (no Konsole), and installs
-      or removes it per game with HelixSR's own installer (FSR drop-in or HelixSR Scaler), setting launch options
-      when needed.
-- [x] OptiScaler: installs Decky Framegen's OptiScaler bundle (downloaded from the same upstream releases) and
-      patches or unpatches games with Decky Framegen's own logic, setting launch options.
-- [x] MAKO: MAKO Decky's full controls (install, profiles, frame generation, scaling, shaders, Flatpak and Remote
-      Play setup) inside this plugin, with the MAKO Renderer downloaded from MAKO's releases; choosing MAKO for a game
-      adds MAKO's launcher to its launch options.
-- [x] Switching a game to another backend takes the previous one out of the game and restores its launch options.
-- [x] Choosing Use sets the game up by itself: OptiScaler is patched in or out, HelixSR (HelixSR Scaler, or OptiScaler
-      + HelixSR) and FSR4 Injector go in or out, with no separate patch buttons. Every game file a backend replaces or
-      deletes is kept aside first (OptiScaler: `<name>.b`; HelixSR: `<name>.original.dll` or its backup folder) and
-      put back when the game's Use changes, and the backup is deleted once it's restored. Changing OptiScaler's proxy
-      DLL or HelixSR's Method in the game's panel repatches straight away.
-- [x] OptiScaler + MAKO together: OptiScaler upscales in the game and MAKO's launcher goes into OptiScaler's launch
-      options.
-- [x] HelixSR + MAKO together: HelixSR upscales in the game (its own install) and MAKO's launcher stays in the game's
-      launch options.
-- [x] Backends checks that the MAKO Renderer is installed when MAKO is, and offers to install it if not.
-- [x] MAKO updates: a daily GitHub Actions job (`.github/workflows/mako-update.yml`, `scripts/update_mako.py`) merges
-      each new MAKO Decky release in and publishes a MultiFrameGen release, which Check for updates then offers.
-- [x] Check for updates (Backends): updates this plugin through Decky's own installer, OptiScaler and MAKO to the
-      versions this plugin brings, and HelixSR to its newest release. Newer Decky Framegen or MAKO releases are
-      listed too; they arrive with the next MultiFrameGen release.
-- [x] OptiScaler + HelixSR: HelixSR goes in as OptiScaler's FSR 3.X upscaler (OptiScaler.ini points FfxDx12Path at
-      it), so the game's own files stay untouched. Use it in games whose anti-cheat blocks HelixSR's FSR drop-in
-      (Easy Anti-Cheat in Gears of War: E-Day). Can be combined with MAKO.
-- [x] FSR4 Injector: installs FSR4 Injector's release and AMD's FSR 4 library from Backends (with
-      updates under Check for updates), and the Use choices FSR4 Injector and FSR4 Injector + MAKO put it in the game
-      with `WINEDLLOVERRIDES=amdxc64=n,b` in the launch options. AMD's FSR 4 watermark can be switched on per game
-      (`FSR_WATERMARK=1`), and the game's panel shows whether FSR 4 ran in the last session.
+- Detects the game you're on: the running game, else the game page open in your library, else one you pick.
+- Shows which backends are installed, including installs made by the original plugins.
+- Remembers which backend each game should use.
+- HelixSR: downloads the official release, runs HelixSR's own setup from the plugin (no Konsole), and installs
+  or removes it per game with HelixSR's own installer (FSR drop-in or HelixSR Scaler), setting launch options
+  when needed.
+- OptiScaler: installs Decky Framegen's OptiScaler bundle (downloaded from the same upstream releases) and
+  patches or unpatches games with Decky Framegen's own logic, setting launch options.
+- MAKO: MAKO Decky's full controls (install, profiles, frame generation, scaling, shaders, Flatpak and Remote
+  Play setup) inside this plugin, with the MAKO Renderer downloaded from MAKO's releases; choosing MAKO for a game
+  adds MAKO's launcher to its launch options.
+- Switching a game to another backend takes the previous one out of the game and restores its launch options.
+- Choosing Use sets the game up by itself: OptiScaler is patched in or out, HelixSR (HelixSR Scaler, or OptiScaler
+  + HelixSR) and FSR4 Injector go in or out, with no separate patch buttons. Every game file a backend replaces or
+  deletes is kept aside first (OptiScaler: `<name>.b`; HelixSR: `<name>.original.dll` or its backup folder) and
+  put back when the game's Use changes, and the backup is deleted once it's restored. Changing OptiScaler's proxy
+  DLL or HelixSR's Method in the game's panel repatches straight away.
+- OptiScaler + MAKO together: OptiScaler upscales in the game and MAKO's launcher goes into OptiScaler's launch
+  options.
+- HelixSR + MAKO together: HelixSR upscales in the game (its own install) and MAKO's launcher stays in the game's
+  launch options.
+- Backends checks that the MAKO Renderer is installed when MAKO is, and offers to install it if not.
+- MAKO updates: a daily GitHub Actions job (`.github/workflows/mako-update.yml`, `scripts/update_mako.py`) merges
+  each new MAKO Decky release in and publishes a MultiFrameGen release, which Check for updates then offers.
+- Check for updates (Backends): updates this plugin through Decky's own installer, OptiScaler and MAKO to the
+  versions this plugin brings, and HelixSR to its newest release. Newer Decky Framegen or MAKO releases are
+  listed too; they arrive with the next MultiFrameGen release.
+- OptiScaler + HelixSR: HelixSR goes in as OptiScaler's FSR 3.X upscaler (OptiScaler.ini points FfxDx12Path at
+  it), so the game's own files stay untouched. Use it in games whose anti-cheat blocks HelixSR's FSR drop-in
+  (Easy Anti-Cheat in Gears of War: E-Day). Can be combined with MAKO.
+- FSR4 Injector: installs FSR4 Injector's release and AMD's FSR 4 library from Backends (with
+  updates under Check for updates), and the Use choices FSR4 Injector and FSR4 Injector + MAKO put it in the game
+  with `WINEDLLOVERRIDES=amdxc64=n,b` in the launch options. AMD's FSR 4 watermark can be switched on per game
+  (`FSR_WATERMARK=1`), and the game's panel shows whether FSR 4 ran in the last session.
 
 If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
 Renderer install.
