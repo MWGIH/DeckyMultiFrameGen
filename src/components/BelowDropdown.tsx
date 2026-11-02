@@ -25,6 +25,13 @@ function flat(options: DropdownOption[]): SingleDropdownOption[] {
   return options.flatMap((o) => (o.options ? flat(o.options) : [o as SingleDropdownOption]));
 }
 
+// Steam hides scrollbars everywhere; a long list shows one so it's clear there are more choices below
+const LIST_CSS = `
+.multifg-picker-list::-webkit-scrollbar { display: block; width: 6px; }
+.multifg-picker-list::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+.multifg-picker-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.55); border-radius: 3px; }
+`;
+
 function PickerModal({
   title,
   options,
@@ -41,9 +48,18 @@ function PickerModal({
   return (
     <ModalRoot onCancel={closeModal} closeModal={closeModal}>
       <DialogHeader>{title}</DialogHeader>
+      <style>{LIST_CSS}</style>
       <Focusable
+        className="multifg-picker-list"
         flow-children="column"
-        style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "60vh", overflowY: "auto" }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px",
+          maxHeight: "60vh",
+          overflowY: "auto",
+          paddingRight: options.length > 6 ? "10px" : undefined,
+        }}
       >
         {options.map((o, i) => (
           <DialogButton
