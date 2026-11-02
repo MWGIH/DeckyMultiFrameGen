@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { OptiLog } from "./OptiLog";
+import { MENU_POSITION } from "./BelowDropdown";
 import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, showModal, ToggleField } from "@decky/ui";
 import { ProgressRow } from "./ProgressRow";
 import { toaster } from "@decky/api";
@@ -232,6 +233,7 @@ export function OptiScalerGame({
           selectedOption={dll}
           disabled={busy}
           onChange={(o) => changeDll(String(o.data))}
+          contextMenuPositionOptions={MENU_POSITION}
         />
       </PanelSectionRow>
       <PanelSectionRow>
