@@ -14,7 +14,7 @@ import { installMako } from "../mako/api/makoApi";
 import { rememberUpdates } from "../dailyUpdateCheck";
 import { promptRestart } from "../restartPrompt";
 
-const PLUGIN_NAME = "Decky MultiFrameGen"; // plugin.json's name: Decky replaces the installed copy with that name
+import { markUpdating, PLUGIN_NAME } from "../reopenAfterUpdate";
 
 const toast = (body: string) => toaster.toast({ title: "Updates", body });
 
@@ -30,6 +30,8 @@ async function updatePlugin(
     }
   ).DeckyBackend;
   if (!backend) throw new Error("Decky's installer isn't reachable");
+  // the new copy closes and reopens the panel once it loads, so it shows the new version's state
+  markUpdating();
   await backend.call(
     "utilities/install_plugin",
     url,
