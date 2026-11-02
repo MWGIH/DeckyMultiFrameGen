@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { OptiLog } from "./OptiLog";
-import { MENU_POSITION } from "./BelowDropdown";
-import { ButtonItem, ConfirmModal, DropdownItem, Field, PanelSectionRow, showModal, ToggleField } from "@decky/ui";
+import { BelowDropdown } from "./BelowDropdown";
+import { ButtonItem, ConfirmModal, Field, PanelSectionRow, showModal, ToggleField } from "@decky/ui";
 import { ProgressRow } from "./ProgressRow";
 import { toaster } from "@decky/api";
 import {
@@ -226,14 +226,13 @@ export function OptiScalerGame({
       </PanelSectionRow>
       {game.patched && <OptiLog appid={appid} />}
       <PanelSectionRow>
-        <DropdownItem
+        <BelowDropdown
           label="Proxy DLL"
           description={`${PROXY_DLL_OPTIONS.find((o) => o.value === dll)?.hint ?? ""}${game.patched ? " Changing it repatches the game." : ""}`}
           rgOptions={PROXY_DLL_OPTIONS.map((o) => ({ data: o.value, label: o.label }))}
           selectedOption={dll}
           disabled={busy}
           onChange={(o) => changeDll(String(o.data))}
-          contextMenuPositionOptions={MENU_POSITION}
         />
       </PanelSectionRow>
       <PanelSectionRow>
