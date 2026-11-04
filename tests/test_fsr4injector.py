@@ -56,7 +56,7 @@ class FSR4InjectorTests(unittest.TestCase):
         unpack_release(self.fsr4)
         backend = next(b for b in run(self.plugin.get_backends()) if b["id"] == "fsr4injector")
         self.assertTrue(backend["installed"])
-        self.assertEqual(backend["version"], "1.0.0")
+        self.assertEqual(backend["version"], "1.2.0")
         r = run(self.plugin.set_game_backend("2420110", "fsr4injector", "-dx12"))
         self.assertTrue(r["fsr4"]["ok"], r)
         self.assertEqual(r["launch_options"], f"{TOKEN} %command% -dx12")
@@ -96,7 +96,7 @@ class FSR4InjectorTests(unittest.TestCase):
         unpack_release(self.fsr4)
         run(self.plugin.set_game_backend("2420110", "fsr4injector", ""))
         d = run(self.plugin.fsr4_details())
-        self.assertEqual((d["version"], d["gpu"]["pci"], d["amd"]["ready"]), ("1.0.0", "1002:163f", True))
+        self.assertEqual((d["version"], d["gpu"]["pci"], d["amd"]["ready"]), ("1.2.0", "1002:163f", True))
         self.assertEqual(d["launch_options"]["watermark"], f"{TOKEN} FSR_WATERMARK=1 %command%")
         self.assertEqual([(g["appid"], g["name"], g["verdict"]) for g in d["games"]],
                          [("2420110", "Some FSR 3.1 Game", "unknown")])

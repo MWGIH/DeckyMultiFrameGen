@@ -6,18 +6,21 @@
 Rules that make rollback safe:
   * we only ever add files; a file of the same name that is not ours stops the install,
   * the manifest records every file we wrote with its sha256, and we delete only files whose hash still matches,
-  * launch options: we remember the original string and, on removal, restore it when nobody edited them since,
-    otherwise we take out only our own token.
+  * launch options: our amdxc64=n,b goes into WINEDLLOVERRIDES next to whatever is already there (the user's own
+    overrides or another tool's; a game can have only one such variable). On removal we restore the original
+    string when nobody edited the options since, otherwise we take out only our own entry.
 """
 
 import calendar
 import hashlib
 import json
 import os
-import shutil
+import re
+import secrets
 import time
 
-from fsr4_dll import sha256_file
+import dk_fs
+from dk_fs import sha256_file
 
 SHIM = "amdxc64.dll"
 FFX = "amdxcffx64.dll"
@@ -26,6 +29,8 @@ STATUS = "fsr4injector.status.json"
 MODE_NATIVE = "native"  # the game's own FidelityFX path (FSR 3.1+)
 # Required: without it Wine loads its builtin amdxc64 from system32 and ignores ours (checked on Proton 11).
 TOKEN = "WINEDLLOVERRIDES=amdxc64=n,b"
+ENTRY = "amdxc64=n,b"  # our entry inside WINEDLLOVERRIDES
+_OVERRIDES = re.compile(r"""^WINEDLLOVERRIDES=(["']?)(.*)\1$""")
 WATERMARK = "FSR_WATERMARK=1"  # the shim turns it into AMD's own on-screen FSR 4 watermark
 
 
@@ -38,72 +43,157 @@ class InstallError(Exception):
     pass
 
 
+def _check_manifest(data):
+    """dk_fs's validate hook: app id -> an entry with the fields everything here relies on."""
+    dk_fs.require_object(data)
+    for appid, e in data.items():
+        if (not appid.isdigit() or not isinstance(e, dict) or not isinstance(e.get("target_dir"), str)
+                or not isinstance(e.get("files"), dict)
+                or not all(isinstance(k, str) and isinstance(v, str) for k, v in e["files"].items())
+                or not isinstance(e.get("launch_original", ""), str)
+                or not isinstance(e.get("launch_applied") or "", str)):
+            raise ValueError(f"entry {appid!r} is not a game set up by this plugin")
+
+
 class Manifest:
-    """appid -> {target_dir, files: {name: sha256}, launch_original, launch_applied, enabled_at}"""
+    """appid -> {target_dir, files: {name: sha256}, launch_original, launch_applied, enabled_at, verified, missed}
+
+    It is the only record of what the plugin put into game folders. A damaged file comes back from its last-good
+    copy; when that is impossible (or the file cannot be read) `problem` says why and nothing is saved over it, so
+    the record is never lost to a later change."""
 
     def __init__(self, path):
-        self.path = path
+        self.path, self.entries, self.problem, self.recovered = path, {}, "", ""
         try:
-            with open(path, encoding="utf-8") as f:
-                self.entries = {int(k): v for k, v in json.load(f).items()}
-        except (OSError, ValueError):
-            self.entries = {}
+            loaded = dk_fs.load_json(path, {}, validate=_check_manifest)
+        except OSError as e:
+            self.problem = f"The list of games set up could not be read ({dk_fs.shown(e)})."
+            return
+        if loaded.status == "lost":
+            self.problem = ("The list of games set up is damaged, so no game can be changed. It is kept as it is; "
+                            "the Decky log has the details.")
+        self.recovered = loaded.detail if loaded.status in ("lost", "recovered") else ""
+        self.entries = {int(k): v for k, v in loaded.value.items()}
 
     def save(self):
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({str(k): v for k, v in self.entries.items()}, f, indent=1)
-        os.replace(tmp, self.path)
+        if self.problem:
+            raise InstallError(self.problem)
+        dk_fs.write_json(self.path, {str(k): v for k, v in self.entries.items()})
+
+
+def _override_entries(word):
+    """The entries of a WINEDLLOVERRIDES=... launch option word, or None for any other word."""
+    match = _OVERRIDES.match(word)
+    return [e for e in match.group(2).split(";") if e] if match else None
+
+
+def _without_amdxc64(entries):
+    """Entries with amdxc64 taken out; in a list sharing one mode ('dxgi,amdxc64=n,b') the others keep it."""
+    kept = []
+    for entry in entries:
+        dlls, sep, mode = entry.partition("=")
+        rest = [d for d in dlls.split(",") if d and d.lower() != "amdxc64"]
+        if rest:
+            kept.append(",".join(rest) + sep + mode)
+    return kept
+
+
+def _overrides_word(entries):
+    value = ";".join(entries)
+    return f'WINEDLLOVERRIDES="{value}"' if ";" in value else f"WINEDLLOVERRIDES={value}"
+
+
+def _without_ours(words):
+    """Launch option words with our amdxc64 entry taken out of WINEDLLOVERRIDES (dropped once it is empty)."""
+    out = []
+    for word in words:
+        entries = _override_entries(word)
+        if entries is not None:
+            kept = _without_amdxc64(entries)
+            if not kept:
+                continue
+            word = _overrides_word(kept)
+        out.append(word)
+    return out
+
+
+def has_token(options):
+    """Whether the launch options load our amdxc64: amdxc64=n,b in WINEDLLOVERRIDES, alone or in a DLL list."""
+    for word in (options or "").split():
+        for entry in _override_entries(word) or []:
+            dlls, _, mode = entry.partition("=")
+            if mode == "n,b" and "amdxc64" in (d.lower() for d in dlls.split(",")):
+                return True
+    return False
 
 
 def with_token(options, watermark=False):
-    """Launch options with our token (and the watermark) in front; %command% added when the options had none."""
-    words = [w for w in (options or "").split() if w != TOKEN and not (watermark and w == WATERMARK)]
-    options = " ".join(words)
-    if "WINEDLLOVERRIDES=" in options:
-        raise InstallError("this game already sets WINEDLLOVERRIDES in its launch options: turn off \"Add launch option "
-                           "automatically\" and add amdxc64=n,b to that override yourself")
-    if "%command%" not in options:
-        options = f"%command% {options}".strip()
-    return f"{launch_prefix(watermark)} {options}"
+    """Launch options with amdxc64=n,b merged into WINEDLLOVERRIDES (and the watermark next to it).
+
+    Without other overrides this is our token in front, as it always was; %command% is added when the options had
+    none (they were the game's arguments).
+    """
+    words = [w for w in (options or "").split() if not (watermark and w == WATERMARK)]
+    for i, word in enumerate(words):
+        entries = _override_entries(word)
+        if entries is not None:
+            words[i] = _overrides_word(_without_amdxc64(entries) + [ENTRY])
+            if watermark:
+                words.insert(i + 1, WATERMARK)
+            break
+    else:
+        if "%command%" not in words:
+            words = ["%command%"] + words
+        words = launch_prefix(watermark).split() + words
+    if "%command%" not in words:
+        words.append("%command%")
+    return " ".join(words)
 
 
 def without_token(current, original, applied):
-    """Undo with_token: the original when untouched since, else just our words removed (a watermark the user
-    already had stays)."""
+    """Undo with_token: the original when untouched since, else just our entry and watermark taken out (other
+    overrides and a watermark the user already had stay)."""
     current = (current or "").strip()
     if current == applied:
         return original
     users_watermark = WATERMARK in (original or "").split()
-    words = [w for w in current.split() if w != TOKEN and (w != WATERMARK or users_watermark)]
+    words = [w for w in _without_ours(current.split()) if w != WATERMARK or users_watermark]
     if words == ["%command%"] and "%command%" not in original:
         return original
     return " ".join(words)
 
 
-def _replace_via_tmp(dst, fill):
-    """Write through a temp file, so a failed copy (a full SD card) never leaves half a DLL or the temp file."""
-    tmp = dst + ".fsr4i-tmp"
-    try:
-        fill(tmp)
-        os.replace(tmp, dst)
-    except OSError:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
+# Game files: never written through a symlink (dk_fs's no_links), and a failed copy (a full SD card) leaves neither
+# half a DLL nor its temp file. The game folder itself may be a link (a game moved to another drive), so it is
+# resolved first; no_links alone would refuse it.
+
+def _real(dst):
+    return os.path.join(os.path.realpath(os.path.dirname(dst)), os.path.basename(dst))
 
 
 def _copy(src, dst):
-    _replace_via_tmp(dst, lambda tmp: shutil.copyfile(src, tmp))
+    with open(src, "rb") as f:
+        dk_fs.write_atomic(_real(dst), f, no_links=True)
+
+
+def _link_or_copy(src, dst):
+    """A hard link to src where the file system allows it, so every game shares one 82 MB copy of AMD's library;
+    a copy on another drive (an SD card), on FAT/exFAT or where links are refused. The link gets a fresh temp name
+    and is renamed into place (a rename replaces a symlink itself, never its target)."""
+    tmp = f"{dst}.{secrets.token_hex(6)}.fsr4i-tmp"
+    try:
+        os.link(src, tmp)
+    except OSError:
+        return _copy(src, dst)
+    try:
+        os.replace(tmp, dst)
+    except OSError:
+        os.remove(tmp)
+        raise
 
 
 def _write(dst, data):
-    def fill(tmp):
-        with open(tmp, "wb") as f:
-            f.write(data)
-    _replace_via_tmp(dst, fill)
+    dk_fs.write_atomic(_real(dst), data, no_links=True)
 
 
 def gpu_file_content(gpu):
@@ -129,7 +219,7 @@ def enable(manifest, game, shim_path, ffx_path, launch_options, gpu=None, launch
             raise InstallError(f"{name} already exists in the game folder and is not ours; leaving it alone")
 
     # Our token can already be there (left by an earlier install); it is never part of the user's original.
-    original = " ".join(w for w in (launch_options or "").split() if w != TOKEN)
+    original = " ".join(_without_ours((launch_options or "").split()))
     entry = manifest.entries.get(appid) or {"target_dir": target, "files": {}, "launch_original": original}
     entry.setdefault("mode", MODE_NATIVE)
     new_options = with_token(launch_options, watermark) if launch else None
@@ -139,30 +229,28 @@ def enable(manifest, game, shim_path, ffx_path, launch_options, gpu=None, launch
             if name == GPU:
                 _write(dst, gpu_file_content(gpu))
             else:
-                _copy(sources[name], dst)
+                (_link_or_copy if name == FFX else _copy)(sources[name], dst)
             entry["files"][name] = want[name]
             manifest.entries[appid] = entry  # recorded as soon as a file exists, so a crash can still be undone
             manifest.save()
+        if launch:
+            entry["launch_applied"] = new_options
+        entry["enabled_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        manifest.save()
+    except dk_fs.UnsafePath as e:
+        raise InstallError("a file the plugin writes is a link in the game folder; leaving it alone") from e
     except OSError as e:
-        raise InstallError(f"could not write to the game folder: {e}") from e
-
-    if launch:
-        entry["launch_applied"] = new_options
-    entry["enabled_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    manifest.save()
+        raise InstallError(f"could not write to the game folder ({dk_fs.shown(e)})") from e
     return new_options if launch else (launch_options or "").strip()
 
 
 def set_watermark(manifest, appid, current, on):
     """Add or take out FSR_WATERMARK=1 in a game whose launch options we manage; None when we do not."""
     entry = manifest.entries.get(appid)
-    if not entry or not entry.get("launch_applied"):
+    if not entry or entry.get("launch_applied") is None:  # None: the user manages them ("" is ours, emptied)
         return None
     if on:
-        try:
-            new = with_token(current, True)
-        except InstallError:
-            return None
+        new = with_token(current, True)
     else:
         users_watermark = WATERMARK in entry.get("launch_original", "").split()
         new = " ".join(w for w in (current or "").split() if w != WATERMARK or users_watermark)
@@ -217,9 +305,9 @@ def disable(manifest, appid, launch_options):
     for name in (STATUS, STATUS + ".tmp"):  # written by the shim at runtime
         try:
             os.remove(os.path.join(entry["target_dir"], name))
-        except OSError:
+        except OSError:  # usually absent (the game never ran); a leftover status is harmless and never ours to keep
             pass
-    if entry.get("launch_applied"):
+    if entry.get("launch_applied") is not None:
         restored = without_token(launch_options, entry.get("launch_original", ""), entry["launch_applied"])
     else:  # the user manages this game's launch options
         restored = (launch_options or "").strip()
@@ -237,7 +325,7 @@ def read_status(manifest, appid):
         # errors="replace": the Proton path in it comes from a Windows code page, not always valid UTF-8
         with open(os.path.join(entry["target_dir"], STATUS), encoding="utf-8", errors="replace") as f:
             status = json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     return status if isinstance(status, dict) else None
 
@@ -249,20 +337,41 @@ def _epoch(iso):
         return None
 
 
+def _written_since(status, session_start):
+    started = _epoch((status or {}).get("started"))
+    return started is not None and started >= session_start - 5  # shim clock has 1 s resolution
+
+
+def running_model(status, session_start):
+    """'FSR <version> (<model>)' once FSR 4 runs in the current session, else None.
+
+    Only success counts: mid-session a status passes through states that read as failures (FFX requested, its DLL
+    not loaded yet), so failures stay with session_verdict at the end. A status from an earlier session never counts.
+    """
+    if not session_start or not _written_since(status, session_start) or verdict(status)[0] != "ok":
+        return None
+    return _model(status)
+
+
+def _model(status):
+    return f"FSR {str(status.get('provider') or '').strip(' *') or '4'} ({status.get('active')})"
+
+
 def session_verdict(status, session_start, launch_options, managed=True):
     """verdict() for a session that just ended: a status not written during it means our DLL never loaded.
 
     managed: whether the plugin set the launch options (else the user adds the token by hand).
+    "missed": not loaded although the token is there; often harmless (closed in a launcher, DirectX 11 mode), so the
+    caller only warns when it happens again.
     """
-    started = _epoch((status or {}).get("started"))
-    if session_start and (started is None or started < session_start - 5):  # shim clock has 1 s resolution
-        if TOKEN not in (launch_options or "").split():
+    if session_start and not _written_since(status, session_start):
+        if not has_token(launch_options):
             if not managed:
                 return "failed", (f"FSR4 Injector was not loaded: add {TOKEN} in front of %command% in the game's "
                                   "launch options (Copy launch options in the plugin).")
             return "failed", (f"FSR4 Injector was not loaded: the game's launch options no longer contain {TOKEN} "
                               "(another tool may have changed them). Toggle the game off and on to repair.")
-        return "failed", ("FSR4 Injector's DLL was not loaded in this session (the game did not start DirectX 12, "
+        return "missed", ("FSR4 Injector's DLL was not loaded in this session (the game did not start DirectX 12, "
                           "for example it ran in DirectX 11 mode or was closed in its launcher).")
     return verdict(status)
 
@@ -275,7 +384,7 @@ def verdict(status):
         return "unused", "Pick AMD FSR as the upscaler in the game's graphics settings."
     active = status.get("active")
     if active in ("INT8_LITE", "INT8", "INT8_NAVI2", "FP8"):
-        return "ok", f"FSR {str(status.get('provider') or '').strip(' *') or '4'} ({active}) ran in the last session."
+        return "ok", f"{_model(status)} ran in the last session."
     if not status.get("dll_loaded"):
         return "failed", "The AMD FSR4 DLL did not load."
     if not status.get("family"):

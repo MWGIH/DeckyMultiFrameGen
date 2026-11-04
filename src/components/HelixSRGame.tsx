@@ -138,7 +138,7 @@ export function HelixSRGame({
 
   const eac = (game.anticheat ?? []).some((a) => /easy\s*anti-?cheat/i.test(a));
   const EAC_WARNING =
-    "Easy Anti-Cheat checks the game's FSR file and stops the game when HelixSR has replaced it: you get the anti-cheat splash, then a black screen (seen in Gears of War: E-Day). Choose OptiScaler + HelixSR for this game instead: it leaves the game's files alone, and OptiScaler ran fine in Gears of War: E-Day.";
+    "Easy Anti-Cheat checks the game's FSR file and stops the game when HelixSR's FSR drop-in has replaced it: you get the anti-cheat splash, then a black screen (seen in Gears of War: E-Day). HelixSR Scaler isn't tested with Easy Anti-Cheat, and changing game files can get you banned online. OptiScaler + HelixSR ran fine in Gears of War: E-Day.";
 
   const askInstall = () => {
     if (!eac || game.installed) {
@@ -251,7 +251,7 @@ export function HelixSRGame({
       {eac && (
         <PanelSectionRow>
           <Field
-            label="HelixSR won't work with Easy Anti-Cheat"
+            label="This game uses Easy Anti-Cheat"
             description={EAC_WARNING}
           />
         </PanelSectionRow>
@@ -260,7 +260,7 @@ export function HelixSRGame({
         <PanelSectionRow>
           <Field
             label="Anti-cheat found"
-            description={`${game.anticheat!.join(", ")}: only the FSR drop-in is allowed, and changing game files can still risk an online ban.`}
+            description={`${game.anticheat!.join(", ")}: HelixSR (from 3.1) installs here like in any other game, but changing game files can get you banned online. Play offline or single-player only.`}
           />
         </PanelSectionRow>
       )}
