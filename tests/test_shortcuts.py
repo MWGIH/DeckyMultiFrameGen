@@ -282,6 +282,15 @@ class EvolutionDirectStartTests(EvolutionElsewhereTests):
                               "-windowMode:1 -shaderCache:1 -graphicsDriver:dx11 -gpuPreference:2 -cluster:public "
                               "-language:en")
 
+    def test_optiscaler_and_helixsr_are_not_offered_for_soulframe(self):
+        g = run(main.Plugin().get_game("3000000012"))
+        self.assertEqual(g["notes_key"], "soulframe.x64.exe")
+        self.assertNotIn("optiscaler", g["choices"])
+        self.assertNotIn("optiscaler+helixsr+mako", g["choices"])
+        self.assertIn("mako", g["choices"])
+        reasons = {h["choice"]: h["reason"] for h in g["hidden"]}
+        self.assertIn("quits", reasons["optiscaler+mako"])
+
     test_found_from_the_prefix_registry = test_learned_from_the_running_game = None
 
 

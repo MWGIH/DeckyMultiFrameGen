@@ -92,6 +92,11 @@ NOT_WORKING = {
     # its FSR 3 option is gone (the game moved on to FSR 4 / DLSS / XeSS), so FSR4 Injector has nothing to upgrade, and
     # with it in, the game's FSR 4 option disappears (seen on the Deck)
     "1091500": {"fsr4injector": "takes away Cyberpunk 2077's FSR 4 option"},
+    # non-Steam games (their app id differs per user) by their .exe: Soulframe quits right after OptiScaler (stock 0.9.4
+    # too) hooks its input, with any proxy DLL, even when started without its launcher (Martin's Deck, 2026-11-08)
+    "soulframe.x64.exe": {"optiscaler": "Soulframe quits as soon as OptiScaler loads",
+                          "helixsr": "Soulframe quits as soon as HelixSR Scaler (an OptiScaler build) loads",
+                          "fsr4injector": "Soulframe has no FSR 3.1 DLL"},
 }
 
 # HelixSR ways into a game (direct = FSR drop-in, scaler = HelixSR Scaler) that testing found break it: not offered
@@ -113,9 +118,20 @@ def helix_ways(appid: str, status: dict) -> dict:
     return {**status, "ways": ways, "route": route, "hidden_ways": banned}
 
 
-def not_working(appid: str, choice: str) -> str | None:
-    """Why a choice is known not to work in this game, or None."""
-    parts = NOT_WORKING.get(str(appid), {})
+def exe_key(folder: str | None) -> str | None:
+    """The NOT_WORKING / GAME_NOTES key of a non-Steam game known by its .exe in its folder, or None."""
+    if not folder:
+        return None
+    try:
+        names = {n.lower() for n in os.listdir(folder)}
+    except OSError:
+        return None
+    return next((k for k in NOT_WORKING if not k.isdigit() and k in names), None)
+
+
+def not_working(appid: str, choice: str, key: str | None = None) -> str | None:
+    """Why a choice is known not to work in this game (by app id, or key from exe_key), or None."""
+    parts = NOT_WORKING.get(str(appid)) or NOT_WORKING.get(key or "", {})
     return next((why for part, why in parts.items() if part in choice.split("+")), None)
 
 

@@ -301,11 +301,11 @@ export function GameSection({
               onChanged={() => setReload((n) => n + 1)}
             />
           )}
-          {detail?.ok && GAME_NOTES[selected.appid] && (
+          {detail?.ok && (GAME_NOTES[selected.appid] ?? GAME_NOTES[detail.notes_key ?? ""]) && (
             <PanelSectionRow>
               <Field
                 label="Tested with this game"
-                description={GAME_NOTES[selected.appid]}
+                description={GAME_NOTES[selected.appid] ?? GAME_NOTES[detail.notes_key ?? ""]}
               />
             </PanelSectionRow>
           )}

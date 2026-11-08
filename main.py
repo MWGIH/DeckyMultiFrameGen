@@ -465,10 +465,11 @@ class Plugin:
                 files = await asyncio.to_thread(game_files.listing, game["install_path"])
             except Exception:
                 decky.logger.exception("game_files.detect")
+        key = game_files.exe_key(game["install_path"]) if installed and game.get("non_steam") else None
         choices = [c for c in backends.GAME_CHOICES
-                   if c == current or (game_files.fits(c, found) and not game_files.not_working(appid, c))]
+                   if c == current or (game_files.fits(c, found) and not game_files.not_working(appid, c, key))]
         hidden = [{"choice": c, "needs": game_files.labels(set(game_files.needs(c))),
-                   "reason": game_files.not_working(appid, c)}
+                   "reason": game_files.not_working(appid, c, key)}
                   for c in backends.GAME_CHOICES if c not in choices]
         return {
             "ok": True,
@@ -481,6 +482,7 @@ class Plugin:
             "all_choices": list(backends.GAME_CHOICES),   # for the panel's "Show all Use options"
             "upscalers": game_files.labels(found) if found is not None else None,
             "files": files,
+            "notes_key": key,   # a non-Steam game known by its .exe: its GAME_NOTES key (src/gameNotes.ts)
             "running_exes": running,   # Windows programs running now, to find a game .exe outside its folder
             "hidden": hidden,
             "non_steam": bool(game and game.get("non_steam")),
