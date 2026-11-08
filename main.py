@@ -433,8 +433,14 @@ class Plugin:
         game = await asyncio.to_thread(_game_record, appid)
         if not game or not game.get("non_steam"):
             return {"ok": False, "error": "Only non-Steam games need a folder chosen."}
+        # with no folder known nothing can have been patched in, so a Use chosen before is just reset
+        reset = False
         if SETTINGS.game_choice(appid) != "none":
-            return {"ok": False, "error": "Set Use to Off first: the game's files are patched in the current folder."}
+            if game["install_found"]:
+                return {"ok": False,
+                        "error": "Set Use to Off first: the game's files are patched in the current folder."}
+            SETTINGS.set_game_choice(appid, "none")
+            reset = True
         if folder:
             path = Path(folder).expanduser()
             try:
@@ -450,7 +456,7 @@ class Plugin:
             SETTINGS.set_game_value(appid, "folder", str(path))
         else:
             SETTINGS.clear_game_value(appid, "folder")
-        return {"ok": True, "folder": str(path) if folder else None}
+        return {"ok": True, "folder": str(path) if folder else None, "use_reset": reset}
 
     async def set_game_backend(self, appid: str, backend: str, current_launch_options: str | None = None,
                                dll_name: str = "") -> dict:

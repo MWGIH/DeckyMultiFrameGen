@@ -115,7 +115,11 @@ class ShortcutTests(unittest.TestCase):
         ea_game = self.home / "EA" / "Game"
         ea_game.mkdir(parents=True)
         self.assertFalse(run(p.set_game_folder(str(EA_ID), str(self.home)))["ok"])
-        self.assertTrue(run(p.set_game_folder(str(EA_ID), str(ea_game)))["ok"])
+        # a Use chosen while no folder was known doesn't block choosing one: it's reset
+        main.SETTINGS.set_game_choice(str(EA_ID), "optiscaler")
+        r = run(p.set_game_folder(str(EA_ID), str(ea_game)))
+        self.assertTrue(r["ok"] and r["use_reset"], r)
+        self.assertEqual(main.SETTINGS.game_choice(str(EA_ID)), "none")
         g = run(p.get_game(str(EA_ID)))
         self.assertTrue(g["installed"])
         self.assertEqual((g["install_path"], g["folder_source"]), (str(ea_game.resolve()), "picked"))

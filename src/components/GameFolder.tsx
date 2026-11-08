@@ -26,7 +26,8 @@ type Props = {
 // launcher (EA app, Battle.net, ...) or the guess is wrong
 export function GameFolder({ appid, detail, locked, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
-  const inUse = (detail.backend ?? "none") !== "none";
+  // only a game with a folder can have a method patched in; without one, choosing a folder resets Use
+  const inUse = Boolean(detail.installed) && (detail.backend ?? "none") !== "none";
   const via = detail.launcher;
 
   const save = async (folder: string) => {
@@ -34,6 +35,7 @@ export function GameFolder({ appid, detail, locked, onChanged }: Props) {
     try {
       const r = await setGameFolder(appid, folder);
       if (!r.ok) toast(r.error ?? "Couldn't save the folder");
+      else if (r.use_reset) toast("Folder saved. Use was set back to Off: pick it again to set the game up.");
       onChanged();
     } finally {
       setBusy(false);
