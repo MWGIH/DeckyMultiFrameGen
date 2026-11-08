@@ -101,7 +101,7 @@ export function BackendsSection(props: Props) {
         <PanelSectionRow>
           <Field
             label={updates.length > 1 ? "Updates available" : "Update available"}
-            description={`${updates.join(", ")}.${collapsed ? " Show backends, then Check for updates." : " Check for updates below."}`}
+            description={`${updates.join(", ")}.${collapsed ? " Show backends to update." : " Update below."}`}
           />
         </PanelSectionRow>
       )}

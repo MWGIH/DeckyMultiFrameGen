@@ -5,6 +5,7 @@ import { checkUpdates, type Updates } from "./api";
 const LAST_KEY = "multifg:lastUpdateCheck";
 const NOTIFIED_KEY = "multifg:notifiedUpdates";
 const AVAILABLE_KEY = "multifg:availableUpdates"; // the last check's updates, for the line above Show backends
+const RESULT_KEY = "multifg:lastUpdateResult"; // the last check's full result, for the rows under Check for updates
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TICK_MS = 60 * 60 * 1000; // looks every hour whether a day has passed since the last check
 
@@ -49,14 +50,41 @@ function readAvailable(): string[] {
   }
 }
 
+function readResult(): Updates | null {
+  try {
+    const r = JSON.parse(read(RESULT_KEY) ?? "null");
+    return r && typeof r === "object" && r.plugin ? (r as Updates) : null;
+  } catch {
+    return null;
+  }
+}
+
 const listeners = new Set<(found: string[]) => void>();
+const resultListeners = new Set<(u: Updates) => void>();
+let lastResult: Updates | null = null;
 
 // Every check (the daily one and Check for updates) leaves what it found here
 export function rememberUpdates(u: Updates): string[] {
   const found = availableUpdates(u);
+  lastResult = u;
   write(AVAILABLE_KEY, JSON.stringify(found));
+  write(RESULT_KEY, JSON.stringify(u));
   listeners.forEach((l) => l(found));
+  resultListeners.forEach((l) => l(u));
   return found;
+}
+
+// The last check's full result (the daily check's too), so Show backends lists what the line above it announced
+// without pressing Check for updates again
+export function useLastUpdateResult(): [Updates | null, (u: Updates) => void] {
+  const [u, setU] = useState<Updates | null>(() => lastResult ?? readResult());
+  useEffect(() => {
+    resultListeners.add(setU);
+    return () => {
+      resultListeners.delete(setU);
+    };
+  }, []);
+  return [u, setU];
 }
 
 // What the last check found, kept up to date while the panel is open
@@ -87,7 +115,7 @@ async function checkIfDue(force = false) {
   write(NOTIFIED_KEY, key);
   toaster.toast({
     title: "MultiFrameGen: updates available",
-    body: `${key}. Open MultiFrameGen, Backends, Check for updates${found.length > 1 && found[0].startsWith("MultiFrameGen") ? ", and update MultiFrameGen first" : ""}.`,
+    body: `${key}. Open MultiFrameGen, Backends, Show backends${found.length > 1 && found[0].startsWith("MultiFrameGen") ? ", and update MultiFrameGen first" : ""}.`,
     duration: 10000,
   });
 }
