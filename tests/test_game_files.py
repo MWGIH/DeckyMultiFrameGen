@@ -113,6 +113,6 @@ class ListingTests(unittest.TestCase):
             "/usr/bin/python3 main.py",
         ]
         self.assertEqual(game_files.running_exes(ps), [
-            "C:\\users\\steamuser\\AppData\\Local\\Soulframe\\Downloaded\\Public\\Tools\\Launcher.exe",
-            "Z:\\home\\deck\\.local\\share\\Steam\\steamapps\\compatdata\\1\\pfx\\drive_c\\SF\\Soulframe.x64.exe",
+            "C:\\users\\steamuser\\AppData\\Local\\Soulframe\\Downloaded\\Public\\Tools\\Launcher.exe -cluster:public",
+            "Z:\\home\\deck\\.local\\share\\Steam\\steamapps\\compatdata\\1\\pfx\\drive_c\\SF\\Soulframe.x64.exe -a",
         ])

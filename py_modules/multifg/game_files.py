@@ -147,9 +147,9 @@ _WIN_EXE = re.compile(r"[A-Za-z]:[\\/][^\n\"]*?\.exe\b", re.IGNORECASE)
 
 
 def running_exes(ps_lines: list[str] | None = None) -> list[str]:
-    """The Windows programs running now (their paths as Wine sees them, e.g. C:\\users\\steamuser\\...\\Game.exe),
-    leaving out Wine's and Steam's own: shown in the panel so a game whose .exe isn't in its folder (Soulframe's
-    launcher puts it somewhere else) can be found."""
+    """The Windows programs running now with their arguments (their paths as Wine sees them, e.g.
+    C:\\users\\steamuser\\...\\Game.exe -arg), leaving out Wine's and Steam's own: shown in the panel so a game whose
+    .exe isn't in its folder can be found, and what its launcher passes it can be seen (Soulframe)."""
     if ps_lines is None:
         try:
             ps_lines = subprocess.run(["ps", "-eo", "args="], capture_output=True, text=True,
@@ -166,6 +166,14 @@ def running_exes(ps_lines: list[str] | None = None) -> list[str]:
         name = low.rsplit("\\", 1)[-1]
         if name in _SYSTEM_EXES or "\\windows\\" in low or "\\proton" in low:
             continue
-        if path not in out:
-            out.append(path)
+        args = line[m.end():].strip()[:400]
+        entry = f"{path} {args}".strip()
+        if entry not in out:
+            out.append(entry)
     return out[:10]
+
+
+def exe_path(entry: str) -> str | None:
+    """The .exe path of a running_exes entry (without its arguments)."""
+    m = _WIN_EXE.search(entry or "")
+    return m.group(0) if m else None

@@ -62,7 +62,8 @@ def _learn_evolution_folder(appid: str, game: dict | None, running: list[str], c
         return False
     sc = shortcuts.find(HOME, appid)
     drive_c = shortcuts.prefix_drive_c(sc) if sc else None
-    for exe in running:
+    for entry in running:
+        exe = game_files.exe_path(entry) or ""
         low = exe.lower()
         if not low.endswith(".x64.exe") or "\\downloaded\\public\\" not in low:
             continue
