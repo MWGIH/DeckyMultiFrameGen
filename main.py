@@ -371,6 +371,8 @@ class Plugin:
 
     async def list_installed_games(self) -> dict:
         try:
+            libraries = await asyncio.to_thread(steam_library.library_paths, HOME)
+            decky.logger.info(f"Steam libraries: {', '.join(map(str, libraries))}")
             games = [{"appid": g["appid"], "name": g["name"]}
                      for g in steam_library.installed_games(HOME) if g["install_found"]]
             # non-Steam games, also those whose folder hasn't been chosen yet (it's chosen in the panel)
