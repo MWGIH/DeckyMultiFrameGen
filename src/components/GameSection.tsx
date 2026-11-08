@@ -171,6 +171,8 @@ export function GameSection({
   // Switching swaps DLLs and launch options the running game already loaded, so it waits until the game is closed
   const gameRunning = selected?.source === "running";
   const [optiChanged, setOptiChanged] = useState(0);
+  // the game whose OptiScaler patch just failed on choosing Use, so its panel doesn't patch it again by itself
+  const [optiFailed, setOptiFailed] = useState<string | null>(null);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
   const choose = async (choice: GameChoice) => {
     if (!selected || choice === detail?.backend) return;
@@ -181,6 +183,7 @@ export function GameSection({
     const id = Number(selected.appid);
     const gameName = detail?.name ?? selected.name ?? "the game";
     setSwitching(choice);
+    setOptiFailed(null);
     // Patching swaps DLLs and launch options: starting the game before it's done can load half of it
     toast(
       choice === "none"
@@ -196,6 +199,7 @@ export function GameSection({
         defaultProxyDll(selected.appid),
       );
       if (r.ok) {
+        if (r.opti && !r.opti.ok) setOptiFailed(selected.appid);
         setDetail((d) => (d ? { ...d, backend: choice } : d));
         if (
           r.launch_options != null &&
@@ -380,6 +384,9 @@ export function GameSection({
               <OptiScalerGame
                 appid={selected.appid}
                 status={opti}
+                running={gameRunning}
+                autoPatch={switching === null && optiFailed !== selected.appid}
+                refresh={optiChanged}
                 onChange={() => setOptiChanged((n) => n + 1)}
               />
             )}
