@@ -257,6 +257,7 @@ MARKER_FILENAME = "FRAMEGEN_PATCH"
 BAD_EXE_SUBSTRINGS = [
     "crashreport",
     "crashreportclient",
+    "crashsender",
     "eac",
     "easyanticheat",
     "beclient",
@@ -1637,6 +1638,10 @@ class OptiScaler:
         score -= len(exe.parts)
         return score
 
+    def _is_bad_exe(self, exe: Path) -> bool:
+        normalized = self._normalized_path_string(str(exe))
+        return any(bad in normalized for bad in BAD_EXE_SUBSTRINGS)
+
     def _best_running_executable(self, candidates: list[Path]) -> Path | None:
         if not candidates:
             return None
@@ -1663,8 +1668,11 @@ class OptiScaler:
         candidates = self._candidate_executables(install_root)
         if not candidates:
             return install_root, None
-        running_exe = self._best_running_executable(candidates)
-        if running_exe:
+        # A running launcher isn't the game (Soulframe: Tools/Launcher.exe stays open next to the game and failed
+        # with OptiScaler in its folder), so only a running exe that doesn't look like a launcher/updater wins
+        running_exe = self._best_running_executable(
+            [exe for exe in candidates if not self._is_bad_exe(exe)] or candidates)
+        if running_exe and not self._is_bad_exe(running_exe):
             return running_exe.parent, running_exe
         best = max(candidates, key=lambda exe: self._exe_score(exe, install_root, game_info["name"]))
         return best.parent, best

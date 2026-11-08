@@ -180,6 +180,16 @@ class EvolutionLauncherTests(unittest.TestCase):
         target, exe = main.OPTISCALER._guess_patch_target(game)
         self.assertEqual(exe, self.public / "Soulframe.x64.exe")
 
+    def test_a_running_launcher_is_not_the_patch_target(self):
+        """Martin's Deck: with the launcher open, OptiScaler went into Tools/ and the launcher failed to start."""
+        from unittest import mock
+        game = main._game_record("3000000011")
+        launcher = f"Z:{self.public}/Tools/Launcher.exe".replace("/", "\\")
+        ps = mock.Mock(stdout=f"{launcher}\n")
+        with mock.patch("subprocess.run", return_value=ps):
+            target, exe = main.OPTISCALER._guess_patch_target(game)
+        self.assertEqual(exe, self.public / "Soulframe.x64.exe")
+
 
 class HeroicLinkTests(unittest.TestCase):
     def test_link_forms(self):
