@@ -16,7 +16,14 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(Path(__file__).resolve().parent), str(REPO / "py_modules"), str(REPO)]
 
 
+def _hermetic_media_roots() -> None:
+    """Keep the tests away from the real /run/media: SD cards are faked under ROOT/media."""
+    from multifg import steam_library
+    steam_library.MEDIA_ROOTS = (ROOT / "media",)
+
+
 def reset_home() -> Path:
+    _hermetic_media_roots()
     shutil.rmtree(ROOT, ignore_errors=True)
     HOME.mkdir(parents=True)
     return HOME
@@ -36,3 +43,6 @@ def add_library_folder(steam_root: Path, extra: Path) -> None:
     vdf = steam_root / "steamapps" / "libraryfolders.vdf"
     vdf.parent.mkdir(parents=True, exist_ok=True)
     vdf.write_text(f'"libraryfolders"\n{{\n\t"1"\n\t{{\n\t\t"path"\t\t"{extra}"\n\t}}\n}}\n')
+
+
+_hermetic_media_roots()

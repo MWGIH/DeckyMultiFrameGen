@@ -141,26 +141,81 @@ export function OptiScalerGame({
   appid,
   status,
   onChange,
+  running = false,
+  autoPatch = true,
+  refresh = 0,
 }: {
   appid: string;
   status: OptiStatus | null;
   onChange?: () => void;
+  // the game is running: patching swaps files it has open, so the proxy DLL waits until it's closed
+  running?: boolean;
+  // patch the game with its proxy DLL by itself when it's set to OptiScaler but isn't patched
+  autoPatch?: boolean;
+  // bumped when the game's Use changed, to read its OptiScaler state again
+  refresh?: number;
 }) {
   const [game, setGame] = useState<OptiGame | null>(null);
   const [dll, setDll] = useState<string>(defaultProxyDll(appid));
   const [busy, setBusy] = useState(false);
   const [plain, setPlain] = useState(false);
+  // the game this panel already patched by itself, so a failed patch isn't retried over and over
+  const autoTried = useRef<string | null>(null);
 
   const load = () =>
     optiscalerGameStatus(appid).then((g) => {
       setGame(g);
       setDll(g.dll_name || defaultProxyDll(appid));
+      return g;
     });
   useEffect(() => {
     setGame(null);
     load();
     optiscalerPlain(appid).then(setPlain);
   }, [appid]);
+  useEffect(() => {
+    if (refresh) load();
+  }, [refresh]);
+
+  const id = Number(appid);
+  // Choosing Use patches the game; this patches it again with another proxy DLL, or when that didn't happen
+  const patch = async (dllName: string, why: string) => {
+    if (running) {
+      toast("Close the game before patching it.");
+      return;
+    }
+    setBusy(true);
+    const name = game?.name ?? "the game";
+    toast(`${why} Patching ${name} with OptiScaler (${dllName}). Please wait before starting the game.`.trim());
+    try {
+      const current = (await readLaunchOptions(id)) ?? "";
+      const r = await optiscalerPatchGame(appid, dllName, current);
+      if (r.status === "success") {
+        if (r.launch_options && !writeLaunchOptions(id, r.launch_options)) {
+          toast(`Patched, but couldn't set the launch options. Set them in Steam: ${r.launch_options}`);
+        } else {
+          const removed = r.removed?.length ? `Removed ${r.removed.join(" and ")}. ` : "";
+          toast(`${removed}${r.message ?? "Patched"} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`);
+        }
+        if (r.helix_in_opti && !r.helix_in_opti.ok) toast(`HelixSR wasn't added: ${r.helix_in_opti.error}`);
+        toast(`${name} is ready. You can start the game now.`);
+      } else {
+        toast(r.message ?? "Patching failed");
+      }
+    } finally {
+      setBusy(false);
+      load();
+      onChange?.();
+    }
+  };
+
+  // Set to OptiScaler but not patched (e.g. a game update put its own files back): patch it with the default proxy DLL
+  useEffect(() => {
+    if (!game || game.patched || !game.install_found || !status?.exists || !autoPatch || running || busy) return;
+    if (autoTried.current === appid) return;
+    autoTried.current = appid;
+    patch(game.dll_name || defaultProxyDll(appid), "OptiScaler isn't in this game yet.");
+  }, [game, status?.exists, autoPatch, running]);
 
   if (!status?.exists) {
     return (
@@ -177,33 +232,10 @@ export function OptiScalerGame({
     );
   }
 
-  const id = Number(appid);
-  // Choosing Use patches the game; this repatches it with another proxy DLL, or patches it when that didn't work
-  const patch = async (dllName: string) => {
-    setBusy(true);
-    try {
-      const current = (await readLaunchOptions(id)) ?? "";
-      const r = await optiscalerPatchGame(appid, dllName, current);
-      if (r.status === "success") {
-        if (r.launch_options && !writeLaunchOptions(id, r.launch_options)) {
-          toast(`Patched, but couldn't set the launch options. Set them in Steam: ${r.launch_options}`);
-        } else {
-          const removed = r.removed?.length ? `Removed ${r.removed.join(" and ")}. ` : "";
-          toast(`${removed}${r.message ?? "Patched"} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`);
-        }
-        if (r.helix_in_opti && !r.helix_in_opti.ok) toast(`HelixSR wasn't added: ${r.helix_in_opti.error}`);
-      } else {
-        toast(r.message ?? "Patching failed");
-      }
-    } finally {
-      setBusy(false);
-      load();
-      onChange?.();
-    }
-  };
   const changeDll = (dllName: string) => {
+    if (dllName === dll && game.patched) return;
     setDll(dllName);
-    if (game.patched && dllName !== game.dll_name) patch(dllName);
+    patch(dllName, "");
   };
 
   return (
@@ -214,10 +246,18 @@ export function OptiScalerGame({
           description={
             game.patched
               ? `${game.message ?? ""} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`
-              : `${game.message ?? ""} Choosing Use patches the game by itself; that didn't happen here, so patch it below.`.trim()
+              : running
+                ? `${game.message ?? ""} Close the game and it's patched by itself.`.trim()
+                : `${game.message ?? ""} Patching didn't work: try another proxy DLL below, or patch again.`.trim()
           }
         />
       </PanelSectionRow>
+      {busy && (
+        <ProgressRow
+          title={`Patching OptiScaler (${dll}), please wait…`}
+          detail="Don't start the game until this is done."
+        />
+      )}
       <PanelSectionRow>
         <Field
           label="Tip: bind Insert to a back button"
@@ -228,29 +268,29 @@ export function OptiScalerGame({
       <PanelSectionRow>
         <BelowDropdown
           label="Proxy DLL"
-          description={`${PROXY_DLL_OPTIONS.find((o) => o.value === dll)?.hint ?? ""}${game.patched ? " Changing it repatches the game." : ""}`}
+          description={`${PROXY_DLL_OPTIONS.find((o) => o.value === dll)?.hint ?? ""}${running ? " Close the game to change it." : " Changing it patches the game again."}`}
           rgOptions={PROXY_DLL_OPTIONS.map((o) => ({ data: o.value, label: o.label }))}
           selectedOption={dll}
-          disabled={busy}
+          disabled={busy || running}
           onChange={(o) => changeDll(String(o.data))}
         />
       </PanelSectionRow>
       <PanelSectionRow>
         <ToggleField
           label="Without the FSR 4.1 Deck files"
-          description="For a game that won't start with OptiScaler: patches stock OptiScaler 0.9.4 with FSR 4.0.2 instead of the build with FSR 4.1.1 for the Steam Deck (its own amdxc64.dll). Changing it repatches the game."
+          description="For a game that won't start with OptiScaler: patches stock OptiScaler 0.9.4 with FSR 4.0.2 instead of the build with FSR 4.1.1 for the Steam Deck (its own amdxc64.dll). Changing it patches the game again."
           checked={plain}
-          disabled={busy}
+          disabled={busy || running}
           onChange={async (on) => {
             setPlain(await optiscalerPlain(appid, on));
-            if (game.patched) patch(dll);
+            patch(dll, "");
           }}
         />
       </PanelSectionRow>
-      {!game.patched && (
+      {!game.patched && !busy && !running && (
         <PanelSectionRow>
-          <ButtonItem layout="below" disabled={busy} onClick={() => patch(dll)}>
-            {busy ? "Patching…" : "Patch this game"}
+          <ButtonItem layout="below" onClick={() => patch(dll, "")}>
+            Patch again
           </ButtonItem>
         </PanelSectionRow>
       )}

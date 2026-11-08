@@ -6,6 +6,8 @@ HelixSR keeps the game's FSR DLL as <name>.original.dll or in HelixSR-Scaler-bac
 """
 
 import os
+import re
+import subprocess
 
 from . import optiscaler as opti
 
@@ -90,6 +92,11 @@ NOT_WORKING = {
     # its FSR 3 option is gone (the game moved on to FSR 4 / DLSS / XeSS), so FSR4 Injector has nothing to upgrade, and
     # with it in, the game's FSR 4 option disappears (seen on the Deck)
     "1091500": {"fsr4injector": "takes away Cyberpunk 2077's FSR 4 option"},
+    # non-Steam games (their app id differs per user) by their .exe: Soulframe quits right after OptiScaler (stock 0.9.4
+    # too) hooks its input, with any proxy DLL, even when started without its launcher (Martin's Deck, 2026-11-08)
+    "soulframe.x64.exe": {"optiscaler": "Soulframe quits as soon as OptiScaler loads",
+                          "helixsr": "Soulframe quits as soon as HelixSR Scaler (an OptiScaler build) loads",
+                          "fsr4injector": "Soulframe has no FSR 3.1 DLL"},
 }
 
 # HelixSR ways into a game (direct = FSR drop-in, scaler = HelixSR Scaler) that testing found break it: not offered
@@ -111,9 +118,20 @@ def helix_ways(appid: str, status: dict) -> dict:
     return {**status, "ways": ways, "route": route, "hidden_ways": banned}
 
 
-def not_working(appid: str, choice: str) -> str | None:
-    """Why a choice is known not to work in this game, or None."""
-    parts = NOT_WORKING.get(str(appid), {})
+def exe_key(folder: str | None) -> str | None:
+    """The NOT_WORKING / GAME_NOTES key of a non-Steam game known by its .exe in its folder, or None."""
+    if not folder:
+        return None
+    try:
+        names = {n.lower() for n in os.listdir(folder)}
+    except OSError:
+        return None
+    return next((k for k in NOT_WORKING if not k.isdigit() and k in names), None)
+
+
+def not_working(appid: str, choice: str, key: str | None = None) -> str | None:
+    """Why a choice is known not to work in this game (by app id, or key from exe_key), or None."""
+    parts = NOT_WORKING.get(str(appid)) or NOT_WORKING.get(key or "", {})
     return next((why for part, why in parts.items() if part in choice.split("+")), None)
 
 
@@ -135,3 +153,43 @@ def fits(choice: str, found: set[str] | None) -> bool:
 
 def labels(found: set[str] | None) -> list[str]:
     return [label for key, (label, _) in UPSCALERS.items() if found and key in found]
+
+
+# Wine/Proton's own processes and Steam's, left out of running_exes
+_SYSTEM_EXES = {"steam.exe", "explorer.exe", "services.exe", "winedevice.exe", "plugplay.exe", "rpcss.exe",
+                "svchost.exe", "tabtip.exe", "conhost.exe", "start.exe", "wineboot.exe", "winemenubuilder.exe",
+                "rundll32.exe", "msiexec.exe", "steamwebhelper.exe", "cmd.exe", "mscorsvw.exe", "xalia.exe"}
+_WIN_EXE = re.compile(r"[A-Za-z]:[\\/][^\n\"]*?\.exe\b", re.IGNORECASE)
+
+
+def running_exes(ps_lines: list[str] | None = None) -> list[str]:
+    """The Windows programs running now with their arguments (their paths as Wine sees them, e.g.
+    C:\\users\\steamuser\\...\\Game.exe -arg), leaving out Wine's and Steam's own: shown in the panel so a game whose
+    .exe isn't in its folder can be found, and what its launcher passes it can be seen (Soulframe)."""
+    if ps_lines is None:
+        try:
+            ps_lines = subprocess.run(["ps", "-eo", "args="], capture_output=True, text=True,
+                                      check=False, timeout=5).stdout.splitlines()
+        except Exception:
+            return []
+    out: list[str] = []
+    for line in ps_lines:
+        m = _WIN_EXE.search(line)
+        if not m:
+            continue
+        path = m.group(0).replace("/", "\\")
+        low = path.lower()
+        name = low.rsplit("\\", 1)[-1]
+        if name in _SYSTEM_EXES or "\\windows\\" in low or "\\proton" in low:
+            continue
+        args = line[m.end():].strip()[:400]
+        entry = f"{path} {args}".strip()
+        if entry not in out:
+            out.append(entry)
+    return out[:10]
+
+
+def exe_path(entry: str) -> str | None:
+    """The .exe path of a running_exes entry (without its arguments)."""
+    m = _WIN_EXE.search(entry or "")
+    return m.group(0) if m else None

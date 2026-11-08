@@ -1,5 +1,10 @@
 // Reading and changing a Steam game's launch options. Adapted from HelixSR Manager (Unlicense, PeroTuncay).
 
+// Non-Steam games added to Steam have app ids with the top bit set; their launch options are the shortcut's
+export const isShortcut = (appId: number) => appId >= 0x80000000;
+
+type Details = { strLaunchOptions?: string; strShortcutLaunchOptions?: string };
+
 export function readLaunchOptions(appId: number): Promise<string | null> {
   return new Promise((resolve) => {
     let done = false;
@@ -11,8 +16,11 @@ export function readLaunchOptions(appId: number): Promise<string | null> {
       resolve(value);
     };
     try {
-      reg = SteamClient.Apps.RegisterForAppDetails(appId, (d: { strLaunchOptions?: string }) =>
-        finish(d?.strLaunchOptions ?? ""),
+      reg = SteamClient.Apps.RegisterForAppDetails(appId, (d: Details) =>
+        finish(
+          (isShortcut(appId) ? (d?.strShortcutLaunchOptions ?? d?.strLaunchOptions) : d?.strLaunchOptions) ??
+            "",
+        ),
       );
     } catch {
       finish(null);
@@ -26,7 +34,11 @@ export function writeLaunchOptions(appId: number, value: string): boolean {
   if (String(appId) in LAUNCHER_SKIP_GAMES)
     value = withLauncherSkip(value, launcherSkipOn(String(appId)));
   try {
-    SteamClient.Apps.SetAppLaunchOptions(appId, value);
+    const apps = SteamClient.Apps as typeof SteamClient.Apps & {
+      SetShortcutLaunchOptions?: (appId: number, options: string) => void;
+    };
+    if (isShortcut(appId) && apps.SetShortcutLaunchOptions) apps.SetShortcutLaunchOptions(appId, value);
+    else apps.SetAppLaunchOptions(appId, value);
     return true;
   } catch {
     return false;

@@ -24,10 +24,15 @@ the Steam Deck, with game-by-game results and performance updates.
 
 ## Status
 
-**Version 1.0.1 is out.** Install it from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
+**Version 1.1.13 is out.** Install it from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
 (see [Install](#install)). What it does:
 
 - Detects the game you're on: the running game, else the game page open in your library, else one you pick.
+- Non-Steam games added to Steam work too (games added with "Add a non-Steam game", Heroic's or Lutris' "Add to
+  Steam", store clients such as the EA app or Battle.net). The game's folder comes from the shortcut's .exe, from
+  Heroic (Epic, GOG, Amazon, side-loaded) or from Lutris; for a store client, or when the guess is wrong, choose it
+  with **Choose game folder** in the game's panel (while Use is Off). Launch options go into the shortcut, in front
+  of whatever it already has, so a launcher's own arguments stay.
 - Shows which backends are installed, including installs made by the original plugins.
 - Remembers which backend each game should use.
 - HelixSR: downloads the official release, runs HelixSR's own setup from the plugin (no Konsole), and installs

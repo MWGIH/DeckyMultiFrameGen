@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import os
 import re
 import shlex
 from pathlib import Path
@@ -8,7 +9,7 @@ import decky
 
 from mako_plugin.plugin import Plugin as MakoPlugin
 
-from multifg import backends, game_files, helix_opti, leftovers, mako_payload, steam_library, updates
+from multifg import evolution, backends, game_files, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
@@ -38,13 +39,110 @@ def _valid_appid(appid) -> str:
     return appid
 
 
-def _game_folder(appid) -> str:
-    """The install folder of an installed Steam game, or ValueError."""
+def _game_record(appid) -> dict | None:
+    """A Steam game (from its appmanifest) or a non-Steam game added to Steam (from its shortcut, with the folder the
+    user chose in the panel if any): {appid, name, install_path, install_found, non_steam, ...}; None if neither."""
     appid = _valid_appid(appid)
     matches = steam_library.installed_games(HOME, appid)
-    if not matches or not matches[0]["install_found"]:
-        raise ValueError("This game isn't installed")
-    return matches[0]["install_path"]
+    if matches:
+        return {**matches[0], "non_steam": False}
+    sc = shortcuts.find(HOME, appid)
+    return shortcuts.record(HOME, sc, SETTINGS.game_value(appid, "folder")) if sc else None
+
+
+def _learn_evolution_folder(appid: str, game: dict | None, running: list[str], choice: str) -> bool:
+    """A Digital Extremes game (Soulframe) whose launcher downloaded the game outside the folder found: once its
+    <Game>.x64.exe runs, its folder is kept as the game's folder (only while nothing is patched into the game)."""
+    if not game or not game.get("non_steam") or game.get("folder_source") == "picked" or not game["install_found"]:
+        return False
+    folder = game["install_path"]
+    if not shortcuts.is_evolution_public(folder) or shortcuts.has_evolution_exe(folder):
+        return False
+    if choice not in ("none", "mako"):
+        return False
+    sc = shortcuts.find(HOME, appid)
+    drive_c = shortcuts.prefix_drive_c(sc) if sc else None
+    for entry in running:
+        exe = game_files.exe_path(entry) or ""
+        low = exe.lower()
+        if not low.endswith(".x64.exe") or "\\downloaded\\public\\" not in low:
+            continue
+        linux = shortcuts.wine_to_linux(exe, drive_c)
+        found = os.path.dirname(linux) if linux else None
+        if found and os.path.isdir(found) and os.path.normpath(found) != os.path.normpath(folder):
+            SETTINGS.set_game_value(appid, "folder", os.path.normpath(found))
+            decky.logger.info(f"{game['name']}: running {exe}, game folder is now {found}")
+            return True
+    return False
+
+
+def _note_evolution_args(appid: str, game: dict | None, running: list[str]) -> None:
+    """While a Digital Extremes game runs started by its launcher, keeps the arguments the launcher gave it, for
+    starting it without the launcher (see evolution)."""
+    if not game or not game.get("non_steam") or not game["install_found"]:
+        return
+    exe = evolution.game_exe(game["install_path"])
+    if not exe:
+        return
+    for entry in running:
+        path = shortcuts.wine_to_linux(game_files.exe_path(entry) or "", None)
+        if path and os.path.normpath(path) == os.path.normpath(exe) and "-relaunch:" in entry:
+            args = evolution.args_from_running(entry)
+            if args and SETTINGS.game_value(appid, "direct_args") != args:
+                SETTINGS.set_game_value(appid, "direct_args", args)
+
+
+def _direct_start(appid: str, backend: str, options: str) -> str:
+    """Launch options for a Digital Extremes game started by its launcher: with a choice that puts DLLs into the game
+    (OptiScaler, HelixSR, FSR4 Injector) the game is started without the launcher, which would delete them; else
+    with it again."""
+    sc = shortcuts.find(HOME, appid) if int(appid) >= 0x80000000 else None
+    if not evolution.launcher_shortcut(sc):
+        return options
+    game = _game_record(appid)
+    exe = evolution.game_exe(game["install_path"]) if game and game["install_found"] else None
+    if exe and not shortcuts.is_evolution_public(game["install_path"]):
+        exe = None   # a Digital Extremes game's folder is .../Downloaded/Public
+    needs = bool(set(backend.split("+")) & {"optiscaler", "helixsr", "fsr4injector"})
+    if needs and exe:
+        wrapper = evolution.write_wrapper(HOME)
+        return evolution.with_wrapper(options, wrapper, exe, SETTINGS.game_value(appid, "direct_args") or "")
+    return evolution.without_wrapper(options) if evolution.has_wrapper(options) else options
+
+
+def _non_steam_games() -> list[dict]:
+    """The non-Steam games in Steam that belong in the game picker (see shortcuts.listed)."""
+    out = []
+    for sc in shortcuts.all_shortcuts(HOME):
+        picked = SETTINGS.game_value(sc["appid"], "folder")
+        if shortcuts.listed(HOME, sc, picked):
+            out.append(shortcuts.record(HOME, sc, picked))
+    return out
+
+
+def _all_games() -> list[dict]:
+    """Installed Steam games and the non-Steam games whose folder is known."""
+    return [g for g in steam_library.installed_games(HOME) + _non_steam_games() if g["install_found"]]
+
+
+def _game_folder(appid) -> str:
+    """The install folder of an installed game (Steam or non-Steam), or ValueError."""
+    game = _game_record(appid)
+    if not game or not game["install_found"]:
+        raise ValueError("Choose the game's folder first" if game and game.get("non_steam")
+                         else "This game isn't installed")
+    return game["install_path"]
+
+
+def _opti_record(appid):
+    try:
+        return _game_record(appid)
+    except ValueError:
+        return None
+
+
+# Decky Framegen's code finds games by their appmanifest only: non-Steam games come from their shortcut
+OPTISCALER._game_record = _opti_record
 
 
 _OVERRIDES = re.compile(r'\bWINEDLLOVERRIDES=("[^"]*"|\S*)\s*')
@@ -165,6 +263,27 @@ def _opti_plain(appid: str) -> bool:
     return bool(SETTINGS.game_value(appid, "opti_plain", appid in OPTI_PLAIN_GAMES))
 
 
+def _is_non_steam(appid: str) -> bool:
+    try:
+        game = _game_record(appid)
+    except ValueError:
+        return False
+    return bool(game and game.get("non_steam"))
+
+
+def _opti_launch(appid: str, managed: str, launch: str) -> str:
+    """OptiScaler's launch options. Decky Framegen's replace whatever the game had; a non-Steam shortcut's launch options
+    can be what starts the game (Heroic's "run com.heroicgameslauncher.hgl ... heroic://launch/..."), so there
+    OptiScaler's settings go in front of them instead."""
+    if not managed or not _is_non_steam(appid):
+        return managed
+    prefix = managed.split("%command%", 1)[0].strip()
+    rest = re.sub(r"(^|\s)SteamDeck=\S*", " ", _OVERRIDES.sub("", launch or "")).strip()
+    if "%command%" not in rest:
+        rest = f"%command% {rest}".strip()
+    return f"{prefix} {rest}".strip()
+
+
 async def _auto_patch_opti(appid: str, dll_name: str, launch: str, keep: str) -> dict:
     """OptiScaler patched into a game just set to a choice with it: with the proxy DLL the game was last patched with,
     else dll_name (the panel's default for the game). Returns {ok, error?, dll_name, launch_options}."""
@@ -173,7 +292,7 @@ async def _auto_patch_opti(appid: str, dll_name: str, launch: str, keep: str) ->
     if result.get("status") != "success":
         return {"ok": False, "error": result.get("message") or "Patching failed"}
     SETTINGS.set_game_value(appid, "opti_dll", dll)
-    options = result.get("launch_options") or ""
+    options = _opti_launch(appid, result.get("launch_options") or "", _without_mako(launch))
     if "mako" in keep.split("+") and Path(_mako_runner()).is_file():
         options = _with_mako(options)
     return {"ok": True, "dll_name": dll, "launch_options": options}
@@ -312,8 +431,15 @@ class Plugin:
 
     async def list_installed_games(self) -> dict:
         try:
-            games = steam_library.installed_games(HOME)
-            return {"ok": True, "games": [{"appid": g["appid"], "name": g["name"]} for g in games if g["install_found"]]}
+            libraries = await asyncio.to_thread(steam_library.library_paths, HOME)
+            decky.logger.info(f"Steam libraries: {', '.join(map(str, libraries))}")
+            games = [{"appid": g["appid"], "name": g["name"]}
+                     for g in steam_library.installed_games(HOME) if g["install_found"]]
+            # non-Steam games, also those whose folder hasn't been chosen yet (it's chosen in the panel)
+            extra = await asyncio.to_thread(_non_steam_games)
+            games += sorted(({"appid": g["appid"], "name": g["name"], "non_steam": True} for g in extra),
+                            key=lambda g: g["name"].lower())
+            return {"ok": True, "games": games}
         except Exception as exc:
             decky.logger.error(f"list_installed_games: {exc}")
             return {"ok": False, "message": str(exc), "games": []}
@@ -323,10 +449,14 @@ class Plugin:
             appid = _valid_appid(appid)
         except ValueError as exc:
             return {"ok": False, "message": str(exc)}
-        matches = steam_library.installed_games(HOME, appid)
-        game = matches[0] if matches else None
-        installed = bool(game and game["install_found"])
+        game = await asyncio.to_thread(_game_record, appid)
         current = SETTINGS.game_choice(appid)
+        running = await asyncio.to_thread(game_files.running_exes)
+        learned = await asyncio.to_thread(_learn_evolution_folder, appid, game, running, current)
+        if learned:
+            game = await asyncio.to_thread(_game_record, appid)
+        await asyncio.to_thread(_note_evolution_args, appid, game, running)
+        installed = bool(game and game["install_found"])
         # only the choices that can work with the upscalers the game ships (and whatever it is set to now)
         found = files = None
         if installed:
@@ -335,10 +465,11 @@ class Plugin:
                 files = await asyncio.to_thread(game_files.listing, game["install_path"])
             except Exception:
                 decky.logger.exception("game_files.detect")
+        key = game_files.exe_key(game["install_path"]) if installed and game.get("non_steam") else None
         choices = [c for c in backends.GAME_CHOICES
-                   if c == current or (game_files.fits(c, found) and not game_files.not_working(appid, c))]
+                   if c == current or (game_files.fits(c, found) and not game_files.not_working(appid, c, key))]
         hidden = [{"choice": c, "needs": game_files.labels(set(game_files.needs(c))),
-                   "reason": game_files.not_working(appid, c)}
+                   "reason": game_files.not_working(appid, c, key)}
                   for c in backends.GAME_CHOICES if c not in choices]
         return {
             "ok": True,
@@ -351,8 +482,51 @@ class Plugin:
             "all_choices": list(backends.GAME_CHOICES),   # for the panel's "Show all Use options"
             "upscalers": game_files.labels(found) if found is not None else None,
             "files": files,
+            "notes_key": key,   # a non-Steam game known by its .exe: its GAME_NOTES key (src/gameNotes.ts)
+            "running_exes": running,   # Windows programs running now, to find a game .exe outside its folder
             "hidden": hidden,
+            "non_steam": bool(game and game.get("non_steam")),
+            # non-Steam games: where the folder came from ("shortcut", "heroic", "lutris", "picked" or None) and what
+            # starts the game when it isn't its own .exe (Heroic, EA app, ...)
+            "folder_source": game.get("folder_source") if game else None,
+            "launcher": game.get("launcher") if game else None,
+            "browse_start": game.get("browse_start") if game else None,
         }
+
+    async def set_game_folder(self, appid: str, folder: str = "") -> dict:
+        """The folder a non-Steam game is in, chosen in the panel ("" goes back to the one found from its shortcut).
+        Only while Use is Off, since the backends' files are in the old folder."""
+        try:
+            appid = _valid_appid(appid)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        game = await asyncio.to_thread(_game_record, appid)
+        if not game or not game.get("non_steam"):
+            return {"ok": False, "error": "Only non-Steam games need a folder chosen."}
+        # with no folder known nothing can have been patched in, so a Use chosen before is just reset
+        reset = False
+        if SETTINGS.game_choice(appid) != "none":
+            if game["install_found"]:
+                return {"ok": False,
+                        "error": "Set Use to Off first: the game's files are patched in the current folder."}
+            SETTINGS.set_game_choice(appid, "none")
+            reset = True
+        if folder:
+            path = Path(folder).expanduser()
+            try:
+                path = path.resolve()
+            except OSError:
+                pass
+            if not path.is_dir():
+                return {"ok": False, "error": "That folder doesn't exist."}
+            # whole drives, the home folder or a prefix's C: drive would be scanned file by file
+            broad = {Path("/"), HOME.resolve(), HOME.resolve().parent, Path("/run/media"), Path("/home")}
+            if path in broad or path.name == "drive_c" or os.path.ismount(path):
+                return {"ok": False, "error": "Choose the game's own folder (where its .exe is), not a whole drive."}
+            SETTINGS.set_game_value(appid, "folder", str(path))
+        else:
+            SETTINGS.clear_game_value(appid, "folder")
+        return {"ok": True, "folder": str(path) if folder else None, "use_reset": reset}
 
     async def set_game_backend(self, appid: str, backend: str, current_launch_options: str | None = None,
                                dll_name: str = "") -> dict:
@@ -407,6 +581,11 @@ class Plugin:
             added = await _add_helix_to_opti(appid)
         if "mako" in backend.split("+"):
             await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
+        if current_launch_options is not None:
+            now = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options
+            direct = await asyncio.to_thread(_direct_start, appid, backend, now)
+            if direct != current_launch_options:
+                cleared["launch_options"] = direct
         return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4, "helix": helix,
                 "opti": opti,
                 "removed": cleared["removed"],
@@ -445,7 +624,7 @@ class Plugin:
     async def helixsr_remove(self) -> dict:
         """HelixSR out of every game, then its files deleted."""
         try:
-            games = [g for g in steam_library.installed_games(HOME) if g["install_found"]]
+            games = _all_games()
             for g in games:
                 target = await _opti_target(g["appid"])
                 if target:
@@ -496,7 +675,13 @@ class Plugin:
         result = await _for_game(appid, lambda folder: HELIXSR.install_game(folder, route or None))
         if result.get("ok") and keep == "helixsr+mako":
             await _opti_frame_generation_off(str(appid), result)
-        return {**result, "removed": cleared["removed"], "base_launch_options": cleared["launch_options"]}
+        base = cleared["launch_options"]
+        if result.get("ok"):
+            now = base if base is not None else current_launch_options or ""
+            direct = await asyncio.to_thread(_direct_start, str(appid), keep, now)
+            if direct != (current_launch_options or ""):
+                base = direct
+        return {**result, "removed": cleared["removed"], "base_launch_options": base}
 
     async def optiscaler_plain(self, appid: str, on: bool | None = None) -> bool:
         """Whether the game is patched without the FSR 4.1.1 Deck files (see _opti_variant); set when on is given. The
@@ -618,7 +803,7 @@ class Plugin:
     async def fsr4_details(self) -> dict:
         """Everything FSR4 Injector's own panel shows (the full view under Backends)."""
         try:
-            names = {g["appid"]: g["name"] for g in steam_library.installed_games(HOME)}
+            names = {g["appid"]: g["name"] for g in steam_library.installed_games(HOME) + _non_steam_games()}
             return await asyncio.to_thread(FSR4.details, names)
         except Exception as exc:
             decky.logger.exception("fsr4_details")
@@ -677,8 +862,13 @@ class Plugin:
         result = await OPTISCALER.patch_game(str(appid), dll_name, launch, _opti_variant(str(appid)))
         if result.get("status") == "success":
             SETTINGS.set_game_value(str(appid), "opti_dll", dll_name)
+            result["launch_options"] = _opti_launch(str(appid), result.get("launch_options") or "",
+                                                    _without_mako(launch))
         if result.get("launch_options") and "mako" in keep.split("+") and Path(_mako_runner()).is_file():
             result["launch_options"] = _with_mako(result["launch_options"])
+        if result.get("status") == "success":
+            result["launch_options"] = await asyncio.to_thread(
+                _direct_start, str(appid), keep, result.get("launch_options") or launch)
         if result.get("status") == "success" and "mako" in keep.split("+"):
             await _opti_frame_generation_off(str(appid), {})
         if result.get("status") == "success" and {"optiscaler", "helixsr"} <= set(keep.split("+")):

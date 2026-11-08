@@ -31,6 +31,7 @@ import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
 import { GameFiles } from "./GameFiles";
+import { GameFolder } from "./GameFolder";
 import { defaultProxyDll } from "../optiscalerOptions";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
@@ -106,10 +107,14 @@ export function GameSection({
   onChoice,
 }: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
+  const [reload, setReload] = useState(0); // bumped after a non-Steam game's folder changes
 
   useEffect(() => {
-    let cancelled = false;
     setDetail(null);
+    setReload(0);
+  }, [selected?.appid]);
+  useEffect(() => {
+    let cancelled = false;
     if (selected) {
       getGame(selected.appid).then((d) => {
         if (!cancelled) setDetail(d);
@@ -118,7 +123,7 @@ export function GameSection({
     return () => {
       cancelled = true;
     };
-  }, [selected?.appid]);
+  }, [selected?.appid, reload]);
   useEffect(
     () =>
       onChoice(
@@ -166,6 +171,8 @@ export function GameSection({
   // Switching swaps DLLs and launch options the running game already loaded, so it waits until the game is closed
   const gameRunning = selected?.source === "running";
   const [optiChanged, setOptiChanged] = useState(0);
+  // the game whose OptiScaler patch just failed on choosing Use, so its panel doesn't patch it again by itself
+  const [optiFailed, setOptiFailed] = useState<string | null>(null);
   // Switching takes the previous choice out of the game (OptiScaler and HelixSR can't both be in it)
   const choose = async (choice: GameChoice) => {
     if (!selected || choice === detail?.backend) return;
@@ -176,6 +183,7 @@ export function GameSection({
     const id = Number(selected.appid);
     const gameName = detail?.name ?? selected.name ?? "the game";
     setSwitching(choice);
+    setOptiFailed(null);
     // Patching swaps DLLs and launch options: starting the game before it's done can load half of it
     toast(
       choice === "none"
@@ -191,6 +199,7 @@ export function GameSection({
         defaultProxyDll(selected.appid),
       );
       if (r.ok) {
+        if (r.opti && !r.opti.ok) setOptiFailed(selected.appid);
         setDetail((d) => (d ? { ...d, backend: choice } : d));
         if (
           r.launch_options != null &&
@@ -263,7 +272,10 @@ export function GameSection({
             description="No game is running or open in your library"
             menuLabel="Installed games"
             strDefaultLabel="Pick a game"
-            rgOptions={games.map((g) => ({ data: g.appid, label: g.name }))}
+            rgOptions={games.map((g) => ({
+              data: g.appid,
+              label: g.non_steam ? `${g.name} (non-Steam)` : g.name,
+            }))}
             selectedOption={
               selected?.source === "picked" ? selected.appid : undefined
             }
@@ -274,15 +286,26 @@ export function GameSection({
       {selected && (
         <>
           <PanelSectionRow>
-            <Field label={name} description={SOURCE_LABELS[selected.source]}>
-              {detail && !detail.installed ? "Not installed" : null}
+            <Field
+              label={name}
+              description={`${SOURCE_LABELS[selected.source]}${detail?.non_steam ? " · Non-Steam game" : ""}`}
+            >
+              {detail && !detail.installed ? (detail.non_steam ? "Folder needed" : "Not installed") : null}
             </Field>
           </PanelSectionRow>
-          {detail?.ok && GAME_NOTES[selected.appid] && (
+          {detail?.ok && detail.non_steam && (
+            <GameFolder
+              appid={selected.appid}
+              detail={detail}
+              locked={gameRunning || switching !== null}
+              onChanged={() => setReload((n) => n + 1)}
+            />
+          )}
+          {detail?.ok && (GAME_NOTES[selected.appid] ?? GAME_NOTES[detail.notes_key ?? ""]) && (
             <PanelSectionRow>
               <Field
                 label="Tested with this game"
-                description={GAME_NOTES[selected.appid]}
+                description={GAME_NOTES[selected.appid] ?? GAME_NOTES[detail.notes_key ?? ""]}
               />
             </PanelSectionRow>
           )}
@@ -304,7 +327,7 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
-          {detail?.ok && (
+          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
             <PanelSectionRow>
               <BelowDropdown
                 label="Use"
@@ -334,7 +357,7 @@ export function GameSection({
               detail="Don't start the game until this is done."
             />
           )}
-          {detail?.ok && (
+          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
             <PanelSectionRow>
               <ToggleField
                 label="Show all Use options"
@@ -348,7 +371,7 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
-          {detail?.ok && detail.installed && <GameFiles files={detail.files} />}
+          {detail?.ok && detail.installed && <GameFiles files={detail.files} running={detail.running_exes} />}
           {detail?.ok &&
             detail.installed &&
             parts(detail.backend).includes("helixsr") &&
@@ -361,6 +384,9 @@ export function GameSection({
               <OptiScalerGame
                 appid={selected.appid}
                 status={opti}
+                running={gameRunning}
+                autoPatch={switching === null && optiFailed !== selected.appid}
+                refresh={optiChanged}
                 onChange={() => setOptiChanged((n) => n + 1)}
               />
             )}

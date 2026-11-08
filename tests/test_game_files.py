@@ -101,3 +101,18 @@ class ListingTests(unittest.TestCase):
                 "PBZ/Binaries/Win64/PBZ-Win64-Shipping.exe",
             ])
         self.assertIsNone(game_files.listing("/nonexistent"))
+
+    def test_running_exes_leave_out_wine_and_steam(self):
+        ps = [
+            "C:\\windows\\system32\\services.exe",
+            "C:\\windows\\system32\\winedevice.exe",
+            "c:\\program files (x86)\\steam\\steam.exe",
+            "/home/deck/.local/share/Steam/steamapps/common/Proton - Experimental/files/bin/wine64 c:\\windows\\system32\\steam.exe x",
+            "C:\\users\\steamuser\\AppData\\Local\\Soulframe\\Downloaded\\Public\\Tools\\Launcher.exe -cluster:public",
+            "Z:\\home\\deck\\.local\\share\\Steam\\steamapps\\compatdata\\1\\pfx\\drive_c\\SF\\Soulframe.x64.exe -a",
+            "/usr/bin/python3 main.py",
+        ]
+        self.assertEqual(game_files.running_exes(ps), [
+            "C:\\users\\steamuser\\AppData\\Local\\Soulframe\\Downloaded\\Public\\Tools\\Launcher.exe -cluster:public",
+            "Z:\\home\\deck\\.local\\share\\Steam\\steamapps\\compatdata\\1\\pfx\\drive_c\\SF\\Soulframe.x64.exe -a",
+        ])
