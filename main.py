@@ -101,6 +101,8 @@ def _direct_start(appid: str, backend: str, options: str) -> str:
         return options
     game = _game_record(appid)
     exe = evolution.game_exe(game["install_path"]) if game and game["install_found"] else None
+    if exe and not shortcuts.is_evolution_public(game["install_path"]):
+        exe = None   # a Digital Extremes game's folder is .../Downloaded/Public
     needs = bool(set(backend.split("+")) & {"optiscaler", "helixsr", "fsr4injector"})
     if needs and exe:
         wrapper = evolution.write_wrapper(HOME)

@@ -21,13 +21,15 @@ _RELAUNCH = re.compile(r"(^|\s)-relaunch:\S*")
 SCRIPT = r"""#!/bin/bash
 # Written by Decky MultiFrameGen. Starts a Digital Extremes game (Soulframe) without its launcher, which deletes
 # DLLs it doesn't know (OptiScaler's, HelixSR Scaler's) from the game's folder before starting it.
-# Usage: multifg-direct <Game.x64.exe> <game arguments> <Steam's command, which runs ...\Tools\Launcher.exe>
+# Usage: multifg-direct <Game.x64.exe> <game arguments> <Steam's command, which runs ...\Tools\Launcher.exe or the
+# game's .msi>
 exe="$1"; game_args="$2"; shift 2
 read -r -a extra <<< "$game_args"
 cmd=(); swapped=0
 for a in "$@"; do
     low="${a,,}"
-    if [[ $swapped == 0 && ( "$low" == */tools/launcher.exe || "$low" == *\\tools\\launcher.exe ) && -f "$exe" ]]; then
+    if [[ $swapped == 0 && ( "$low" == */tools/launcher.exe || "$low" == *\\tools\\launcher.exe || "$low" == *.msi ) \
+          && -f "$exe" ]]; then
         cmd+=("$exe" "${extra[@]}")
         swapped=1
     else
@@ -40,11 +42,12 @@ exec "${cmd[@]}"
 
 
 def launcher_shortcut(sc: dict | None) -> bool:
-    """Whether a non-Steam shortcut starts a Digital Extremes launcher (...Downloaded/Public/Tools/Launcher.exe, or Tools/Launcher.exe anywhere)."""
+    """Whether a non-Steam shortcut starts a Digital Extremes launcher: its Tools/Launcher.exe, or the game's .msi
+    (Martin's Soulframe shortcut: Soulframe.msi, which opens the installed launcher)."""
     if not sc:
         return False
     parts = [p.lower() for p in Path(sc.get("exe") or "").parts]
-    return parts[-2:] == ["tools", "launcher.exe"]
+    return parts[-2:] == ["tools", "launcher.exe"] or bool(parts) and parts[-1].endswith(".msi")
 
 
 def game_exe(folder: str) -> str | None:

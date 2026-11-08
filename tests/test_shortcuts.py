@@ -267,6 +267,21 @@ class EvolutionDirectStartTests(EvolutionElsewhereTests):
         self.assertEqual(main.SETTINGS.game_value("3000000012", "direct_args"),
                          "-windowMode:1 -graphicsDriver:dx12 -cluster:public -language:en")
 
+    def test_a_shortcut_to_the_msi_is_started_directly_too(self):
+        import subprocess
+        msi = self.home / "Downloads" / "Soulframe.msi"
+        msi.parent.mkdir(parents=True, exist_ok=True)
+        msi.write_bytes(b"msi")
+        write_shortcuts(self.steam, [{"appid": signed(3000000012), "AppName": "Soulframe", "Exe": f'"{msi}"',
+                                      "StartDir": f'"{msi.parent}"'}])
+        opts = main._direct_start("3000000012", "optiscaler", "%command%")
+        self.assertIn("multifg-direct", opts)
+        out = subprocess.run(["bash", "-c", opts.replace("%command%", f"bash -c 'echo \"$PWD|$*\"' x waitforexitandrun '{msi}'")],
+                             capture_output=True, text=True).stdout.strip()
+        self.assertEqual(out, f"{self.game}|waitforexitandrun {self.game / 'Soulframe.x64.exe'} "
+                              "-windowMode:1 -shaderCache:1 -graphicsDriver:dx11 -gpuPreference:2 -cluster:public "
+                              "-language:en")
+
     test_found_from_the_prefix_registry = test_learned_from_the_running_game = None
 
 
