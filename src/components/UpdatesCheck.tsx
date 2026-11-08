@@ -350,12 +350,15 @@ export function UpdatesCheck({
         />,
       );
     }
-    if (!rows.length)
-      rows.push(<Field key="ok" label="Everything is up to date" />);
   }
+  const upToDate = !!u && !rows.length;
 
   return (
     <>
+      {/* found updates go first, above Use test builds and Check for updates, so they aren't missed */}
+      {rows.map((r) => (
+        <PanelSectionRow key={r.key}>{r}</PanelSectionRow>
+      ))}
       <PanelSectionRow>
         <ToggleField
           label="Use test builds"
@@ -370,9 +373,11 @@ export function UpdatesCheck({
           {checking ? "Checking for updates…" : "Check for updates"}
         </ButtonItem>
       </PanelSectionRow>
-      {rows.map((r) => (
-        <PanelSectionRow key={r.key}>{r}</PanelSectionRow>
-      ))}
+      {upToDate && (
+        <PanelSectionRow>
+          <Field label="Everything is up to date" />
+        </PanelSectionRow>
+      )}
     </>
   );
 }
