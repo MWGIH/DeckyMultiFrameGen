@@ -50,6 +50,31 @@ def _game_record(appid) -> dict | None:
     return shortcuts.record(HOME, sc, SETTINGS.game_value(appid, "folder")) if sc else None
 
 
+def _learn_evolution_folder(appid: str, game: dict | None, running: list[str], choice: str) -> bool:
+    """A Digital Extremes game (Soulframe) whose launcher downloaded the game outside the folder found: once its
+    <Game>.x64.exe runs, its folder is kept as the game's folder (only while nothing is patched into the game)."""
+    if not game or not game.get("non_steam") or game.get("folder_source") == "picked" or not game["install_found"]:
+        return False
+    folder = game["install_path"]
+    if not shortcuts.is_evolution_public(folder) or shortcuts.has_evolution_exe(folder):
+        return False
+    if choice not in ("none", "mako"):
+        return False
+    sc = shortcuts.find(HOME, appid)
+    drive_c = shortcuts.prefix_drive_c(sc) if sc else None
+    for exe in running:
+        low = exe.lower()
+        if not low.endswith(".x64.exe") or "\\downloaded\\public\\" not in low:
+            continue
+        linux = shortcuts.wine_to_linux(exe, drive_c)
+        found = os.path.dirname(linux) if linux else None
+        if found and os.path.isdir(found) and os.path.normpath(found) != os.path.normpath(folder):
+            SETTINGS.set_game_value(appid, "folder", os.path.normpath(found))
+            decky.logger.info(f"{game['name']}: running {exe}, game folder is now {found}")
+            return True
+    return False
+
+
 def _non_steam_games() -> list[dict]:
     """The non-Steam games in Steam that belong in the game picker (see shortcuts.listed)."""
     out = []
@@ -390,11 +415,14 @@ class Plugin:
         except ValueError as exc:
             return {"ok": False, "message": str(exc)}
         game = await asyncio.to_thread(_game_record, appid)
-        installed = bool(game and game["install_found"])
         current = SETTINGS.game_choice(appid)
+        running = await asyncio.to_thread(game_files.running_exes)
+        learned = await asyncio.to_thread(_learn_evolution_folder, appid, game, running, current)
+        if learned:
+            game = await asyncio.to_thread(_game_record, appid)
+        installed = bool(game and game["install_found"])
         # only the choices that can work with the upscalers the game ships (and whatever it is set to now)
         found = files = None
-        running = await asyncio.to_thread(game_files.running_exes)
         if installed:
             try:
                 found = await asyncio.to_thread(game_files.detect, game["install_path"])

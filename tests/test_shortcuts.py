@@ -191,6 +191,46 @@ class EvolutionLauncherTests(unittest.TestCase):
         self.assertEqual(exe, self.public / "Soulframe.x64.exe")
 
 
+class EvolutionElsewhereTests(unittest.TestCase):
+    """Martin's Deck: the launcher is in the prefix, but Soulframe.x64.exe was downloaded to
+    /home/deck/Games/Soulframe/Downloaded/Public."""
+
+    def setUp(self):
+        self.home = support.reset_home()
+        self.steam = self.home / ".local" / "share" / "Steam"
+        pfx = self.steam / "steamapps/compatdata/3000000012/pfx"
+        self.pfx = pfx
+        tools = pfx / "drive_c/users/steamuser/AppData/Local/Soulframe/Downloaded/Public/Tools"
+        tools.mkdir(parents=True)
+        (tools / "Launcher.exe").write_bytes(b"MZ")
+        self.game = self.home / "Games" / "Soulframe" / "Downloaded" / "Public"
+        self.game.mkdir(parents=True)
+        (self.game / "Soulframe.x64.exe").write_bytes(b"MZ")
+        write_shortcuts(self.steam, [
+            {"appid": signed(3000000012), "AppName": "Soulframe", "Exe": f'"{tools / "Launcher.exe"}"',
+             "StartDir": f'"{tools}"'},
+        ])
+
+    def wine(self, path):
+        return "Z:" + str(path).replace("/", "\\")
+
+    def test_found_from_the_prefix_registry(self):
+        reg = self.wine(self.home / "Games" / "Soulframe").replace("\\", "\\\\")
+        (self.pfx / "user.reg").write_text(f'[Software\\\\Digital Extremes\\\\Soulframe]\n"DownloadDir"="{reg}"\n')
+        g = run(main.Plugin().get_game("3000000012"))
+        self.assertEqual(g["install_path"], str(self.game))
+
+    def test_learned_from_the_running_game(self):
+        from unittest import mock
+        g = run(main.Plugin().get_game("3000000012"))
+        self.assertTrue(g["install_path"].endswith("AppData/Local/Soulframe/Downloaded/Public"))
+        with mock.patch.object(main.game_files, "running_exes",
+                               return_value=[self.wine(self.game / "Soulframe.x64.exe")]):
+            g = run(main.Plugin().get_game("3000000012"))
+        self.assertEqual(g["install_path"], str(self.game))
+        self.assertEqual(run(main.Plugin().get_game("3000000012"))["install_path"], str(self.game))
+
+
 class HeroicLinkTests(unittest.TestCase):
     def test_link_forms(self):
         self.assertEqual(shortcuts.heroic_app("x heroic://launch/legendary/Fennec y"), "Fennec")

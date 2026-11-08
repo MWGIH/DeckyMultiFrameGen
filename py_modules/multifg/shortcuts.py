@@ -305,23 +305,64 @@ def prefix_drive_c(sc: dict) -> str | None:
     return str(p) if p.is_dir() else None
 
 
+def has_evolution_exe(folder: str) -> bool:
+    """Whether a Digital Extremes game's .exe (<Game>.x64.exe) is in this folder."""
+    return any(n.lower().endswith(".x64.exe") for n in _exe_names(folder))
+
+
+def is_evolution_public(folder: str) -> bool:
+    parts = [p.lower() for p in Path(folder).parts]
+    return parts[-2:] == ["downloaded", "public"]
+
+
+def wine_to_linux(path: str, drive_c: str | None) -> str | None:
+    """Z:\\home\\deck\\x -> /home/deck/x; C:\\x -> <prefix drive_c>/x."""
+    path = path.replace("\\\\", "\\").replace("\\", "/")
+    if re.match(r"(?i)^z:/", path):
+        return path[2:]
+    if re.match(r"(?i)^c:/", path) and drive_c:
+        return os.path.join(drive_c, path[3:])
+    return None
+
+
+_REG_PATH = re.compile(r'"([A-Za-z]:\\\\[^"\n]{1,400})"')
+
+
 def evolution_folder(sc: dict) -> str | None:
-    """A Digital Extremes game (Soulframe, Warframe) installed in the shortcut's own Proton prefix by its .msi:
-    drive_c/users/steamuser/AppData/Local/<Game>/Downloaded/Public, where its launcher (Tools/Launcher.exe) puts the
-    game's <Game>.x64.exe. The one named like the shortcut if there are several."""
+    """A Digital Extremes game (Soulframe, Warframe) set up by its .msi in the shortcut's own Proton prefix: its
+    launcher sits in drive_c/users/steamuser/AppData/Local/<Game>/Downloaded/Public/Tools, but the game itself
+    (<Game>.x64.exe) can be downloaded to another folder chosen in the launcher (Martin's Soulframe:
+    /home/deck/Games/Soulframe/Downloaded/Public). Looks in AppData and in the folders the prefix's registry
+    names; a Public folder holding the .x64.exe wins, named like the shortcut if there are several."""
     drive_c = prefix_drive_c(sc)
     if not drive_c:
         return None
+    found: list[Path] = []
     try:
-        found = [p for p in Path(drive_c, "users", "steamuser", "AppData", "Local").glob("*/Downloaded/Public")
-                 if p.is_dir() and (_exe_names(str(p)) or (p / "Tools").is_dir())]
+        found += [p for p in Path(drive_c, "users", "steamuser", "AppData", "Local").glob("*/Downloaded/Public")
+                  if p.is_dir()]
     except OSError:
-        return None
+        pass
     if not found:
-        return None
+        return None   # not a Digital Extremes install
+    pfx = Path(drive_c).parent
+    for reg in ("user.reg", "system.reg"):
+        text = (_read_capped(pfx / reg, 64 << 20) or b"").decode("utf-8", "replace")
+        for raw in set(_REG_PATH.findall(text)):
+            linux = wine_to_linux(raw, drive_c)
+            if not linux:
+                continue
+            low = linux.lower()
+            cut = low.find("/downloaded/public")
+            bases = [linux[:cut + len("/downloaded/public")]] if cut >= 0 else [linux, os.path.join(linux, "Downloaded", "Public")]
+            for b in bases:
+                if os.path.isdir(b) and has_evolution_exe(b) and Path(b) not in found:
+                    found.append(Path(b))
     name = re.sub(r"[^a-z0-9]", "", (sc.get("name") or "").lower())
-    named = [p for p in found if re.sub(r"[^a-z0-9]", "", p.parent.parent.name.lower()) in name]
-    return str((named or sorted(found))[0])
+    with_exe = [p for p in found if has_evolution_exe(str(p))]
+    pool = with_exe or found
+    named = [p for p in pool if (n := re.sub(r"[^a-z0-9]", "", p.parent.parent.name.lower())) and n in name]
+    return str((named or sorted(pool))[0])
 
 
 def resolve(home: Path, sc: dict) -> dict:
@@ -332,6 +373,8 @@ def resolve(home: Path, sc: dict) -> dict:
     folder, source = None, None
     if exe.lower().endswith(".exe") and os.path.isfile(exe) and not client:
         folder, source = game_root(os.path.dirname(exe)), "shortcut"
+        if is_evolution_public(folder) and not has_evolution_exe(folder):
+            folder = evolution_folder(sc) or folder   # the launcher's folder; the game may be elsewhere
     elif not client and (de := evolution_folder(sc)):
         folder, source = de, "shortcut"
     elif not client and start and os.path.isdir(start) and (names := _exe_names(start)) \
