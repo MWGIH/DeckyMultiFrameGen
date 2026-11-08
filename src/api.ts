@@ -29,7 +29,7 @@ export type Backend = {
   error?: string;
 };
 
-export type GameSummary = { appid: string; name: string };
+export type GameSummary = { appid: string; name: string; non_steam?: boolean };
 
 export type GameDetail = {
   ok: boolean;
@@ -44,6 +44,10 @@ export type GameDetail = {
   upscalers?: string[] | null; // what the game ships (FSR 3.1+, DLSS, ...); null when its files couldn't be read
   files?: string[] | null; // the game's .exe and upscaler files, relative to its folder
   hidden?: { choice: GameChoice; needs: string[]; reason?: string | null }[];
+  non_steam?: boolean; // a non-Steam game added to Steam
+  folder_source?: "shortcut" | "heroic" | "lutris" | "picked" | null; // where its folder came from
+  launcher?: string | null; // what starts it when it isn't the game's own .exe (Heroic, EA app, ...)
+  browse_start?: string | null; // where the folder picker opens
 };
 
 export const getBackends = callable<[], Backend[]>("get_backends");
@@ -53,6 +57,10 @@ export const listInstalledGames = callable<
   { ok: boolean; message?: string; games: GameSummary[] }
 >("list_installed_games");
 export const getGame = callable<[appid: string], GameDetail>("get_game");
+export const setGameFolder = callable<
+  [appid: string, folder: string],
+  { ok: boolean; error?: string; folder?: string | null }
+>("set_game_folder");
 export const setGameBackend = callable<
   [appid: string, backend: GameChoice, current_launch_options: string | null, dll_name: string],
   {

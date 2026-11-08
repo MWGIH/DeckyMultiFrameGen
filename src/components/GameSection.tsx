@@ -31,6 +31,7 @@ import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
 import { GameFiles } from "./GameFiles";
+import { GameFolder } from "./GameFolder";
 import { defaultProxyDll } from "../optiscalerOptions";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
@@ -106,10 +107,14 @@ export function GameSection({
   onChoice,
 }: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
+  const [reload, setReload] = useState(0); // bumped after a non-Steam game's folder changes
 
   useEffect(() => {
-    let cancelled = false;
     setDetail(null);
+    setReload(0);
+  }, [selected?.appid]);
+  useEffect(() => {
+    let cancelled = false;
     if (selected) {
       getGame(selected.appid).then((d) => {
         if (!cancelled) setDetail(d);
@@ -118,7 +123,7 @@ export function GameSection({
     return () => {
       cancelled = true;
     };
-  }, [selected?.appid]);
+  }, [selected?.appid, reload]);
   useEffect(
     () =>
       onChoice(
@@ -263,7 +268,10 @@ export function GameSection({
             description="No game is running or open in your library"
             menuLabel="Installed games"
             strDefaultLabel="Pick a game"
-            rgOptions={games.map((g) => ({ data: g.appid, label: g.name }))}
+            rgOptions={games.map((g) => ({
+              data: g.appid,
+              label: g.non_steam ? `${g.name} (non-Steam)` : g.name,
+            }))}
             selectedOption={
               selected?.source === "picked" ? selected.appid : undefined
             }
@@ -274,10 +282,21 @@ export function GameSection({
       {selected && (
         <>
           <PanelSectionRow>
-            <Field label={name} description={SOURCE_LABELS[selected.source]}>
-              {detail && !detail.installed ? "Not installed" : null}
+            <Field
+              label={name}
+              description={`${SOURCE_LABELS[selected.source]}${detail?.non_steam ? " · Non-Steam game" : ""}`}
+            >
+              {detail && !detail.installed ? (detail.non_steam ? "Folder needed" : "Not installed") : null}
             </Field>
           </PanelSectionRow>
+          {detail?.ok && detail.non_steam && (
+            <GameFolder
+              appid={selected.appid}
+              detail={detail}
+              locked={gameRunning || switching !== null}
+              onChanged={() => setReload((n) => n + 1)}
+            />
+          )}
           {detail?.ok && GAME_NOTES[selected.appid] && (
             <PanelSectionRow>
               <Field
@@ -304,7 +323,7 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
-          {detail?.ok && (
+          {detail?.ok && (detail.installed || !detail.non_steam) && (
             <PanelSectionRow>
               <BelowDropdown
                 label="Use"
@@ -334,7 +353,7 @@ export function GameSection({
               detail="Don't start the game until this is done."
             />
           )}
-          {detail?.ok && (
+          {detail?.ok && (detail.installed || !detail.non_steam) && (
             <PanelSectionRow>
               <ToggleField
                 label="Show all Use options"
