@@ -44,6 +44,16 @@ class Settings:
         data.setdefault("games", {}).setdefault(appid, {})[key] = value
         self.save(data)
 
+    def clear_game_value(self, appid: str, key: str) -> None:
+        data = self.load()
+        game = data.get("games", {}).get(appid)
+        if game is None or key not in game:
+            return
+        game.pop(key)
+        if not game:
+            data["games"].pop(appid)
+        self.save(data)
+
     def games_using(self, part: str) -> list[str]:
         """App ids of the games whose choice includes part (e.g. "mako")."""
         games = self.load().get("games", {})

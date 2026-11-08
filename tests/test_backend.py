@@ -26,6 +26,41 @@ class SteamLibraryTests(unittest.TestCase):
         self.assertEqual([g["appid"] for g in games], ["1091500", "292030"])
         self.assertFalse(games[1]["install_found"])
 
+    def test_sd_card_listed_in_config_vdf_only(self):
+        # SteamOS: the SD card mounts at /run/media/deck/<label>, /run/media/mmcblk0p1 links to it
+        sd = support.ROOT / "media" / "deck" / "SD"
+        support.add_game(sd, "292030", "The Witcher 3: Wild Hunt", "The Witcher 3")
+        cfg = self.steam / "config" / "libraryfolders.vdf"
+        cfg.parent.mkdir(parents=True)
+        cfg.write_text(f'"libraryfolders"\n{{\n\t"1"\n\t{{\n\t\t"path"\t\t"{sd}"\n\t}}\n}}\n')
+        (support.ROOT / "media" / "mmcblk0p1").symlink_to(sd)
+        games = steam_library.installed_games(self.home)
+        self.assertEqual([(g["appid"], g["install_found"]) for g in games], [("292030", True)])
+        self.assertEqual(len([p for p in steam_library.library_paths(self.home) if "media" in str(p)]), 1)
+
+    def test_sd_card_found_without_libraryfolders_vdf(self):
+        self.steam.mkdir(parents=True)
+        support.add_game(support.ROOT / "media" / "deck" / "Games" / "SteamLibrary", "292030", "The Witcher 3", "W3")
+        support.add_game(support.ROOT / "media" / "mmcblk0p1", "1091500", "Cyberpunk 2077", "Cyberpunk 2077")
+        games = steam_library.installed_games(self.home)
+        self.assertEqual([(g["appid"], g["install_found"]) for g in games], [("1091500", True), ("292030", True)])
+
+    def test_windows_formatted_drive_with_SteamApps_folder(self):
+        sd = support.ROOT / "media" / "deck" / "USB"
+        (sd / "SteamApps" / "common" / "Game").mkdir(parents=True)
+        (sd / "SteamApps" / "appmanifest_10.acf").write_text('"AppState"\n{\n\t"appid"\t"10"\n\t"name"\t"Game"\n\t"installdir"\t"Game"\n}\n')
+        games = steam_library.installed_games(self.home)
+        self.assertEqual([(g["appid"], g["install_found"]) for g in games], [("10", True)])
+
+    def test_leftover_manifest_does_not_hide_game_moved_to_sd_card(self):
+        sd = support.ROOT / "sdcard"
+        support.add_library_folder(self.steam, sd)
+        support.add_game(sd, "292030", "The Witcher 3", "The Witcher 3")
+        support.add_game(self.steam, "292030", "The Witcher 3", "The Witcher 3", create_dir=False)
+        games = steam_library.installed_games(self.home)
+        self.assertTrue(games[0]["install_found"])
+        self.assertTrue(games[0]["install_path"].startswith(str(sd)))
+
     def test_lookup_by_appid(self):
         support.add_game(self.steam, "1091500", "Cyberpunk 2077", "Cyberpunk 2077")
         self.assertTrue(steam_library.is_installed(self.home, "1091500"))
