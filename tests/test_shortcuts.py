@@ -146,6 +146,41 @@ class ShortcutTests(unittest.TestCase):
         self.assertFalse((self.heroic_game / "dxgi.dll").exists())
 
 
+class EvolutionLauncherTests(unittest.TestCase):
+    """Soulframe (and Warframe) install from an .msi into the shortcut's prefix; Tools/Launcher.exe starts the game's
+    <Game>.x64.exe in the Public folder above it."""
+
+    def setUp(self):
+        self.home = support.reset_home()
+        self.steam = self.home / ".local" / "share" / "Steam"
+        local = self.steam / "steamapps/compatdata/3000000010/pfx/drive_c/users/steamuser/AppData/Local"
+        self.public = local / "Soulframe" / "Downloaded" / "Public"
+        (self.public / "Tools").mkdir(parents=True)
+        (self.public / "Tools" / "Launcher.exe").write_bytes(b"MZ")
+        (self.public / "Tools" / "RemoteCrashSender.exe").write_bytes(b"MZ")
+        (self.public / "Soulframe.x64.exe").write_bytes(b"MZ")
+        dl = self.home / "Downloads"
+        dl.mkdir()
+        (dl / "Soulframe.msi").write_bytes(b"msi")
+        (dl / "other-setup.exe").write_bytes(b"MZ")
+        write_shortcuts(self.steam, [
+            {"appid": signed(3000000010), "AppName": "Soulframe Preludes", "Exe": f'"{dl / "Soulframe.msi"}"',
+             "StartDir": f'"{dl}"'},
+            {"appid": signed(3000000011), "AppName": "Soulframe",
+             "Exe": f'"{self.public / "Tools" / "Launcher.exe"}"', "StartDir": f'"{self.public / "Tools"}"'},
+        ])
+
+    def test_game_folder_is_public_not_tools_or_the_msi_folder(self):
+        for appid in (3000000010, 3000000011):
+            g = run(main.Plugin().get_game(str(appid)))
+            self.assertEqual(g["install_path"], str(self.public), appid)
+
+    def test_optiscaler_targets_the_x64_exe(self):
+        game = main._game_record("3000000011")
+        target, exe = main.OPTISCALER._guess_patch_target(game)
+        self.assertEqual(exe, self.public / "Soulframe.x64.exe")
+
+
 class HeroicLinkTests(unittest.TestCase):
     def test_link_forms(self):
         self.assertEqual(shortcuts.heroic_app("x heroic://launch/legendary/Fennec y"), "Fennec")

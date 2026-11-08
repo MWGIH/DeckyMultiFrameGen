@@ -1620,6 +1620,8 @@ class OptiScaler:
             score += 200
         if "/win64/" in normalized:
             score += 80
+        if name.endswith(".x64.exe"):
+            score += 150   # Digital Extremes' Evolution engine: Soulframe.x64.exe, Warframe.x64.exe
         if exe.parent == install_root:
             score += 20
         sanitized_game = re.sub(r"[^a-z0-9]", "", game_name.lower())

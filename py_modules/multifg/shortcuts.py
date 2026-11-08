@@ -157,8 +157,12 @@ def _client(exe: str) -> str | None:
 
 def game_root(folder: str) -> str:
     """An Unreal game's top folder for an exe in <game>/<project>/Binaries/Win64 (its upscaler DLLs sit under
-    Engine/ and <project>/Plugins, next to Binaries), else the folder itself."""
+    Engine/ and <project>/Plugins, next to Binaries); for Digital Extremes' launcher (Soulframe, Warframe:
+    .../Downloaded/Public/Tools/Launcher.exe) the Public folder, where the launcher puts the game's .x64.exe;
+    else the folder itself."""
     parts = Path(folder).parts
+    if len(parts) > 3 and [p.lower() for p in parts[-3:]] == ["downloaded", "public", "tools"]:
+        return str(Path(*parts[:-1]))
     if len(parts) > 4 and parts[-2].lower() == "binaries" and parts[-1].lower() in ("win64", "wingdk", "win32"):
         return str(Path(*parts[:-3]))
     return folder
@@ -301,6 +305,25 @@ def prefix_drive_c(sc: dict) -> str | None:
     return str(p) if p.is_dir() else None
 
 
+def evolution_folder(sc: dict) -> str | None:
+    """A Digital Extremes game (Soulframe, Warframe) installed in the shortcut's own Proton prefix by its .msi:
+    drive_c/users/steamuser/AppData/Local/<Game>/Downloaded/Public, where its launcher (Tools/Launcher.exe) puts the
+    game's <Game>.x64.exe. The one named like the shortcut if there are several."""
+    drive_c = prefix_drive_c(sc)
+    if not drive_c:
+        return None
+    try:
+        found = [p for p in Path(drive_c, "users", "steamuser", "AppData", "Local").glob("*/Downloaded/Public")
+                 if p.is_dir() and (_exe_names(str(p)) or (p / "Tools").is_dir())]
+    except OSError:
+        return None
+    if not found:
+        return None
+    name = re.sub(r"[^a-z0-9]", "", (sc.get("name") or "").lower())
+    named = [p for p in found if re.sub(r"[^a-z0-9]", "", p.parent.parent.name.lower()) in name]
+    return str((named or sorted(found))[0])
+
+
 def resolve(home: Path, sc: dict) -> dict:
     """Where a shortcut's game is: {folder (or None), source: "shortcut" | "heroic" | "lutris" | None, launcher}."""
     exe, start, launch = sc["exe"], sc["start_dir"], sc["launch"]
@@ -309,6 +332,8 @@ def resolve(home: Path, sc: dict) -> dict:
     folder, source = None, None
     if exe.lower().endswith(".exe") and os.path.isfile(exe) and not client:
         folder, source = game_root(os.path.dirname(exe)), "shortcut"
+    elif not client and (de := evolution_folder(sc)):
+        folder, source = de, "shortcut"
     elif not client and start and os.path.isdir(start) and (names := _exe_names(start)) \
             and not any(_client(n) for n in names):
         folder, source = game_root(start), "shortcut"
