@@ -59,7 +59,7 @@ export const listInstalledGames = callable<
 export const getGame = callable<[appid: string], GameDetail>("get_game");
 export const setGameFolder = callable<
   [appid: string, folder: string],
-  { ok: boolean; error?: string; folder?: string | null }
+  { ok: boolean; error?: string; folder?: string | null; use_reset?: boolean }
 >("set_game_folder");
 export const setGameBackend = callable<
   [appid: string, backend: GameChoice, current_launch_options: string | null, dll_name: string],

@@ -323,7 +323,7 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
-          {detail?.ok && (detail.installed || !detail.non_steam) && (
+          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
             <PanelSectionRow>
               <BelowDropdown
                 label="Use"
@@ -353,7 +353,7 @@ export function GameSection({
               detail="Don't start the game until this is done."
             />
           )}
-          {detail?.ok && (detail.installed || !detail.non_steam) && (
+          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
             <PanelSectionRow>
               <ToggleField
                 label="Show all Use options"
