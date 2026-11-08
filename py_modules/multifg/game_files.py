@@ -6,6 +6,8 @@ HelixSR keeps the game's FSR DLL as <name>.original.dll or in HelixSR-Scaler-bac
 """
 
 import os
+import re
+import subprocess
 
 from . import optiscaler as opti
 
@@ -135,3 +137,35 @@ def fits(choice: str, found: set[str] | None) -> bool:
 
 def labels(found: set[str] | None) -> list[str]:
     return [label for key, (label, _) in UPSCALERS.items() if found and key in found]
+
+
+# Wine/Proton's own processes and Steam's, left out of running_exes
+_SYSTEM_EXES = {"steam.exe", "explorer.exe", "services.exe", "winedevice.exe", "plugplay.exe", "rpcss.exe",
+                "svchost.exe", "tabtip.exe", "conhost.exe", "start.exe", "wineboot.exe", "winemenubuilder.exe",
+                "rundll32.exe", "msiexec.exe", "steamwebhelper.exe", "cmd.exe", "mscorsvw.exe", "xalia.exe"}
+_WIN_EXE = re.compile(r"[A-Za-z]:[\\/][^\n\"]*?\.exe\b", re.IGNORECASE)
+
+
+def running_exes(ps_lines: list[str] | None = None) -> list[str]:
+    """The Windows programs running now (their paths as Wine sees them, e.g. C:\\users\\steamuser\\...\\Game.exe),
+    leaving out Wine's and Steam's own: shown in the panel so a game whose .exe isn't in its folder (Soulframe's
+    launcher puts it somewhere else) can be found."""
+    if ps_lines is None:
+        try:
+            ps_lines = subprocess.run(["ps", "-eo", "args="], capture_output=True, text=True,
+                                      check=False, timeout=5).stdout.splitlines()
+        except Exception:
+            return []
+    out: list[str] = []
+    for line in ps_lines:
+        m = _WIN_EXE.search(line)
+        if not m:
+            continue
+        path = m.group(0).replace("/", "\\")
+        low = path.lower()
+        name = low.rsplit("\\", 1)[-1]
+        if name in _SYSTEM_EXES or "\\windows\\" in low or "\\proton" in low:
+            continue
+        if path not in out:
+            out.append(path)
+    return out[:10]

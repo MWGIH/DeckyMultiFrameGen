@@ -394,6 +394,7 @@ class Plugin:
         current = SETTINGS.game_choice(appid)
         # only the choices that can work with the upscalers the game ships (and whatever it is set to now)
         found = files = None
+        running = await asyncio.to_thread(game_files.running_exes)
         if installed:
             try:
                 found = await asyncio.to_thread(game_files.detect, game["install_path"])
@@ -416,6 +417,7 @@ class Plugin:
             "all_choices": list(backends.GAME_CHOICES),   # for the panel's "Show all Use options"
             "upscalers": game_files.labels(found) if found is not None else None,
             "files": files,
+            "running_exes": running,   # Windows programs running now, to find a game .exe outside its folder
             "hidden": hidden,
             "non_steam": bool(game and game.get("non_steam")),
             # non-Steam games: where the folder came from ("shortcut", "heroic", "lutris", "picked" or None) and what

@@ -371,7 +371,7 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
-          {detail?.ok && detail.installed && <GameFiles files={detail.files} />}
+          {detail?.ok && detail.installed && <GameFiles files={detail.files} running={detail.running_exes} />}
           {detail?.ok &&
             detail.installed &&
             parts(detail.backend).includes("helixsr") &&

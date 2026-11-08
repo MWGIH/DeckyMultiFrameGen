@@ -43,6 +43,7 @@ export type GameDetail = {
   all_choices?: GameChoice[];
   upscalers?: string[] | null; // what the game ships (FSR 3.1+, DLSS, ...); null when its files couldn't be read
   files?: string[] | null; // the game's .exe and upscaler files, relative to its folder
+  running_exes?: string[]; // Windows programs running now (as Wine sees their paths)
   hidden?: { choice: GameChoice; needs: string[]; reason?: string | null }[];
   non_steam?: boolean; // a non-Steam game added to Steam
   folder_source?: "shortcut" | "heroic" | "lutris" | "picked" | null; // where its folder came from
