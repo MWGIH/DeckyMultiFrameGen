@@ -9,7 +9,7 @@ import decky
 
 from mako_plugin.plugin import Plugin as MakoPlugin
 
-from multifg import backends, game_files, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
+from multifg import evolution, backends, game_files, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
@@ -74,6 +74,38 @@ def _learn_evolution_folder(appid: str, game: dict | None, running: list[str], c
             decky.logger.info(f"{game['name']}: running {exe}, game folder is now {found}")
             return True
     return False
+
+
+def _note_evolution_args(appid: str, game: dict | None, running: list[str]) -> None:
+    """While a Digital Extremes game runs started by its launcher, keeps the arguments the launcher gave it, for
+    starting it without the launcher (see evolution)."""
+    if not game or not game.get("non_steam") or not game["install_found"]:
+        return
+    exe = evolution.game_exe(game["install_path"])
+    if not exe:
+        return
+    for entry in running:
+        path = shortcuts.wine_to_linux(game_files.exe_path(entry) or "", None)
+        if path and os.path.normpath(path) == os.path.normpath(exe) and "-relaunch:" in entry:
+            args = evolution.args_from_running(entry)
+            if args and SETTINGS.game_value(appid, "direct_args") != args:
+                SETTINGS.set_game_value(appid, "direct_args", args)
+
+
+def _direct_start(appid: str, backend: str, options: str) -> str:
+    """Launch options for a Digital Extremes game started by its launcher: with a choice that puts DLLs into the game
+    (OptiScaler, HelixSR, FSR4 Injector) the game is started without the launcher, which would delete them; else
+    with it again."""
+    sc = shortcuts.find(HOME, appid) if int(appid) >= 0x80000000 else None
+    if not evolution.launcher_shortcut(sc):
+        return options
+    game = _game_record(appid)
+    exe = evolution.game_exe(game["install_path"]) if game and game["install_found"] else None
+    needs = bool(set(backend.split("+")) & {"optiscaler", "helixsr", "fsr4injector"})
+    if needs and exe:
+        wrapper = evolution.write_wrapper(HOME)
+        return evolution.with_wrapper(options, wrapper, exe, SETTINGS.game_value(appid, "direct_args") or "")
+    return evolution.without_wrapper(options) if evolution.has_wrapper(options) else options
 
 
 def _non_steam_games() -> list[dict]:
@@ -421,6 +453,7 @@ class Plugin:
         learned = await asyncio.to_thread(_learn_evolution_folder, appid, game, running, current)
         if learned:
             game = await asyncio.to_thread(_game_record, appid)
+        await asyncio.to_thread(_note_evolution_args, appid, game, running)
         installed = bool(game and game["install_found"])
         # only the choices that can work with the upscalers the game ships (and whatever it is set to now)
         found = files = None
@@ -544,6 +577,11 @@ class Plugin:
             added = await _add_helix_to_opti(appid)
         if "mako" in backend.split("+"):
             await _opti_frame_generation_off(appid, None if "helixsr" in backend.split("+") else {})
+        if current_launch_options is not None:
+            now = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options
+            direct = await asyncio.to_thread(_direct_start, appid, backend, now)
+            if direct != current_launch_options:
+                cleared["launch_options"] = direct
         return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4, "helix": helix,
                 "opti": opti,
                 "removed": cleared["removed"],

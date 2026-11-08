@@ -231,6 +231,45 @@ class EvolutionElsewhereTests(unittest.TestCase):
         self.assertEqual(run(main.Plugin().get_game("3000000012"))["install_path"], str(self.game))
 
 
+class EvolutionDirectStartTests(EvolutionElsewhereTests):
+    """Soulframe's launcher deletes DLLs it doesn't know from the game's folder: with OptiScaler the game is started
+    without it."""
+
+    def setUp(self):
+        super().setUp()
+        main.SETTINGS.set_game_value("3000000012", "folder", str(self.game))
+
+    def test_launch_options_swap_the_launcher_for_the_game(self):
+        from multifg import evolution
+        main.SETTINGS.set_game_value("3000000012", "direct_args", "-graphicsDriver:dx12 -cluster:public")
+        opts = main._direct_start("3000000012", "optiscaler", "WINEDLLOVERRIDES=dxgi=n,b SteamDeck=0 %command%")
+        wrapper = self.home / ".local/bin/multifg-direct"
+        self.assertTrue(wrapper.is_file())
+        self.assertEqual(opts, f"WINEDLLOVERRIDES=dxgi=n,b SteamDeck=0 {wrapper} {self.game / 'Soulframe.x64.exe'} "
+                               "'-graphicsDriver:dx12 -cluster:public' %command%")
+        self.assertEqual(main._direct_start("3000000012", "mako", opts), "WINEDLLOVERRIDES=dxgi=n,b SteamDeck=0 %command%")
+        self.assertEqual(main._direct_start("3000000012", "none", f"{wrapper} x y %command%"), "")
+        # the wrapper itself: Launcher.exe in the command becomes the game's exe with its arguments
+        import subprocess
+        tools = self.pfx / "drive_c/users/steamuser/AppData/Local/Soulframe/Downloaded/Public/Tools"
+        out = subprocess.run([str(wrapper), str(self.game / "Soulframe.x64.exe"), "-a:1 -b:2",
+                              "bash", "-c", 'echo "$PWD|$*"', "x", "waitforexitandrun", str(tools / "Launcher.exe")],
+                             capture_output=True, text=True).stdout.strip()
+        self.assertEqual(out, f"{self.game}|waitforexitandrun {self.game / 'Soulframe.x64.exe'} -a:1 -b:2")
+        self.assertFalse(evolution.has_wrapper("%command%"))
+
+    def test_the_launchers_arguments_are_kept_while_it_starts_the_game(self):
+        from unittest import mock
+        run_line = (self.wine(self.game / "Soulframe.x64.exe") +
+                    " -windowMode:1 -graphicsDriver:dx12 -cluster:public -relaunch:IgBDADoA -language:en")
+        with mock.patch.object(main.game_files, "running_exes", return_value=[run_line]):
+            run(main.Plugin().get_game("3000000012"))
+        self.assertEqual(main.SETTINGS.game_value("3000000012", "direct_args"),
+                         "-windowMode:1 -graphicsDriver:dx12 -cluster:public -language:en")
+
+    test_found_from_the_prefix_registry = test_learned_from_the_running_game = None
+
+
 class HeroicLinkTests(unittest.TestCase):
     def test_link_forms(self):
         self.assertEqual(shortcuts.heroic_app("x heroic://launch/legendary/Fennec y"), "Fennec")
