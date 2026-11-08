@@ -671,7 +671,13 @@ class Plugin:
         result = await _for_game(appid, lambda folder: HELIXSR.install_game(folder, route or None))
         if result.get("ok") and keep == "helixsr+mako":
             await _opti_frame_generation_off(str(appid), result)
-        return {**result, "removed": cleared["removed"], "base_launch_options": cleared["launch_options"]}
+        base = cleared["launch_options"]
+        if result.get("ok"):
+            now = base if base is not None else current_launch_options or ""
+            direct = await asyncio.to_thread(_direct_start, str(appid), keep, now)
+            if direct != (current_launch_options or ""):
+                base = direct
+        return {**result, "removed": cleared["removed"], "base_launch_options": base}
 
     async def optiscaler_plain(self, appid: str, on: bool | None = None) -> bool:
         """Whether the game is patched without the FSR 4.1.1 Deck files (see _opti_variant); set when on is given. The
@@ -856,6 +862,9 @@ class Plugin:
                                                     _without_mako(launch))
         if result.get("launch_options") and "mako" in keep.split("+") and Path(_mako_runner()).is_file():
             result["launch_options"] = _with_mako(result["launch_options"])
+        if result.get("status") == "success":
+            result["launch_options"] = await asyncio.to_thread(
+                _direct_start, str(appid), keep, result.get("launch_options") or launch)
         if result.get("status") == "success" and "mako" in keep.split("+"):
             await _opti_frame_generation_off(str(appid), {})
         if result.get("status") == "success" and {"optiscaler", "helixsr"} <= set(keep.split("+")):

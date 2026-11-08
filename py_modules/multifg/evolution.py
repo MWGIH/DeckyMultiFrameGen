@@ -40,11 +40,11 @@ exec "${cmd[@]}"
 
 
 def launcher_shortcut(sc: dict | None) -> bool:
-    """Whether a non-Steam shortcut starts a Digital Extremes launcher (...Downloaded/Public/Tools/Launcher.exe)."""
+    """Whether a non-Steam shortcut starts a Digital Extremes launcher (...Downloaded/Public/Tools/Launcher.exe, or Tools/Launcher.exe anywhere)."""
     if not sc:
         return False
     parts = [p.lower() for p in Path(sc.get("exe") or "").parts]
-    return parts[-4:] == ["downloaded", "public", "tools", "launcher.exe"]
+    return parts[-2:] == ["tools", "launcher.exe"]
 
 
 def game_exe(folder: str) -> str | None:
