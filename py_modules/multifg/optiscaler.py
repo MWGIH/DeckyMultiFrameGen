@@ -17,6 +17,8 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import fsr4lite
+
 OPTISCALER_ARCHIVE_ASSET = {
     "name": "Optiscaler_0.9.4-final.20260718._MM.7z",
     "sha256": "575cb4df866116093df75af607e37fd70e10f5163e0f23fd5c804142e80ef0ad",
@@ -58,6 +60,9 @@ OPTIPATCHER_ASSET = {
     "sha256": "88b9e1be3559737cd205fdf5f2c8550cf1923fb1def4c603e5bf03c3e84131b1",
     "version": "rolling",
 }
+
+# what a variant's OptiScaler.ini setting goes back to when a game is patched with another variant (else "auto")
+CONFIG_RESET = {"Plugins.LoadCustomAmdxc64OnRdna2": "false"}
 
 FSR4_UPSCALER_FILENAME = "amd_fidelityfx_upscaler_dx12.dll"
 FSR4_DRIVER_OVERRIDE_FILENAME = "amdxcffx64.dll"
@@ -132,6 +137,32 @@ FSR4_VARIANTS = {
             "FSR.Fsr4ForceModel": "2",
             "Plugins.LoadCustomAmdxc64OnRdna2": "true",
         },
+    },
+    # AMD's FSR 4.1.2 with the INT8 Lite model, a newer OptiScaler (nightly) that can pick it: see fsr4lite. Its folder
+    # is made when a game is first patched with it, not by the install
+    fsr4lite.VARIANT: {
+        "label": "4.1.2 Lite (AMD)",
+        "dir_name": fsr4lite.DIR_NAME,
+        "sha256": "d0dcccc74a43c44ba435b7a369b456e0970d8a4464e4bd683119b374f2c9fb46",
+        "source_asset_name": OPTISCALER_ARCHIVE_ASSET["name"],
+        "source_version": OPTISCALER_ARCHIVE_ASSET["version"],
+        "uses_archive_native": True,
+        "prepared_on_demand": True,
+        "injector": {
+            "name": "OptiScaler.dll",
+            "sha256": "",
+            "source_asset_name": fsr4lite.NIGHTLY["name"],
+            "source_version": fsr4lite.NIGHTLY["tag"],
+        },
+        "extra_files": [
+            {
+                "name": FSR4_DRIVER_OVERRIDE_FILENAME,
+                "sha256": fsr4lite.AMD_DLL["sha256"],
+                "source_asset_name": fsr4lite.AMD_DLL["name"],
+                "source_version": f"{fsr4lite.AMD_DLL['fsr']} ({fsr4lite.AMD_DLL['driver']})",
+            }
+        ],
+        "config_overrides": dict(fsr4lite.CONFIG),
     },
 }
 VARIANT_EXTRA_FILENAMES = sorted(
@@ -497,6 +528,16 @@ class OptiScaler:
 
     def _load_install_manifest(self, fgmod_path: Path) -> dict:
         return self._read_json_file(self._install_manifest_path(fgmod_path))
+
+    def prepare_fsr4_lite(self) -> None:
+        """~/fgmod's FSR 4.1.2 Lite folder, made when missing (see fsr4lite)."""
+        fgmod_path = Path(decky.HOME) / "fgmod"
+        if fsr4lite.prepared(fgmod_path):
+            return
+        reuse = Path(decky.DECKY_PLUGIN_RUNTIME_DIR) / "fsr4injector" / fsr4lite.AMD_DLL["name"]
+        native = self._fsr4_variant_path(fgmod_path, "rdna4-native")   # OptiScaler 0.9.4's own FidelityFX upscaler
+        result = fsr4lite.prepare(fgmod_path, BIN_DIR / "fsr4-lite", native, self._create_renamed_copies, reuse)
+        decky.logger.info(f"[Framegen] FSR 4.1.2 Lite files ready: {result}")
 
     def _normalize_fsr4_variant(self, fsr4_variant: str | None) -> str:
         variant = str(fsr4_variant or "").strip()
@@ -1187,6 +1228,8 @@ class OptiScaler:
             return {"exists": False}
 
         for variant_id, variant in FSR4_VARIANTS.items():
+            if variant.get("prepared_on_demand"):
+                continue
             variant_dir = path / variant["dir_name"]
             variant_path = variant_dir / FSR4_UPSCALER_FILENAME
             if not variant_path.exists():
@@ -1250,9 +1293,10 @@ class OptiScaler:
         selected_variant = self._selected_fsr4_variant(fgmod_path, fsr4_variant)
         selected_variant_info = FSR4_VARIANTS[selected_variant]
         selected_config_overrides = self._fsr4_variant_config_overrides(selected_variant)
-        if previous_variant == "rdna2-valve-411-pre10" and selected_variant != previous_variant:
-            selected_config_overrides.setdefault("FSR.Fsr4ForceModel", "auto")
-            selected_config_overrides.setdefault("Plugins.LoadCustomAmdxc64OnRdna2", "false")
+        if previous_variant in FSR4_VARIANTS and selected_variant != previous_variant:
+            # the earlier build's settings go back to OptiScaler's defaults
+            for key in self._fsr4_variant_config_overrides(previous_variant):
+                selected_config_overrides.setdefault(key, CONFIG_RESET.get(key, "auto"))
         selected_upscaler_src = self._fsr4_variant_path(fgmod_path, selected_variant)
         if not selected_upscaler_src.exists():
             selected_upscaler_src = fgmod_path / FSR4_UPSCALER_FILENAME
@@ -1925,6 +1969,12 @@ class OptiScaler:
             fgmod_path = Path(decky.HOME) / "fgmod"
             if not fgmod_path.exists():
                 return {"status": "error", "message": "OptiScaler bundle not installed. Run Install first."}
+            if self._normalize_fsr4_variant(fsr4_variant) == fsr4lite.VARIANT:
+                try:
+                    await asyncio.to_thread(self.prepare_fsr4_lite)
+                except Exception as exc:
+                    decky.logger.error(f"[Framegen] FSR 4.1.2 Lite files: {exc}")
+                    return {"status": "error", "message": f"FSR 4.1.2 Lite files: {exc}"}
 
             # Preserve true original launch options across re-patches
             original_launch_options = current_launch_options or ""

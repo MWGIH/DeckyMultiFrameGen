@@ -13,6 +13,7 @@ from multifg import evolution, backends, game_files, helix_opti, leftovers, mako
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
+from multifg import fsr4lite
 from multifg.optiscaler import OPTISCALER_ARCHIVE_ASSET, OptiScaler
 from multifg.settings import Settings
 
@@ -252,11 +253,23 @@ def _uninstall_helix(folder: str, status: dict) -> dict:
     return r
 
 
+# a game's "FSR 4 files" for OptiScaler (settings games[appid].opti_fsr4) -> the variant it's patched with
+OPTI_FSR4_FILES = {"deck": FSR4_VARIANT, "lite": fsr4lite.VARIANT, "plain": OPTI_PLAIN_VARIANT}
+
+
 def _opti_variant(appid: str) -> str:
     """The FSR 4 files OptiScaler is patched in with: Decky Framegen's Valve RDNA2 4.1.1 build (its pre-0.10 OptiScaler
-    and a custom amdxc64.dll), or, for a game set to do without them, stock OptiScaler 0.9.4 with FSR 4.0.2c (Phantom
-    Blade Zero stops while setting up its graphics device with the 4.1.1 build in)."""
-    return OPTI_PLAIN_VARIANT if _opti_plain(appid) else FSR4_VARIANT
+    and a custom amdxc64.dll); AMD's FSR 4.1.2 with the Lite model (fsr4lite); or, for a game set to do without them,
+    stock OptiScaler 0.9.4 with FSR 4.0.2c (Phantom Blade Zero stops while setting up its graphics device with the 4.1.1
+    build in)."""
+    return OPTI_FSR4_FILES[_opti_fsr4(appid)]
+
+
+def _opti_fsr4(appid: str) -> str:
+    files = SETTINGS.game_value(appid, "opti_fsr4")
+    if files in OPTI_FSR4_FILES:
+        return files
+    return "plain" if _opti_plain(appid) else "deck"
 
 
 def _opti_plain(appid: str) -> bool:
@@ -689,7 +702,19 @@ class Plugin:
         appid = _valid_appid(appid)
         if on is not None:
             SETTINGS.set_game_value(appid, "opti_plain", bool(on))
-        return _opti_plain(appid)
+            SETTINGS.set_game_value(appid, "opti_fsr4", "plain" if on else "deck")
+        return _opti_fsr4(appid) == "plain"
+
+    async def optiscaler_fsr4_files(self, appid: str, files: str | None = None) -> str:
+        """The game's FSR 4 files for OptiScaler: "deck" (Valve's 4.1.1 Deck build), "lite" (AMD's 4.1.2 Lite) or
+        "plain" (stock 0.9.4, FSR 4.0.2); set when files is given. The panel repatches the game after a change."""
+        appid = _valid_appid(appid)
+        if files is not None:
+            if files not in OPTI_FSR4_FILES:
+                raise ValueError(f"Unknown FSR 4 files: {files!r}")
+            SETTINGS.set_game_value(appid, "opti_fsr4", files)
+            SETTINGS.set_game_value(appid, "opti_plain", files == "plain")
+        return _opti_fsr4(appid)
 
     async def optiscaler_logging(self, appid: str, on: bool | None = None) -> dict:
         """OptiScaler's log file (off by default) in the game's OptiScaler.ini: switched when on is given."""
