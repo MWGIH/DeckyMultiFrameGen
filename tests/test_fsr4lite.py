@@ -73,7 +73,7 @@ class GameSettingTests(unittest.TestCase):
         import asyncio
         p = main.Plugin()
         self.assertEqual(main._opti_variant("10"), main.FSR4_VARIANT)
-        self.assertEqual(asyncio.run(p.optiscaler_fsr4_files("10", "lite")), "lite")
+        self.assertEqual(asyncio.run(p.optiscaler_fsr4_files("10", "lite"))["files"], "lite")
         self.assertEqual(main._opti_variant("10"), fsr4lite.VARIANT)
         self.assertFalse(asyncio.run(p.optiscaler_plain("10")))
 
@@ -83,6 +83,30 @@ class GameSettingTests(unittest.TestCase):
     def test_old_plain_setting_is_kept(self):
         main.SETTINGS.set_game_value("11", "opti_plain", True)
         self.assertEqual(main._opti_fsr4("11"), "plain")
+
+
+class CompatibilityTests(unittest.TestCase):
+    def test_needs_an_upscaler_optiscaler_can_take_over(self):
+        from multifg import game_files
+        self.assertIn("FSR 2", game_files.lite_unfit(set(), True))
+        self.assertIn("FSR 2", game_files.lite_unfit({"fsr31_vk"}, None))
+        self.assertIsNone(game_files.lite_unfit({"dlss"}, True))
+        self.assertIsNone(game_files.lite_unfit(None, None))   # unknown never hides it
+
+    def test_needs_directx_12(self):
+        from multifg import game_files
+        self.assertIn("DirectX 12", game_files.lite_unfit({"xess"}, False))
+        with tempfile.TemporaryDirectory() as d:
+            exe = Path(d) / "Game.exe"
+            exe.write_bytes(b"MZ vulkan-1.dll")
+            self.assertFalse(game_files.uses_dx12(d, str(exe)))
+            (Path(d) / "amd_fidelityfx_dx12.dll.b").write_bytes(b"")
+            self.assertTrue(game_files.uses_dx12(d, str(exe)))
+        with tempfile.TemporaryDirectory() as d:
+            exe = Path(d) / "Game.exe"
+            exe.write_bytes(b"MZ\0D3D12.DLL\0")
+            self.assertTrue(game_files.uses_dx12(d, str(exe)))
+            self.assertIsNone(game_files.uses_dx12(d + "/missing", None))
 
 
 if __name__ == "__main__":

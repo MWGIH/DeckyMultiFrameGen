@@ -119,8 +119,10 @@ class AutoPatchTests(unittest.TestCase):
             (lite / "amdxcffx64.dll").write_bytes(b"AMD 4.1.2")
             (lite / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"FSR4")
 
+        (self.d / "D3D12").mkdir()
+        (self.d / "D3D12" / "D3D12Core.dll").write_bytes(b"agility sdk")   # a DirectX 12 game
         p = main.Plugin()
-        self.assertEqual(run(p.optiscaler_fsr4_files("4242", "lite")), "lite")
+        self.assertEqual(run(p.optiscaler_fsr4_files("4242", "lite"))["files"], "lite")
         with mock.patch.object(main.OptiScaler, "prepare_fsr4_lite", prepare):
             r = run(p.set_game_backend("4242", "optiscaler", ""))
         self.assertTrue(r["opti"]["ok"], r)
@@ -133,7 +135,7 @@ class AutoPatchTests(unittest.TestCase):
         for line in ("Fsr4GpuSupport=4", "Fsr4Model=3", "LoadCustomAmdxc64OnRdna2=false"):
             self.assertIn(line, ini)
 
-        self.assertEqual(run(p.optiscaler_fsr4_files("4242", "deck")), "deck")
+        self.assertEqual(run(p.optiscaler_fsr4_files("4242", "deck"))["files"], "deck")
         r = run(p.optiscaler_patch_game("4242", "dxgi.dll", r["launch_options"]))
         self.assertEqual(r["status"], "success", r)
         f = self.files()
@@ -147,15 +149,29 @@ class AutoPatchTests(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         self.assertEqual(self.files(), GAME_FILES)
 
+    def test_lite_is_only_offered_in_a_directx_12_game(self):
+        p = main.Plugin()
+        r = run(p.optiscaler_fsr4_files("4242"))
+        self.assertEqual(r["options"], ["deck", "plain"])
+        self.assertIn("DirectX 12", r["lite_unfit"])
+        r = run(p.optiscaler_fsr4_files("4242", "lite"))
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["files"], "deck")
+        (self.d / "Game.exe").write_bytes(b"MZ" + b"\0" * 64 + b"D3D12.dll\0")
+        r = run(p.optiscaler_fsr4_files("4242", "lite"))
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["options"], ["deck", "lite", "plain"])
+
     def test_lite_files_that_cant_be_fetched_stop_the_patch(self):
         from unittest import mock
+        (self.d / "Game.exe").write_bytes(b"MZ" + b"\0" * 64 + b"d3d12.dll\0")
         p = main.Plugin()
-        run(p.optiscaler_fsr4_files("4242", "lite"))
+        self.assertTrue(run(p.optiscaler_fsr4_files("4242", "lite"))["ok"])
         with mock.patch.object(main.OptiScaler, "prepare_fsr4_lite", side_effect=RuntimeError("no network")):
             r = run(p.set_game_backend("4242", "optiscaler", ""))
         self.assertFalse(r["opti"]["ok"], r)
         self.assertIn("no network", r["opti"]["error"])
-        self.assertEqual(self.files(), GAME_FILES)
+        self.assertEqual(self.files(), {**GAME_FILES, "Game.exe": b"MZ" + b"\0" * 64 + b"d3d12.dll\0"})
 
     def test_phantom_blade_zero_is_patched_without_the_deck_files_by_default(self):
         p = main.Plugin()

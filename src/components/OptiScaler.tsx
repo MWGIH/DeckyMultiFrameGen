@@ -12,6 +12,7 @@ import {
   optiscalerStatus,
   optiscalerUninstall,
   type OptiFsr4Files,
+  type OptiFsr4State,
   type OptiGame,
   type OptiStatus,
 } from "../api";
@@ -178,7 +179,12 @@ export function OptiScalerGame({
   const [game, setGame] = useState<OptiGame | null>(null);
   const [dll, setDll] = useState<string>(defaultProxyDll(appid));
   const [busy, setBusy] = useState(false);
-  const [fsr4Files, setFsr4Files] = useState<OptiFsr4Files>("deck");
+  const [fsr4, setFsr4] = useState<OptiFsr4State | null>(null);
+  const fsr4Files: OptiFsr4Files = fsr4?.files ?? "deck";
+  const fsr4Options = FSR4_FILES.filter((o) => !fsr4 || fsr4.options.includes(o.value));
+  const liteNote = fsr4?.lite_unfit && !fsr4.options.includes("lite")
+    ? ` FSR 4.1.2 Lite isn't offered here: it ${fsr4.lite_unfit}.`
+    : "";
   // the game this panel already patched by itself, so a failed patch isn't retried over and over
   const autoTried = useRef<string | null>(null);
 
@@ -191,7 +197,8 @@ export function OptiScalerGame({
   useEffect(() => {
     setGame(null);
     load();
-    optiscalerFsr4Files(appid).then(setFsr4Files);
+    setFsr4(null);
+    optiscalerFsr4Files(appid).then(setFsr4);
   }, [appid]);
   useEffect(() => {
     if (refresh) load();
@@ -298,12 +305,17 @@ export function OptiScalerGame({
       <PanelSectionRow>
         <BelowDropdown
           label="FSR 4 files"
-          description={`${FSR4_FILES.find((o) => o.value === fsr4Files)?.hint ?? ""}${running ? " Close the game to change it." : " Changing it patches the game again."}`}
-          rgOptions={FSR4_FILES.map((o) => ({ data: o.value, label: o.label }))}
+          description={`${FSR4_FILES.find((o) => o.value === fsr4Files)?.hint ?? ""}${liteNote}${running ? " Close the game to change it." : " Changing it patches the game again."}`}
+          rgOptions={fsr4Options.map((o) => ({ data: o.value, label: o.label }))}
           selectedOption={fsr4Files}
           disabled={busy || running}
           onChange={async (o) => {
-            setFsr4Files(await optiscalerFsr4Files(appid, o.data as OptiFsr4Files));
+            const r = await optiscalerFsr4Files(appid, o.data as OptiFsr4Files);
+            setFsr4(r);
+            if (!r.ok) {
+              toast(r.error ?? "Couldn't change the FSR 4 files");
+              return;
+            }
             patch(dll, "");
           }}
         />
