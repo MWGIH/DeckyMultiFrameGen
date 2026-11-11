@@ -14,7 +14,7 @@ from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
 from multifg import fsr4decky, fsr4lite, fsr4overrides
-from multifg.optiscaler import OPTISCALER_ARCHIVE_ASSET, OptiScaler
+from multifg.optiscaler import FSR4_VARIANTS, OPTISCALER_ARCHIVE_ASSET, OptiScaler
 from multifg.settings import Settings
 
 HOME = Path(decky.DECKY_USER_HOME)
@@ -751,7 +751,8 @@ class Plugin:
             if files not in OPTI_FSR4_FILES:
                 raise ValueError(f"Unknown FSR 4 files: {files!r}")
             if files in OPTI_FSR4_LITE_LIKE and unfit and _opti_fsr4(appid) != files:
-                return {"ok": False, "error": f"FSR 4.1.2 Lite {unfit}", "files": _opti_fsr4(appid),
+                label = FSR4_VARIANTS[OPTI_FSR4_FILES[files]]["label"]
+                return {"ok": False, "error": f"{label} {unfit}", "files": _opti_fsr4(appid),
                         "options": _options(_opti_fsr4(appid)), "lite_unfit": unfit}
             SETTINGS.set_game_value(appid, "opti_fsr4", files)
             SETTINGS.set_game_value(appid, "opti_plain", files == "plain")
