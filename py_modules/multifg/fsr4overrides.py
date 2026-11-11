@@ -37,6 +37,7 @@ VARIANTS = {
     "exact": {
         "id": "cyboman-exact",
         "files": "exact",
+        "archive_folder": "exact",
         "label": "FSR 4.1.2 Exact (Cyboman)",
         "dir_name": "fsr4-cyboman-exact",
         "sha256": "1312fdca3bb13f0e66a0c3678151d61d3e1f8c6b9f1d80a805254f4e00db3c69",
@@ -50,6 +51,7 @@ VARIANTS = {
     "lossy": {
         "id": "cyboman-lossy",
         "files": "lossy",
+        "archive_folder": "lossy",
         "label": "FSR 4.1.2 Lossy (Cyboman)",
         "dir_name": "fsr4-cyboman-lossy",
         "sha256": "d34dd6c9841e290ccb29f4cc129a3b6fd3ba5a9d3c5a0379119311bdf66534ff",
@@ -167,18 +169,15 @@ def extract_upscaler(archive: Path, folder_name: str, dest: Path, sha256: str, s
         tmp.unlink(missing_ok=True)
 
 
-_ARCHIVE_FOLDER = {
-    "exact": "exact",
-    "lossy": "lossy",
-    "lite-exact": "4.1.2l-exact",
-    "lite-lossy": "4.1.2l-lossy",
-}
+def _archive_folder(files_key: str) -> str:
+    info = BY_FILES[files_key]
+    return str(info.get("archive_folder") or files_key)
 
 
 def dll_path(cache: Path, files_key: str) -> Path:
     """Cached upscaler DLL for a UI files key (exact / lossy / lite-exact / lite-lossy)."""
     variant = BY_FILES[files_key]
-    folder = _ARCHIVE_FOLDER[files_key]
+    folder = _archive_folder(files_key)
     dest = cache / folder / UPSCALER
     if _valid(dest, variant["size"], variant["sha256"]):
         return dest
@@ -188,9 +187,18 @@ def dll_path(cache: Path, files_key: str) -> Path:
 
 
 def prepared(fgmod: Path, variant_id: str) -> bool:
+    """True only when the Cyboman folder has the upscaler and the OptiScaler injector/extras it needs."""
     info = BY_ID[variant_id]
     folder = fgmod / info["dir_name"]
-    return _valid(folder / UPSCALER, info["size"], info["sha256"])
+    if not _valid(folder / UPSCALER, info["size"], info["sha256"]):
+        return False
+    if not (folder / "OptiScaler.dll").is_file() or not (folder / "renames").is_dir():
+        return False
+    if not (folder / "amdxcffx64.dll").is_file():
+        return False
+    if not info["lite"] and not (folder / "amdxc64.dll").is_file():
+        return False
+    return True
 
 
 def prepare_from(
@@ -206,27 +214,31 @@ def prepare_from(
     info = BY_FILES[files_key]
     if not base_dir.is_dir():
         raise OverridesError(f"OptiScaler base files missing at {base_dir}: reinstall OptiScaler")
+    required = ["OptiScaler.dll", "amdxcffx64.dll"]
+    if not info["lite"]:
+        required.append("amdxc64.dll")
+    missing = [name for name in required if not (base_dir / name).is_file()]
+    if missing:
+        raise OverridesError(
+            f"OptiScaler base files missing {', '.join(missing)} in {base_dir}: reinstall OptiScaler"
+        )
     upscaler = dll_path(cache, files_key)
     folder = fgmod / info["dir_name"]
     if folder.exists():
         shutil.rmtree(folder)
     folder.mkdir(parents=True)
     try:
-        # OptiScaler.dll (+ renames) and amdxcffx64 / amdxc64 when the base has them
-        for name in ("OptiScaler.dll", "amdxcffx64.dll", "amdxc64.dll"):
-            src = base_dir / name
-            if src.is_file():
-                shutil.copy2(src, folder / name)
+        for name in required:
+            shutil.copy2(base_dir / name, folder / name)
         renames_src = base_dir / "renames"
-        if (folder / "OptiScaler.dll").is_file():
-            if renames_src.is_dir():
-                shutil.copytree(renames_src, folder / "renames")
-            elif not make_renames(folder / "OptiScaler.dll", folder / "renames"):
-                raise OverridesError("Couldn't prepare OptiScaler's proxy DLL copies")
+        if renames_src.is_dir():
+            shutil.copytree(renames_src, folder / "renames")
+        elif not make_renames(folder / "OptiScaler.dll", folder / "renames"):
+            raise OverridesError("Couldn't prepare OptiScaler's proxy DLL copies")
         shutil.copy2(upscaler, folder / UPSCALER)
         (folder / "source.txt").write_text(
             f"{info['label']}\n{RELEASE['project']}/releases/tag/{RELEASE['tag']}\n"
-            f"{RELEASE['name']} / {info.get('archive_folder', files_key)}\n",
+            f"{RELEASE['name']} / {_archive_folder(files_key)}\n",
             encoding="utf-8",
         )
     except Exception:

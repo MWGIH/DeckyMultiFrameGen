@@ -53,6 +53,7 @@ class OverridesPrepareTests(unittest.TestCase):
             base.mkdir()
             (base / "OptiScaler.dll").write_bytes(b"opti")
             (base / "amdxcffx64.dll").write_bytes(b"amd")
+            (base / "amdxc64.dll").write_bytes(b"xc")
             (base / "renames").mkdir()
             (base / "renames" / "dxgi.dll").write_bytes(b"opti")
             upscaler = b"MZ-CYBOMAN-EXACT"
@@ -68,8 +69,31 @@ class OverridesPrepareTests(unittest.TestCase):
                 )
             self.assertEqual((folder / "amd_fidelityfx_upscaler_dx12.dll").read_bytes(), upscaler)
             self.assertEqual((folder / "OptiScaler.dll").read_bytes(), b"opti")
+            self.assertEqual((folder / "amdxc64.dll").read_bytes(), b"xc")
             self.assertTrue((folder / "renames" / "dxgi.dll").is_file())
             self.assertEqual(folder, fgmod / info["dir_name"])
+
+    def test_prepared_is_false_when_only_the_upscaler_is_present(self):
+        with tempfile.TemporaryDirectory() as d:
+            fgmod = Path(d)
+            info = fsr4overrides.BY_FILES["exact"]
+            folder = fgmod / info["dir_name"]
+            folder.mkdir(parents=True)
+            upscaler = folder / "amd_fidelityfx_upscaler_dx12.dll"
+            upscaler.write_bytes(b"x" * info["size"])
+            with mock.patch.object(fsr4overrides, "sha256_file", return_value=info["sha256"]):
+                self.assertFalse(fsr4overrides.prepared(fgmod, info["id"]))
+
+    def test_prepare_from_fails_when_base_injector_is_missing(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            fgmod, cache, base = root / "fgmod", root / "cache", root / "base"
+            base.mkdir()
+            (base / "amdxcffx64.dll").write_bytes(b"amd")
+            with self.assertRaises(fsr4overrides.OverridesError):
+                fsr4overrides.prepare_from(
+                    fgmod, cache, "exact", base_dir=base, make_renames=lambda *_: True
+                )
 
 
 class GameSettingTests(unittest.TestCase):

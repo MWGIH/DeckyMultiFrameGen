@@ -164,7 +164,7 @@ def extract_assets(cache: Path) -> Path:
 
 def prepared(fgmod: Path) -> bool:
     folder = fgmod / DIR_NAME
-    if not (folder / "OptiScaler.dll").is_file():
+    if not (folder / "OptiScaler.dll").is_file() or not (folder / "renames").is_dir():
         return False
     if not fsr4lite.amd_dll_valid(folder / fsr4lite.AMD_DLL["name"]):
         return False
