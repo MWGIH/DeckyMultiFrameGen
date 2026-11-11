@@ -9,6 +9,7 @@ please star, support and report backend bugs to the original projects.
 | [HelixSR](https://github.com/lonewolf0622/HelixSR) | [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager) | PeroTuncay (plugin), lonewolf0622 (HelixSR) | Unlicense (plugin), HelixSR Freeware License | Release download, setup and per-game install logic, packaging script |
 | [MAKO](https://github.com/eugeniosegala/MAKO) | MAKO Decky (same repo) | Eugenio Segala and contributors | GPL-3.0-or-later | MAKO Decky's backend (`py_modules/mako_plugin`) and frontend (`src/mako`) from tag `plugin-v4.6.0`, with small marked changes so its methods are prefixed `mako_` and the Renderer is downloaded at runtime |
 | [FSR4 Injector](https://github.com/Rayekkk/FSR4Injector) | FSR4 Injector (same repo) | Rayekkk | BSD-3-Clause (plugin), LGPL-2.1-or-later (its `amdxc64.dll` shim) | Its release is downloaded at runtime and its own modules (`fsr4_dll`, `fsr4_install`, `fsr4_gpu`, `fsr4_games`) fetch AMD's library, read the GPU and install it per game |
+| FSR 4.1.2 Lite for OptiScaler | — | Rayekkk (download method), optiscaler (OptiScaler nightly) | BSD-3-Clause (`py_modules/multifg/fsr4lite.py` reuses FSR4 Injector's `fsr4_dll` method and recipe), GPL-3.0 (OptiScaler) | The OptiScaler "FSR 4.1.2 Lite (AMD)" option: AMD's `amdxcffx64.dll` cut out of AMD's Adrenalin 26.10.1 installer on drivers.amd.com and checked by SHA-256, and `OptiScaler.dll` from [OptiScaler's nightly releases](https://github.com/optiscaler/OptiScaler-nightly/releases). Its Lite settings (`Fsr4GpuSupport=4`, `Fsr4Model=3`) follow OptiScaler's own `OptiScaler.ini` notes |
 
 Because MAKO is GPL-3.0-or-later, this plugin as a whole is distributed under the
 [GNU GPL version 3 or later](LICENSE). The upstream license texts are kept in [licenses/](licenses/).
@@ -24,6 +25,8 @@ Because MAKO is GPL-3.0-or-later, this plugin as a whole is distributed under th
   from [Rayekkk/FSR4Injector](https://github.com/Rayekkk/FSR4Injector/releases), and its code fetches AMD's FSR 4
   library (`amdxcffx64.dll`) from AMD's own driver package, under the
   [AMD Software EULA](https://www.amd.com/en/legal/eula/amd-software-eula.html) you accept when installing it.
+  OptiScaler's "FSR 4.1.2 Lite (AMD)" option fetches the same AMD file the same way (or reuses FSR4 Injector's copy),
+  under the same EULA, and never from a re-hosted copy.
 - **No NVIDIA or Lossless Scaling files.** MAKO's frame generation reads resources from your own
   [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) install at runtime.
 

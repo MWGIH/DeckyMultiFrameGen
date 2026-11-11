@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { OptiLog } from "./OptiLog";
 import { BelowDropdown } from "./BelowDropdown";
-import { ButtonItem, ConfirmModal, Field, PanelSectionRow, showModal, ToggleField } from "@decky/ui";
+import { ButtonItem, ConfirmModal, Field, PanelSectionRow, showModal } from "@decky/ui";
 import { ProgressRow } from "./ProgressRow";
 import { toaster } from "@decky/api";
 import {
   optiscalerGameStatus,
   optiscalerInstall,
   optiscalerPatchGame,
-  optiscalerPlain,
+  optiscalerFsr4Files,
   optiscalerStatus,
   optiscalerUninstall,
+  type OptiFsr4Files,
+  type OptiFsr4State,
   type OptiGame,
   type OptiStatus,
 } from "../api";
@@ -18,6 +20,25 @@ import { defaultProxyDll, PROXY_DLL_OPTIONS } from "../optiscalerOptions";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 
 const POLL_MS = 5000;
+
+// The FSR 4 files a game's OptiScaler is patched with (per game)
+const FSR4_FILES: { value: OptiFsr4Files; label: string; hint: string }[] = [
+  {
+    value: "deck",
+    label: "FSR 4.1.1 Deck build (Valve)",
+    hint: "The default: Valve's FSR 4.1.1 build for the Steam Deck's RDNA 2 GPU, with its own amdxc64.dll.",
+  },
+  {
+    value: "lite",
+    label: "FSR 4.1.2 Lite (AMD)",
+    hint: "AMD's smaller FSR 4 model made for handheld chips, usually faster than the full model. The first time, AMD's FSR 4.1.2 file (about 43 MB) is downloaded from AMD's own driver installer, which means you accept AMD's software licence, and a newer OptiScaler build (about 70 MB) from OptiScaler's GitHub. DirectX 12 games.",
+  },
+  {
+    value: "plain",
+    label: "Without the FSR 4.1 Deck files",
+    hint: "For a game that won't start with OptiScaler: stock OptiScaler 0.9.4 with FSR 4.0.2.",
+  },
+];
 const POLL_RUNNING_MS = 1000;
 
 function toast(body: string) {
@@ -158,7 +179,12 @@ export function OptiScalerGame({
   const [game, setGame] = useState<OptiGame | null>(null);
   const [dll, setDll] = useState<string>(defaultProxyDll(appid));
   const [busy, setBusy] = useState(false);
-  const [plain, setPlain] = useState(false);
+  const [fsr4, setFsr4] = useState<OptiFsr4State | null>(null);
+  const fsr4Files: OptiFsr4Files = fsr4?.files ?? "deck";
+  const fsr4Options = FSR4_FILES.filter((o) => !fsr4 || fsr4.options.includes(o.value));
+  const liteNote = fsr4?.lite_unfit && !fsr4.options.includes("lite")
+    ? ` FSR 4.1.2 Lite isn't offered here: it ${fsr4.lite_unfit}.`
+    : "";
   // the game this panel already patched by itself, so a failed patch isn't retried over and over
   const autoTried = useRef<string | null>(null);
 
@@ -171,7 +197,8 @@ export function OptiScalerGame({
   useEffect(() => {
     setGame(null);
     load();
-    optiscalerPlain(appid).then(setPlain);
+    setFsr4(null);
+    optiscalerFsr4Files(appid).then(setFsr4);
   }, [appid]);
   useEffect(() => {
     if (refresh) load();
@@ -276,13 +303,19 @@ export function OptiScalerGame({
         />
       </PanelSectionRow>
       <PanelSectionRow>
-        <ToggleField
-          label="Without the FSR 4.1 Deck files"
-          description="For a game that won't start with OptiScaler: patches stock OptiScaler 0.9.4 with FSR 4.0.2 instead of the build with FSR 4.1.1 for the Steam Deck (its own amdxc64.dll). Changing it patches the game again."
-          checked={plain}
+        <BelowDropdown
+          label="FSR 4 files"
+          description={`${FSR4_FILES.find((o) => o.value === fsr4Files)?.hint ?? ""}${liteNote}${running ? " Close the game to change it." : " Changing it patches the game again."}`}
+          rgOptions={fsr4Options.map((o) => ({ data: o.value, label: o.label }))}
+          selectedOption={fsr4Files}
           disabled={busy || running}
-          onChange={async (on) => {
-            setPlain(await optiscalerPlain(appid, on));
+          onChange={async (o) => {
+            const r = await optiscalerFsr4Files(appid, o.data as OptiFsr4Files);
+            setFsr4(r);
+            if (!r.ok) {
+              toast(r.error ?? "Couldn't change the FSR 4 files");
+              return;
+            }
             patch(dll, "");
           }}
         />

@@ -151,6 +151,57 @@ def fits(choice: str, found: set[str] | None) -> bool:
     return found is None or not want or bool(found & set(want))
 
 
+# FSR 4.1.2 Lite through OptiScaler (fsr4lite): OptiScaler needs an upscaler of the game's to take over, and the plugin's
+# OptiScaler layout only has the Lite files for DirectX 12 (AMD's amdxcffx64.dll)
+LITE_NEEDS = ("fsr31", "fsr2", "dlss", "xess")
+# files only a DirectX 12 game ships (the game's own, or kept aside as .b): FidelityFX DX12 DLLs, Agility SDK's core
+DX12_FILES = {"amd_fidelityfx_dx12.dll", "amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_loader_dx12.dll",
+              "ffx_fsr2_api_dx12_x64.dll", "d3d12core.dll"}
+_DX12_NAME = re.compile(rb"d3d12\.dll", re.IGNORECASE)
+_dx12_cache: dict[tuple[str, int, float], bool] = {}
+
+
+def exe_uses_dx12(exe: str | None) -> bool | None:
+    """Whether a game .exe names d3d12.dll (imported, delay-loaded or loaded by name); None when it can't be read."""
+    if not exe:
+        return None
+    try:
+        st = os.stat(exe)
+        key = (exe, st.st_size, st.st_mtime)
+        if key not in _dx12_cache:
+            import mmap
+            with open(exe, "rb") as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
+                _dx12_cache[key] = _DX12_NAME.search(m) is not None
+        return _dx12_cache[key]
+    except (OSError, ValueError):
+        return None
+
+
+def uses_dx12(install_dir: str, exe: str | None = None) -> bool | None:
+    """Whether the game runs DirectX 12: it ships a DX12-only file, else its .exe names d3d12.dll. None: unknown."""
+    if not install_dir or not os.path.isdir(install_dir):
+        return None
+    base_depth = install_dir.rstrip(os.sep).count(os.sep)
+    for root, dirs, files in os.walk(install_dir):
+        for f in files:
+            name = f.lower()
+            name = name[:-2] if name.endswith(".b") else name.replace(".original.dll", ".dll")
+            if name in DX12_FILES:
+                return True
+        if os.path.basename(root) == SCALER_BACKUP or root.count(os.sep) - base_depth >= MAX_DEPTH:
+            dirs[:] = []
+    return exe_uses_dx12(exe)
+
+
+def lite_unfit(found: set[str] | None, dx12: bool | None) -> str | None:
+    """Why FSR 4.1.2 Lite can't work in a game (from detect and uses_dx12), or None when it can or that's unknown."""
+    if found is not None and not found & set(LITE_NEEDS):
+        return "needs a game with FSR 2, FSR 3.1, DLSS or XeSS for OptiScaler to take over"
+    if dx12 is False:
+        return "works in DirectX 12 games only, and this game doesn't use DirectX 12"
+    return None
+
+
 def labels(found: set[str] | None) -> list[str]:
     return [label for key, (label, _) in UPSCALERS.items() if found and key in found]
 

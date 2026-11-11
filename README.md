@@ -7,7 +7,9 @@ devices that puts three frame generation and upscaling tools in one place, so yo
 without juggling several plugins:
 
 - **OptiScaler** (from [Decky Framegen](https://github.com/xXJSONDeruloXx/Decky-Framegen)): upscaling and frame
-  generation for DirectX 12 games.
+  generation for DirectX 12 games. Per game, its FSR 4 files can be Valve's FSR 4.1.1 Deck build (the default), AMD's
+  FSR 4.1.2 Lite (the small model AMD made for handheld chips, fetched from AMD's own driver installer, with a newer
+  OptiScaler nightly that can pick it), or stock OptiScaler 0.9.4 with FSR 4.0.2.
 - **HelixSR** (from [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager)): DLSS and (from HelixSR
   3.0) FSR 4 upscaling networks on GPUs without them, on its own or through OptiScaler.
 - **MAKO** (from [MAKO](https://github.com/eugeniosegala/MAKO)): frame generation, scaling and shaders as a Vulkan
@@ -24,7 +26,7 @@ the Steam Deck, with game-by-game results and performance updates.
 
 ## Status
 
-**Version 1.1.13 is out.** Install it from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
+**Version 1.2.0 is out.** Install it from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
 (see [Install](#install)). What it does:
 
 - Detects the game you're on: the running game, else the game page open in your library, else one you pick.
