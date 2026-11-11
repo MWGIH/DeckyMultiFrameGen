@@ -34,6 +34,31 @@ const FSR4_FILES: { value: OptiFsr4Files; label: string; hint: string }[] = [
     hint: "AMD's smaller FSR 4 model made for handheld chips, usually faster than the full model. The first time, AMD's FSR 4.1.2 file (about 43 MB) is downloaded from AMD's own driver installer, which means you accept AMD's software licence, and a newer OptiScaler build (about 70 MB) from OptiScaler's GitHub. DirectX 12 games.",
   },
   {
+    value: "exact",
+    label: "FSR 4.1.2 Exact (Cyboman)",
+    hint: "Cyboman's exact FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: AMD's picture byte for byte, faster shaders (fsr4-shader-performance-overrides). Downloaded on first use (~100 MB zip). Single-player only.",
+  },
+  {
+    value: "lossy",
+    label: "FSR 4.1.2 Lossy (Cyboman)",
+    hint: "Cyboman's lossy FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: faster than Exact by skipping the network on some frames; picture is close to AMD's, not identical. Single-player only.",
+  },
+  {
+    value: "lite-exact",
+    label: "FSR 4.1.2 Lite Exact (Cyboman)",
+    hint: "Cyboman's exact FSR 4.1.2 Lite build for Steam Deck / RDNA2 iGPUs: AMD Lite's picture byte for byte, a little faster. Single-player only.",
+  },
+  {
+    value: "lite-lossy",
+    label: "FSR 4.1.2 Lite Lossy (Cyboman)",
+    hint: "Cyboman's lossy FSR 4.1.2 Lite build for Steam Deck / RDNA2 iGPUs: about 13–22% faster than AMD Lite; picture is close to Lite's, not identical. Single-player only.",
+  },
+  {
+    value: "decky",
+    label: "Decky (Steamdeck Optimised)",
+    hint: "DeckyUpscaler's Steam Deck-optimised FSR 4.1.2 Lite from the FSR4 timing kit (du-shipped). Deploys its Vulkan upscaler and shader packs; DirectX 12 still uses AMD Lite through OptiScaler. Up to ~28% faster than stock Lite at Deck resolutions in the kit. Single-player only.",
+  },
+  {
     value: "plain",
     label: "Without the FSR 4.1 Deck files",
     hint: "For a game that won't start with OptiScaler: stock OptiScaler 0.9.4 with FSR 4.0.2.",
@@ -183,7 +208,7 @@ export function OptiScalerGame({
   const fsr4Files: OptiFsr4Files = fsr4?.files ?? "deck";
   const fsr4Options = FSR4_FILES.filter((o) => !fsr4 || fsr4.options.includes(o.value));
   const liteNote = fsr4?.lite_unfit && !fsr4.options.includes("lite")
-    ? ` FSR 4.1.2 Lite isn't offered here: it ${fsr4.lite_unfit}.`
+    ? ` FSR 4.1.2 Lite options aren't offered here: they ${fsr4.lite_unfit}.`
     : "";
   // the game this panel already patched by itself, so a failed patch isn't retried over and over
   const autoTried = useRef<string | null>(null);

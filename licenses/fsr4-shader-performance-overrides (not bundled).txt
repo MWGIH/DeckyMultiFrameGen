@@ -1,0 +1,22 @@
+fsr4-shader-performance-overrides (Cyboman) and DeckyUpscaler (via the FSR4 timing kit)
+======================================================================================
+
+Decky MultiFrameGen does not bundle these binaries. When you pick a Cyboman or Decky FSR 4 option,
+the plugin downloads them on your device from:
+
+  https://github.com/zgauthier2000/fsr4-shader-performance-overrides/releases
+
+Cyboman release used: dll-2026-11-05
+  Archive: fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.zip (Steam Deck / RDNA2 iGPU)
+  Project licence: GNU GPL v2 or later (see that repository's LICENSE)
+  The DLLs are modified versions of AMD's amd_fidelityfx_upscaler_dx12.dll; see NOTICE.md in the archive.
+
+Decky (Steamdeck Optimised) uses the DeckyUpscaler v0.2.1 shipped set packaged in:
+  timing-kit-2026-11-11 / fsr4-timing-kit-linux-2026-11-11.tar.gz / deckyupscaler/
+  DeckyUpscaler is MIT (Copyright (c) 2026 doodlum), included in the timing kit with its author's permission.
+  The Vulkan FSR DLL and shader packs remain subject to AMD's FidelityFX SDK licence texts shipped beside them
+  in that folder (amd_fidelityfx-LICENSE.md, shaders-LICENSE-AMD.md).
+
+WARNING: Never use these in online games or games with anti-cheat. They are modified game files.
+
+Not affiliated with or endorsed by AMD, Valve, Decky Loader, zgauthier2000, or doodlum.
