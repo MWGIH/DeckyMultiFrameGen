@@ -115,6 +115,9 @@ export type HelixJob = {
   error?: string | null;
   setup_percent?: number | null; // HelixSR's setup: its network build bar, null before the build starts
   setup_step?: string | null;
+  // the optional extras this run builds, and how far each is
+  extras?: HelixExtra[];
+  extras_progress?: Partial<Record<HelixExtra, HelixExtraProgress>>;
 };
 
 export type HelixStatus = {
@@ -130,6 +133,16 @@ export type HelixStatus = {
   // pre-releases offered as updates (off by default), and a pre-release newer than the newest stable release
   prereleases?: boolean;
   newer_prerelease?: string | null;
+  // optional extras of HelixSR's setup (HelixSR 3.3 on): switched on, offered by the release in use, built
+  extras?: Record<HelixExtra, { on: boolean; available: boolean; built: boolean }>;
+};
+
+export type HelixExtra = "preset_k" | "vulkan";
+
+export type HelixExtraProgress = {
+  percent: number | null;
+  step: string;
+  state: "waiting" | "building" | "done" | "failed";
 };
 
 export type HelixRoute = "direct" | "scaler";
@@ -174,6 +187,14 @@ export const helixsrSetPrereleases = callable<
   [on: boolean],
   { ok: boolean; prereleases: boolean }
 >("helixsr_set_prereleases");
+export const helixsrSetExtra = callable<
+  [name: HelixExtra, on: boolean],
+  {
+    ok: boolean;
+    error?: string;
+    started?: boolean;
+  }
+>("helixsr_set_extra");
 export const helixsrRemove = callable<
   [],
   { ok: boolean; error?: string; removed?: string[] }

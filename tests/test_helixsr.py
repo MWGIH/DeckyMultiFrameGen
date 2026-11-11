@@ -200,6 +200,88 @@ class SetupProgressTests(unittest.TestCase):
         self.assertEqual(helixsr.setup_output(done), [lines[0], bar % (33, 9), done[4], bar % (20, 1)])
 
 
+class ExtrasTests(unittest.TestCase):
+    """Preset K and the Vulkan kernels (HelixSR 3.3 on): switches in Backends that HelixSR's setup builds."""
+    def setUp(self):
+        self.home = support.reset_home()
+        self.h = make_helix(self.home)
+        self.d = self.home / "HelixSR" / "v3.3.0"
+        self.d.mkdir(parents=True)
+        (self.d / helixsr.DLL).write_bytes(b"MZ" + b"HXSRNET1" + b"\0" * 24)   # built
+        (self.d / "setup" / "preset-k").mkdir(parents=True)
+        (self.d / "setup" / "preset-k" / "out_lo.bin").write_bytes(b"k")
+        (self.d / "setup" / "lib" / "modelk").mkdir(parents=True)
+        (self.d / "setup" / "lib" / "setup_vk_shaders.py").write_text("")
+        (self.d / "setup" / "lib" / "modelk" / "modelk_kernels.json").write_text(json.dumps({"kernels": {"a": {}, "b": {}}}))
+
+    def test_off_by_default_and_no_setup_options(self):
+        st = self.h.extras_status("v3.3.0")
+        self.assertEqual(st["preset_k"], {"on": False, "available": True, "built": False})
+        self.assertEqual(self.h.setup_args("v3.3.0"), [])
+        self.assertEqual(self.h.k_total("v3.3.0"), 2)
+
+    def test_options_follow_the_switches_and_vulkan_rebuilds(self):
+        self.h._write_json(self.h.settings_file, {"preset_k": True, "vulkan": True})
+        self.assertEqual(self.h.setup_args("v3.3.0"), ["--preset-k", "--vulkan", "--rebuild"])
+        (self.d / "helixsr_setup.json").write_text(json.dumps({"vulkan": True}))
+        self.assertEqual(self.h.setup_args("v3.3.0"), ["--preset-k", "--vulkan"])
+        self.h._write_json(self.h.settings_file, {"vulkan": False})
+        self.assertEqual(self.h.setup_args("v3.3.0"), ["--rebuild"])   # built with them: built again without
+
+    def test_an_older_release_gets_no_options(self):
+        old = self.home / "HelixSR" / "v3.1.0"
+        old.mkdir(parents=True)
+        self.h._write_json(self.h.settings_file, {"preset_k": True, "vulkan": True})
+        self.assertEqual(self.h.setup_args("v3.1.0"), [])
+
+    def test_switching_on_runs_the_setup_and_off_removes_preset_k(self):
+        with mock.patch.object(self.h, "start_install", return_value={"ok": True}) as start:
+            r = self.h.set_extra("preset_k", True)
+            self.assertEqual((r["ok"], r["started"]), (True, True))
+            start.assert_called_once_with("v3.3.0")
+            k = self.d / "HelixSR" / "k"
+            k.mkdir(parents=True)
+            for n in helixsr.K_FILES:
+                (k / n).write_bytes(b"x")
+            self.assertTrue(self.h.extras_status("v3.3.0")["preset_k"]["built"])
+            r = self.h.set_extra("preset_k", False)
+            self.assertFalse(r["started"])
+            self.assertFalse(k.exists())
+            self.assertEqual(start.call_count, 1)
+        self.assertFalse(self.h.set_extra("nope", True)["ok"])
+
+
+class ExtrasProgressTests(unittest.TestCase):
+    def test_vulkan_kernels_follow_their_stage_of_the_bar(self):
+        ep = helixsr.extras_progress
+        lines = ["[multifg] 10:00:00 running /x/helixsr-setup.sh --vulkan --rebuild",
+                 "[helixsr-setup] [###########---------]   57%  4:00  shaders 352/352"]
+        self.assertEqual(ep(lines)["vulkan"]["state"], "waiting")
+        lines.append("[helixsr-setup] [#############-------]   65%  5:00  Vulkan shaders 88/352")
+        self.assertEqual(ep(lines)["vulkan"], {"percent": 25, "step": "Vulkan shaders 88/352", "state": "building"})
+        self.assertEqual(helixsr.setup_progress(lines)["setup_step"], "Building the Vulkan kernels: Vulkan shaders 88/352")
+        lines += ["[helixsr-setup] Vulkan: 352 shaders", "[helixsr-setup] [###########---------]   57%  9:00  done"]
+        self.assertEqual(ep(lines)["vulkan"]["state"], "done")
+        self.assertEqual(helixsr.setup_progress(lines)["setup_percent"], 100)
+
+    def test_preset_k_counts_its_shaders(self):
+        ep = helixsr.extras_progress
+        lines = ["[multifg] 10:00:00 running /x/helixsr-setup.sh --preset-k",
+                 "[helixsr-setup] done: the network is built",
+                 "[helixsr-setup] building Preset K (optional; this can take many minutes)",
+                 "cuda_a: ok", "cuda_b: ok"]
+        self.assertEqual(ep(lines, 4)["preset_k"]["step"], "Translating NVIDIA's network 2/4")
+        lines += ["cuda_a compiled", "cuda_b cached", "cuda_c compiled"]
+        self.assertEqual(ep(lines, 4)["preset_k"], {"percent": 75, "step": "Shaders 3/4", "state": "building"})
+        self.assertEqual(ep(lines + ["[helixsr-setup] done: Preset K is built: /x/k"], 4)["preset_k"]["state"], "done")
+        failed = ep(lines + ["[helixsr-setup] Preset K was not built (exit 1); the rest of HelixSR is fine"], 4)
+        self.assertEqual(failed["preset_k"]["state"], "failed")
+
+    def test_only_this_runs_output_counts(self):
+        lines = ["[helixsr-setup] done: Preset K is built: /x/k", "[multifg] 10:00:00 running /x/helixsr-setup.sh"]
+        self.assertEqual(helixsr.extras_progress(lines)["preset_k"]["state"], "waiting")
+
+
 class SetupDriverTests(unittest.TestCase):
     """setup_driver.py says yes to the setup's download questions and gives every other question no answer, so
     HelixSR's game installer changes no game."""

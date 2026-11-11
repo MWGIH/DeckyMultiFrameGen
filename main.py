@@ -651,6 +651,10 @@ class Plugin:
         """Whether HelixSR's pre-releases are offered as updates (HelixSR 3.0.0 came out as one)."""
         return await asyncio.to_thread(HELIXSR.set_prereleases, bool(on))
 
+    async def helixsr_set_extra(self, name: str, on: bool) -> dict:
+        """An optional extra of HelixSR's setup (preset_k, vulkan) on or off; with HelixSR set up it is built now."""
+        return await asyncio.to_thread(HELIXSR.set_extra, str(name), bool(on))
+
     async def helixsr_remove(self) -> dict:
         """HelixSR out of every game, then its files deleted."""
         try:
