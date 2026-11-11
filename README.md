@@ -26,7 +26,7 @@ the Steam Deck, with game-by-game results and performance updates.
 
 ## Status
 
-**Version 1.1.13 is out.** Install it from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
+**Version 1.2.0 is out.** Install it from the [latest release](https://github.com/MWGIH/DeckyMultiFrameGen/releases/latest)
 (see [Install](#install)). What it does:
 
 - Detects the game you're on: the running game, else the game page open in your library, else one you pick.
