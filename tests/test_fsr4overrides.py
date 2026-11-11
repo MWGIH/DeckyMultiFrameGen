@@ -24,6 +24,11 @@ class OverridesCatalogTests(unittest.TestCase):
         self.assertTrue(FSR4_VARIANTS[fsr4decky.VARIANT].get("prepared_on_demand"))
         self.assertEqual(FSR4_VARIANTS[fsr4decky.VARIANT]["label"], "Decky (Steamdeck Optimised)")
 
+    def test_decky_sidecars_are_in_variant_extra_cleanup_list(self):
+        from multifg.optiscaler import VARIANT_EXTRA_FILENAMES
+        for name in ("amd_fidelityfx_vk.dll", "fsr4_shaders.bin", "fsr4_shaders_dot2.bin"):
+            self.assertIn(name, VARIANT_EXTRA_FILENAMES)
+
 
 class OverridesExtractTests(unittest.TestCase):
     def test_extract_upscaler_checks_size_and_hash(self):
@@ -122,6 +127,27 @@ class DetectTests(unittest.TestCase):
 
             with mock.patch.object(opti, "_file_sha256", side_effect=fake_sha):
                 self.assertEqual(opti._detect_fsr4_variant(folder, upscaler_sha), fsr4decky.VARIANT)
+
+
+class UnpatchCleanupTests(unittest.TestCase):
+    def test_unpatch_removes_decky_shader_packs_and_restores_game_vk_dll(self):
+        opti = OptiScaler()
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            (folder / "dxgi.dll").write_bytes(b"opti")
+            (folder / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"upscaler")
+            (folder / "amd_fidelityfx_vk.dll").write_bytes(b"decky-vk")
+            (folder / "amd_fidelityfx_vk.dll.b").write_bytes(b"game-vk")
+            (folder / "fsr4_shaders.bin").write_bytes(b"s1")
+            (folder / "fsr4_shaders_dot2.bin").write_bytes(b"s2")
+            (folder / "OptiScaler.ini").write_text("[Upscalers]\n")
+            r = opti._manual_unpatch_directory_impl(folder)
+            self.assertEqual(r["status"], "success", r)
+            self.assertFalse((folder / "fsr4_shaders.bin").exists())
+            self.assertFalse((folder / "fsr4_shaders_dot2.bin").exists())
+            self.assertFalse((folder / "dxgi.dll").exists())
+            self.assertEqual((folder / "amd_fidelityfx_vk.dll").read_bytes(), b"game-vk")
+            self.assertFalse((folder / "amd_fidelityfx_vk.dll.b").exists())
 
 
 if __name__ == "__main__":

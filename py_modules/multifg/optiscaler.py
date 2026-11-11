@@ -2065,11 +2065,20 @@ class OptiScaler:
             decky.logger.error(f"Manual patch validation failed: {exc}")
             return {"status": "error", "message": str(exc)}
 
+        normalized = self._normalize_fsr4_variant(fsr4_variant)
+        if FSR4_VARIANTS.get(normalized, {}).get("prepared_on_demand"):
+            try:
+                await asyncio.to_thread(self.prepare_fsr4_variant, normalized)
+            except Exception as exc:
+                label = FSR4_VARIANTS[normalized]["label"]
+                decky.logger.error(f"[Framegen] {label} files: {exc}")
+                return {"status": "error", "message": f"{label} files: {exc}"}
+
         allow_managed_support_cleanup = (target_dir / MARKER_FILENAME).exists()
         return self._manual_patch_directory_impl(
             target_dir,
             dll_name,
-            fsr4_variant,
+            normalized,
             allow_managed_support_cleanup=allow_managed_support_cleanup,
         )
 
