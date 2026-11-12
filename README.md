@@ -9,7 +9,7 @@ without juggling several plugins:
 - **OptiScaler** (from [Decky Framegen](https://github.com/xXJSONDeruloXx/Decky-Framegen)): upscaling and frame
   generation for DirectX 12 games. Per game, its FSR 4 files can be Valve's FSR 4.1.1 Deck build (the default), AMD's
   FSR 4.1.2 Lite (the small model AMD made for handheld chips, fetched from AMD's own driver installer, with a newer
-  OptiScaler nightly that can pick it), Cyboman's faster Exact / Lossy / Lite Exact / Lite Lossy builds for Steam Deck
+  OptiScaler nightly that can pick it), Cyboman's faster Lossy / Lite Lossy builds for Steam Deck
   RDNA2 from [fsr4-shader-performance-overrides](https://github.com/zgauthier2000/fsr4-shader-performance-overrides)
   (single-player only), or stock OptiScaler 0.9.4 with FSR 4.0.2.
 - **HelixSR** (from [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager)): DLSS and (from HelixSR

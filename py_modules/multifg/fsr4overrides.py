@@ -33,22 +33,9 @@ RELEASE = {
     "project": "https://github.com/zgauthier2000/fsr4-shader-performance-overrides",
 }
 
-# folder inside the archive -> OptiScaler variant id, UI key, label, whether it is a Lite network
+# The archive's exact builds are left out: on the Steam Deck they're only a few percent faster than the Deck build and
+# AMD Lite they match. folder inside the archive -> OptiScaler variant id, UI key, label, whether it is a Lite network
 VARIANTS = {
-    "exact": {
-        "id": "cyboman-exact",
-        "files": "exact",
-        "archive_folder": "exact",
-        "label": "FSR 4.1.2 Exact (Cyboman)",
-        "dir_name": "fsr4-cyboman-exact",
-        "sha256": "1312fdca3bb13f0e66a0c3678151d61d3e1f8c6b9f1d80a805254f4e00db3c69",
-        "size": 44400640,
-        "lite": False,
-        "hint": (
-            "Cyboman's exact FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: AMD's picture byte for byte, "
-            "faster shaders. From fsr4-shader-performance-overrides. Single-player only."
-        ),
-    },
     "lossy": {
         "id": "cyboman-lossy",
         "files": "lossy",
@@ -59,22 +46,8 @@ VARIANTS = {
         "size": 56302080,
         "lite": False,
         "hint": (
-            "Cyboman's lossy FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: faster than Exact by skipping "
+            "Cyboman's lossy FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: about 30% faster on the Deck than the Valve Deck build, by skipping "
             "the network on some frames; picture is close to AMD's, not identical. Single-player only."
-        ),
-    },
-    "lite-exact": {
-        "id": "cyboman-lite-exact",
-        "files": "lite-exact",
-        "label": "FSR 4.1.2 Lite Exact (Cyboman)",
-        "dir_name": "fsr4-cyboman-lite-exact",
-        "archive_folder": "4.1.2l-exact",
-        "sha256": "f991d06a8b800ed3e01b95696333c842c3de590aec7d2e6b2340c4e583d84ef4",
-        "size": 39608832,
-        "lite": True,
-        "hint": (
-            "Cyboman's exact FSR 4.1.2 Lite build for Steam Deck / RDNA2 iGPUs: AMD Lite's picture byte for "
-            "byte, a little faster. Single-player only."
         ),
     },
     "lite-lossy": {
@@ -178,7 +151,7 @@ def _archive_folder(files_key: str) -> str:
 
 
 def dll_path(cache: Path, files_key: str) -> Path:
-    """Cached upscaler DLL for a UI files key (exact / lossy / lite-exact / lite-lossy)."""
+    """Cached upscaler DLL for a UI files key (lossy / lite-lossy)."""
     variant = BY_FILES[files_key]
     folder = _archive_folder(files_key)
     dest = cache / folder / UPSCALER

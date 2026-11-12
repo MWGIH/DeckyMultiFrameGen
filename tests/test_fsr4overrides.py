@@ -35,17 +35,17 @@ class OverridesExtractTests(unittest.TestCase):
         digest = hashlib.sha256(payload).hexdigest()
         with tempfile.TemporaryDirectory() as d:
             src = Path(d) / "src"
-            (src / "exact").mkdir(parents=True)
-            (src / "exact" / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(payload)
-            (src / "lossy").mkdir()
-            (src / "lossy" / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"other")
+            (src / "lossy").mkdir(parents=True)
+            (src / "lossy" / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(payload)
+            (src / "exact").mkdir()
+            (src / "exact" / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"other")
             archive = Path(d) / "a.7z"
             subprocess.run(["7z", "a", str(archive), "exact", "lossy"], cwd=src, check=True, capture_output=True)
             dest = Path(d) / "out.dll"
-            fsr4overrides.extract_upscaler(archive, "exact", dest, digest, len(payload))
+            fsr4overrides.extract_upscaler(archive, "lossy", dest, digest, len(payload))
             self.assertEqual(dest.read_bytes(), payload)
             with self.assertRaises(fsr4overrides.OverridesError):
-                fsr4overrides.extract_upscaler(archive, "exact", dest, "0" * 64, len(payload))
+                fsr4overrides.extract_upscaler(archive, "lossy", dest, "0" * 64, len(payload))
 
 
 class OverridesPrepareTests(unittest.TestCase):
@@ -59,16 +59,16 @@ class OverridesPrepareTests(unittest.TestCase):
             (base / "amdxc64.dll").write_bytes(b"xc")
             (base / "renames").mkdir()
             (base / "renames" / "dxgi.dll").write_bytes(b"opti")
-            upscaler = b"MZ-CYBOMAN-EXACT"
-            info = fsr4overrides.BY_FILES["exact"]
-            dll = cache / "exact" / "amd_fidelityfx_upscaler_dx12.dll"
+            upscaler = b"MZ-CYBOMAN-LOSSY"
+            info = fsr4overrides.BY_FILES["lossy"]
+            dll = cache / "lossy" / "amd_fidelityfx_upscaler_dx12.dll"
             dll.parent.mkdir(parents=True)
             dll.write_bytes(upscaler)
             with mock.patch.object(fsr4overrides, "_valid", return_value=True), mock.patch.object(
                 fsr4overrides, "dll_path", return_value=dll
             ):
                 folder = fsr4overrides.prepare_from(
-                    fgmod, cache, "exact", base_dir=base, make_renames=lambda *_: False
+                    fgmod, cache, "lossy", base_dir=base, make_renames=lambda *_: False
                 )
             self.assertEqual((folder / "amd_fidelityfx_upscaler_dx12.dll").read_bytes(), upscaler)
             self.assertEqual((folder / "OptiScaler.dll").read_bytes(), b"opti")
@@ -79,7 +79,7 @@ class OverridesPrepareTests(unittest.TestCase):
     def test_prepared_is_false_when_only_the_upscaler_is_present(self):
         with tempfile.TemporaryDirectory() as d:
             fgmod = Path(d)
-            info = fsr4overrides.BY_FILES["exact"]
+            info = fsr4overrides.BY_FILES["lossy"]
             folder = fgmod / info["dir_name"]
             folder.mkdir(parents=True)
             upscaler = folder / "amd_fidelityfx_upscaler_dx12.dll"
@@ -95,7 +95,7 @@ class OverridesPrepareTests(unittest.TestCase):
             (base / "amdxcffx64.dll").write_bytes(b"amd")
             with self.assertRaises(fsr4overrides.OverridesError):
                 fsr4overrides.prepare_from(
-                    fgmod, cache, "exact", base_dir=base, make_renames=lambda *_: True
+                    fgmod, cache, "lossy", base_dir=base, make_renames=lambda *_: True
                 )
 
 
@@ -123,7 +123,6 @@ class GameSettingTests(unittest.TestCase):
             state = asyncio.run(p.optiscaler_fsr4_files("10"))
         for key in main.OPTI_FSR4_LITE_LIKE:
             self.assertNotIn(key, state["options"])
-        self.assertIn("exact", state["options"])
         self.assertIn("lossy", state["options"])
         self.assertIn("deck", state["options"])
 

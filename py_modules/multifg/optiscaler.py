@@ -169,41 +169,8 @@ FSR4_VARIANTS = {
         ],
         "config_overrides": dict(fsr4lite.CONFIG),
     },
-    # Cyboman FSR 4.1.2 overrides for Steam Deck / RDNA2 iGPU (fsr4-shader-performance-overrides). Exact/lossy use the
-    # Valve Deck OptiScaler injector; Lite builds use the AMD Lite nightly stack with Cyboman's upscaler swapped in.
-    fsr4overrides.BY_FILES["exact"]["id"]: {
-        "label": fsr4overrides.BY_FILES["exact"]["label"],
-        "dir_name": fsr4overrides.BY_FILES["exact"]["dir_name"],
-        "sha256": fsr4overrides.BY_FILES["exact"]["sha256"],
-        "source_asset_name": fsr4overrides.RELEASE["name"],
-        "source_version": fsr4overrides.RELEASE["tag"],
-        "uses_archive_native": True,
-        "prepared_on_demand": True,
-        "injector": {
-            "name": "OptiScaler.dll",
-            "sha256": OPTISCALER_PRE10_ASSET["sha256"],
-            "source_asset_name": OPTISCALER_PRE10_ASSET["name"],
-            "source_version": OPTISCALER_PRE10_ASSET["version"],
-        },
-        "extra_files": [
-            {
-                "name": FSR4_DRIVER_OVERRIDE_FILENAME,
-                "sha256": FSR4_VALVE_411_ASSET["sha256"],
-                "source_asset_name": FSR4_VALVE_411_ASSET["name"],
-                "source_version": FSR4_VALVE_411_ASSET["version"],
-            },
-            {
-                "name": "amdxc64.dll",
-                "sha256": AMDXC64_RDNA2_ASSET["sha256"],
-                "source_asset_name": AMDXC64_RDNA2_ASSET["name"],
-                "source_version": AMDXC64_RDNA2_ASSET["version"],
-            },
-        ],
-        "config_overrides": {
-            "FSR.Fsr4ForceModel": "2",
-            "Plugins.LoadCustomAmdxc64OnRdna2": "true",
-        },
-    },
+    # Cyboman FSR 4.1.2 overrides for Steam Deck / RDNA2 iGPU (fsr4-shader-performance-overrides). Lossy uses the
+    # Valve Deck OptiScaler injector; Lite Lossy use the AMD Lite nightly stack with Cyboman's upscaler swapped in.
     fsr4overrides.BY_FILES["lossy"]["id"]: {
         "label": fsr4overrides.BY_FILES["lossy"]["label"],
         "dir_name": fsr4overrides.BY_FILES["lossy"]["dir_name"],
@@ -236,30 +203,6 @@ FSR4_VARIANTS = {
             "FSR.Fsr4ForceModel": "2",
             "Plugins.LoadCustomAmdxc64OnRdna2": "true",
         },
-    },
-    fsr4overrides.BY_FILES["lite-exact"]["id"]: {
-        "label": fsr4overrides.BY_FILES["lite-exact"]["label"],
-        "dir_name": fsr4overrides.BY_FILES["lite-exact"]["dir_name"],
-        "sha256": fsr4overrides.BY_FILES["lite-exact"]["sha256"],
-        "source_asset_name": fsr4overrides.RELEASE["name"],
-        "source_version": fsr4overrides.RELEASE["tag"],
-        "uses_archive_native": True,
-        "prepared_on_demand": True,
-        "injector": {
-            "name": "OptiScaler.dll",
-            "sha256": "",
-            "source_asset_name": fsr4lite.NIGHTLY["name"],
-            "source_version": fsr4lite.NIGHTLY["tag"],
-        },
-        "extra_files": [
-            {
-                "name": FSR4_DRIVER_OVERRIDE_FILENAME,
-                "sha256": fsr4lite.AMD_DLL["sha256"],
-                "source_asset_name": fsr4lite.AMD_DLL["name"],
-                "source_version": f"{fsr4lite.AMD_DLL['fsr']} ({fsr4lite.AMD_DLL['driver']})",
-            }
-        ],
-        "config_overrides": dict(fsr4lite.CONFIG),
     },
     fsr4overrides.BY_FILES["lite-lossy"]["id"]: {
         "label": fsr4overrides.BY_FILES["lite-lossy"]["label"],
@@ -661,7 +604,7 @@ class OptiScaler:
         decky.logger.info(f"[Framegen] FSR 4.1.2 Lite files ready: {result}")
 
     def prepare_fsr4_override(self, files_key: str) -> None:
-        """~/fgmod's Cyboman override folder for files_key (exact/lossy/lite-exact/lite-lossy)."""
+        """~/fgmod's Cyboman override folder for files_key (lossy/lite-lossy)."""
         info = fsr4overrides.BY_FILES[files_key]
         fgmod_path = Path(decky.HOME) / "fgmod"
         if fsr4overrides.prepared(fgmod_path, info["id"]):

@@ -212,9 +212,7 @@ export const helixsrInstallGame = callable<
 export type OptiFsr4Files =
   | "deck"
   | "lite"
-  | "exact"
   | "lossy"
-  | "lite-exact"
   | "lite-lossy"
   | "plain";
 export type OptiFsr4State = {

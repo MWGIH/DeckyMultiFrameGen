@@ -34,19 +34,9 @@ const FSR4_FILES: { value: OptiFsr4Files; label: string; hint: string }[] = [
     hint: "AMD's smaller FSR 4 model made for handheld chips, usually faster than the full model. The first time, AMD's FSR 4.1.2 file (about 43 MB) is downloaded from AMD's own driver installer, which means you accept AMD's software licence, and a newer OptiScaler build (about 70 MB) from OptiScaler's GitHub. DirectX 12 games.",
   },
   {
-    value: "exact",
-    label: "FSR 4.1.2 Exact (Cyboman)",
-    hint: "Cyboman's exact FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: AMD's picture byte for byte, faster shaders (fsr4-shader-performance-overrides). Downloaded on first use (about 9 MB). Single-player only.",
-  },
-  {
     value: "lossy",
     label: "FSR 4.1.2 Lossy (Cyboman)",
-    hint: "Cyboman's lossy FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: faster than Exact by skipping the network on some frames; picture is close to AMD's, not identical. Single-player only.",
-  },
-  {
-    value: "lite-exact",
-    label: "FSR 4.1.2 Lite Exact (Cyboman)",
-    hint: "Cyboman's exact FSR 4.1.2 Lite build for Steam Deck / RDNA2 iGPUs: AMD Lite's picture byte for byte, a little faster. Single-player only.",
+    hint: "Cyboman's lossy FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: about 30% faster than the Valve Deck build by skipping the network on some frames; picture is close to AMD's, not identical. Downloaded on first use (about 9 MB). Single-player only.",
   },
   {
     value: "lite-lossy",

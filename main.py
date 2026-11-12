@@ -268,19 +268,17 @@ def _uninstall_helix(folder: str, status: dict) -> dict:
 OPTI_FSR4_FILES = {
     "deck": FSR4_VARIANT,
     "lite": fsr4lite.VARIANT,
-    "exact": fsr4overrides.BY_FILES["exact"]["id"],
     "lossy": fsr4overrides.BY_FILES["lossy"]["id"],
-    "lite-exact": fsr4overrides.BY_FILES["lite-exact"]["id"],
     "lite-lossy": fsr4overrides.BY_FILES["lite-lossy"]["id"],
     "plain": OPTI_PLAIN_VARIANT,
 }
 # options that need an upscaler OptiScaler can take over + DirectX 12 (same gate as AMD Lite)
-OPTI_FSR4_LITE_LIKE = {"lite", "lite-exact", "lite-lossy"}
+OPTI_FSR4_LITE_LIKE = {"lite", "lite-lossy"}
 
 
 def _opti_variant(appid: str) -> str:
     """The FSR 4 files OptiScaler is patched in with: Decky Framegen's Valve RDNA2 4.1.1 build; AMD Lite; Cyboman
-    exact/lossy/Lite builds; or stock OptiScaler 0.9.4 with FSR 4.0.2c."""
+    Lossy/Lite Lossy builds; or stock OptiScaler 0.9.4 with FSR 4.0.2c."""
     return OPTI_FSR4_FILES[_opti_fsr4(appid)]
 
 
@@ -808,7 +806,7 @@ class Plugin:
         return _opti_fsr4(appid) == "plain"
 
     async def optiscaler_fsr4_files(self, appid: str, files: str | None = None) -> dict:
-        """The game's FSR 4 files for OptiScaler: deck / lite / Cyboman exact|lossy|lite-exact|lite-lossy /
+        """The game's FSR 4 files for OptiScaler: deck / lite / Cyboman lossy|lite-lossy /
         plain; set when files is given. The panel repatches after a change.
         Returns {files, options, lite_unfit}: Lite-like options are only offered where the game can run them
         (see _lite_unfit), or when the game is already set to one."""
