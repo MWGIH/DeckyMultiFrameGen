@@ -3,14 +3,13 @@ import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { makoGameLaunchOptions } from "../api";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
-import { LosslessWarning } from "./LosslessWarning";
 
 function toast(body: string) {
   toaster.toast({ title: "MAKO", body });
 }
 
 // MAKO works through its launcher in the game's launch options; its settings are in the MAKO controls below.
-export function MakoGame({ appid, makoInstalled, losslessScaling }: { appid: string; makoInstalled: boolean; losslessScaling: boolean }) {
+export function MakoGame({ appid, makoInstalled }: { appid: string; makoInstalled: boolean }) {
   const id = Number(appid);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,7 +63,6 @@ export function MakoGame({ appid, makoInstalled, losslessScaling }: { appid: str
           }
         />
       </PanelSectionRow>
-      {!losslessScaling && <LosslessWarning />}
       {makoInstalled && enabled !== null && (
         <PanelSectionRow>
           <ButtonItem layout="below" disabled={busy} onClick={() => change(!enabled)}>

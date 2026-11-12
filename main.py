@@ -496,7 +496,7 @@ class Plugin:
         for b in out:
             if b["id"] == backends.HELIXSR and active:
                 b.update(installed=True, version=active)
-            # MAKO's frame generation needs Lossless Scaling's DLL: found the way MAKO looks for it (any Steam library)
+            # MAKO's optional LSFG models need Lossless Scaling's DLL: found the way MAKO looks for it (any Steam library)
             if b["id"] == backends.MAKO:
                 try:
                     found = (await MAKO.check_lossless_scaling_dll("")).get("detected")
