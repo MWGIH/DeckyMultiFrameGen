@@ -20,8 +20,10 @@ import { GameSection } from "./components/GameSection";
 import { useHelixStatus } from "./components/HelixSRSetup";
 import { useOptiStatus } from "./components/OptiScaler";
 import { useFsr4Status } from "./components/FSR4Injector";
+import { useAnrStatus } from "./components/ANRFG";
 import {
   fsr4Status,
+  anrStatus,
   helixsrStatus,
   optiscalerStatus,
   type GameChoice,
@@ -75,6 +77,11 @@ function Content() {
   const refreshHelix = () => helixsrStatus().then(setHelix);
   const [opti, setOpti] = useOptiStatus();
   const [fsr4, setFsr4] = useFsr4Status();
+  const [anr, setAnr] = useAnrStatus();
+  const refreshAnr = () => {
+    anrStatus().then(setAnr);
+    refreshBackends();
+  };
   const refreshFsr4 = () => {
     fsr4Status().then(setFsr4);
     refreshBackends();
@@ -132,6 +139,8 @@ function Content() {
         onMakoChange={refreshBackends}
         fsr4={fsr4}
         onFsr4Change={refreshFsr4}
+        anr={anr}
+        onAnrChange={refreshAnr}
       />
       <GameSection
         selected={selected}
@@ -140,6 +149,7 @@ function Content() {
         helix={helix}
         opti={opti}
         fsr4={fsr4}
+        anr={anr}
         onPick={pick}
         onChoice={setChoice}
       />
