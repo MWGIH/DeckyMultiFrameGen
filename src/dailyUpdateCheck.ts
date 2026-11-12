@@ -38,6 +38,8 @@ export function availableUpdates(u: Updates): string[] {
     out.push(`MAKO ${u.mako.available ?? ""}`.trim());
   if (u.fsr4injector?.update_available)
     out.push(`FSR4 Injector ${u.fsr4injector.available ?? ""}`.trim());
+  if (u.anrfg?.update_available)
+    out.push(`ANR FG ${u.anrfg.available ?? ""}`.trim());
   return out;
 }
 

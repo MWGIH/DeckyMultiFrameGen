@@ -11,6 +11,7 @@ import {
   type GameChoice,
   type GameDetail,
   type Fsr4Status,
+  type AnrStatus,
   type GameSummary,
   type HelixStatus,
   type OptiStatus,
@@ -30,6 +31,7 @@ import { OptiScalerGame } from "./OptiScaler";
 import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
+import { AnrGame } from "./ANRFG";
 import { GameFiles } from "./GameFiles";
 import { GameFolder } from "./GameFolder";
 import { defaultProxyDll } from "../optiscalerOptions";
@@ -45,6 +47,7 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   "optiscaler+helixsr+mako": "OptiScaler + HelixSR + MAKO",
   fsr4injector: "FSR4 Injector (FSR 3.1+ games)",
   "fsr4injector+mako": "FSR4 Injector + MAKO (FSR 3.1+ games)",
+  anrfg: "ANR FG (DLSS frame generation games)",
 };
 
 const parts = (choice: GameChoice | null | undefined) =>
@@ -92,6 +95,7 @@ type Props = {
   helix: HelixStatus | null;
   opti: OptiStatus | null;
   fsr4: Fsr4Status | null;
+  anr: AnrStatus | null;
   onPick: (appid: string) => void;
   onChoice: (choice: GameChoice | null) => void;
 };
@@ -103,6 +107,7 @@ export function GameSection({
   helix,
   opti,
   fsr4,
+  anr,
   onPick,
   onChoice,
 }: Props) {
@@ -231,6 +236,12 @@ export function GameSection({
             r.fsr4.ok
               ? "FSR4 Injector is on. Start the game and choose AMD FSR as its upscaler."
               : `FSR4 Injector wasn't put in: ${r.fsr4.error}`,
+          );
+        if (r.anr)
+          toast(
+            r.anr.ok
+              ? "ANR FG is in. Start the game and turn on DLSS frame generation."
+              : `ANR FG wasn't put in: ${r.anr.error}`,
           );
         if (r.helix)
           toast(
@@ -409,6 +420,9 @@ export function GameSection({
                 status={fsr4}
               />
             )}
+          {detail?.ok && detail.installed && detail.backend === "anrfg" && (
+            <AnrGame key={selected.appid} appid={selected.appid} status={anr} />
+          )}
           {detail?.ok &&
             detail.installed &&
             parts(detail.backend).includes("mako") && (

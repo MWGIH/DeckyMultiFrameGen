@@ -18,6 +18,9 @@ without juggling several plugins:
 - **FSR4 Injector** (from [FSR4 Injector](https://github.com/Rayekkk/FSR4Injector)): AMD's own FSR 4.1 library in
   DirectX 12 games that ship FSR 3.1 or newer, through a small shim that tells it the GPU Proton can't report. On the
   Steam Deck (Van Gogh) it uses FSR 4's Lite model, which FSR4 Injector's author lists as beta, not yet tested there.
+- **ANR FG** (from [Apex Neural Rendering](https://github.com/apex-compute/ANR), closed-source beta): neural frame
+  generation that runs in place of DLSS frame generation, in DirectX 12 games that offer it. It comes with Apex's own
+  OptiScaler build, so a game set to ANR FG doesn't use Decky Framegen's OptiScaler. Not yet tested on the Steam Deck.
 
 See [CREDITS.md](CREDITS.md) for who made what.
 
@@ -68,6 +71,10 @@ the Steam Deck, with game-by-game results and performance updates.
   updates under Check for updates), and the Use choices FSR4 Injector and FSR4 Injector + MAKO put it in the game
   with `WINEDLLOVERRIDES=amdxc64=n,b` in the launch options. AMD's FSR 4 watermark can be switched on per game
   (`FSR_WATERMARK=1`), and the game's panel shows whether FSR 4 ran in the last session.
+- ANR FG: installs ANR FG's full package from its releases under Backends (updates under Check for updates, which
+  also refresh the games it is in). The Use choice ANR FG runs the package's own installer in the game's .exe folder
+  (it backs up and restores the proxy DLL and OptiScaler.ini there) and adds `WINEDLLOVERRIDES="dxgi=n,b"` (or
+  `winmm` in Vulkan games). Turn on DLSS frame generation in the game. The game's panel sets ANR FG's model size.
 
 If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
 Renderer install.

@@ -4,6 +4,7 @@ import { toaster, useQuickAccessVisible } from "@decky/api";
 import {
   checkUpdates,
   fsr4Install,
+  anrInstall,
   getTestBuilds,
   setTestBuilds,
   helixsrInstall,
@@ -50,6 +51,8 @@ type Props = {
   onMakoChange: () => void;
   fsr4JobState?: string | null;
   onFsr4Change: () => void;
+  anrJobState?: string | null;
+  onAnrChange: () => void;
 };
 
 export function UpdatesCheck({
@@ -60,6 +63,8 @@ export function UpdatesCheck({
   onMakoChange,
   fsr4JobState,
   onFsr4Change,
+  anrJobState,
+  onAnrChange,
 }: Props) {
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -101,7 +106,7 @@ export function UpdatesCheck({
   };
 
   // an update that ran in the background has finished: its notice goes once the list is checked again
-  const jobs = `${optiJobState ?? ""}/${helixJobState ?? ""}/${fsr4JobState ?? ""}`;
+  const jobs = `${optiJobState ?? ""}/${helixJobState ?? ""}/${fsr4JobState ?? ""}/${anrJobState ?? ""}`;
   const lastJobs = useRef(jobs);
   useEffect(() => {
     const wasRunning = lastJobs.current.includes("running");
@@ -331,6 +336,32 @@ export function UpdatesCheck({
           }
         >
           Update FSR4 Injector
+        </ButtonItem>,
+      );
+    }
+    const a = u.anrfg;
+    if (a?.error)
+      rows.push(
+        <Field key="ae" label="ANR FG" description={`Couldn't check: ${a.error}`} />,
+      );
+    else if (a?.update_available && a.available) {
+      rows.push(
+        <Field
+          key="a"
+          label={`ANR FG ${a.available} is available`}
+          description={`You have ${a.installed}. Games it is in get the new one (close them first).${pluginFirst ? FIRST : ""}`}
+        />,
+      );
+      rows.push(
+        <ButtonItem
+          key="ab"
+          layout="below"
+          disabled={busy || checking || pluginFirst}
+          onClick={() =>
+            run(anrInstall, "Updating ANR FG: progress shows under ANR FG.", onAnrChange)
+          }
+        >
+          Update ANR FG
         </ButtonItem>,
       );
     }

@@ -1,6 +1,6 @@
 import { callable } from "@decky/api";
 
-export type BackendId = "optiscaler" | "helixsr" | "mako" | "fsr4injector";
+export type BackendId = "optiscaler" | "helixsr" | "mako" | "fsr4injector" | "anrfg";
 export type GameChoice =
   | "none"
   | "optiscaler"
@@ -11,7 +11,8 @@ export type GameChoice =
   | "optiscaler+helixsr"
   | "optiscaler+helixsr+mako"
   | "fsr4injector"
-  | "fsr4injector+mako";
+  | "fsr4injector+mako"
+  | "anrfg";
 
 export type Backend = {
   id: BackendId;
@@ -77,6 +78,8 @@ export const setGameBackend = callable<
     helix?: { ok: boolean; error?: string; route?: string } | null;
     // OptiScaler patched in on choosing a choice with it (null when it already was or isn't installed)
     opti?: { ok: boolean; error?: string; dll_name?: string } | null;
+    // ANR FG put in on choosing it (null when it already was or isn't installed)
+    anr?: { ok: boolean; error?: string; proxy?: string } | null;
   }
 >("set_game_backend");
 export const logError = callable<[message: string], void>("log_error");
@@ -470,7 +473,56 @@ export type Updates = {
   helixsr: PartUpdate;
   mako: PartUpdate;
   fsr4injector?: PartUpdate;
+  anrfg?: PartUpdate;
 };
 export const checkUpdates = callable<[], Updates>("check_updates");
 export const getTestBuilds = callable<[], boolean>("get_test_builds");
 export const setTestBuilds = callable<[on: boolean], boolean>("set_test_builds");
+
+// --- ANR FG (Apex Neural Rendering) ---
+
+export type AnrJob = {
+  state: "running" | "done" | "failed";
+  done: number;
+  total: number;
+  version: string | null;
+  error: string | null;
+  refreshed?: number;
+};
+
+export type AnrStatus = {
+  version: string | null;
+  ready: boolean;
+  built_at: string | null;
+  games: string[];
+  job: AnrJob | null;
+};
+
+export type AnrGame = {
+  ok: boolean;
+  error?: string;
+  ready?: boolean;
+  enabled?: boolean;
+  target_dir?: string | null;
+  launch_option?: string | null;
+  model_size?: string | null;
+  log?: string | null;
+};
+
+export type AnrResult = {
+  ok: boolean;
+  error?: string;
+  launch_options?: string | null;
+};
+
+export const anrStatus = callable<[], AnrStatus>("anr_status");
+export const anrInstall = callable<[], { ok: boolean; error?: string }>("anr_install");
+export const anrRemove = callable<[], { ok: boolean; error?: string }>("anr_remove");
+export const anrGames = callable<[], string[]>("anr_games");
+export const anrGameStatus = callable<[appid: string], AnrGame>("anr_game_status");
+export const anrGameOn = callable<[appid: string, current_launch_options: string], AnrResult>("anr_game_on");
+export const anrGameOff = callable<[appid: string, current_launch_options: string], AnrResult>("anr_game_off");
+export const anrModelSize = callable<
+  [appid: string, size: string],
+  { ok: boolean; error?: string; model_size?: string | null }
+>("anr_model_size");

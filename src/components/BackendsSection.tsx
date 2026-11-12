@@ -14,10 +14,12 @@ import {
   pluginVersion,
   type Backend,
   type Fsr4Status,
+  type AnrStatus,
   type HelixStatus,
   type OptiStatus,
 } from "../api";
 import { Fsr4Setup } from "./FSR4Injector";
+import { AnrSetup } from "./ANRFG";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRSetup } from "./HelixSRSetup";
 import { OptiScalerSetup } from "./OptiScaler";
@@ -43,6 +45,8 @@ type Props = {
   onMakoChange: () => void;
   fsr4: Fsr4Status | null;
   onFsr4Change: () => void;
+  anr: AnrStatus | null;
+  onAnrChange: () => void;
 };
 
 const COLLAPSED_KEY = "multifg:backendsCollapsed";
@@ -75,6 +79,8 @@ export function BackendsSection(props: Props) {
     onMakoChange,
     fsr4,
     onFsr4Change,
+    anr,
+    onAnrChange,
   } = props;
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [version, setVersion] = useState<string | null>(null);
@@ -137,6 +143,8 @@ export function BackendsSection(props: Props) {
           onMakoChange={onMakoChange}
           fsr4JobState={fsr4?.job?.state}
           onFsr4Change={onFsr4Change}
+          anrJobState={anr?.job?.state}
+          onAnrChange={onAnrChange}
         />
       )}
       {collapsed ? null : backends === null ? (
@@ -163,6 +171,9 @@ export function BackendsSection(props: Props) {
             )}
             {b.id === "fsr4injector" && (
               <Fsr4Setup status={fsr4} onChange={onFsr4Change} />
+            )}
+            {b.id === "anrfg" && (
+              <AnrSetup status={anr} onChange={onAnrChange} />
             )}
             {b.id === "mako" && b.lossless_scaling === false && (
               <LosslessWarning />
