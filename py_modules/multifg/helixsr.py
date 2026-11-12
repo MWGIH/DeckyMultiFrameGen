@@ -29,6 +29,13 @@ DLL = "amd_fidelityfx_dx12.dll"
 # The newest HelixSR that runs inside a stock OptiScaler (the one Decky Framegen installs): HelixSR 2.0's DLL needs its
 # own OptiScaler build, HelixSR Scaler 1.1.0 (its Dx12Upscaler=ffx); stock OptiScaler 0.9.4 falls back to FSR 2.1.2
 OPTI_RELEASE = "v1.9.3"
+# Optional extras HelixSR's setup builds on request (HelixSR 3.3 on), each with a switch in Backends:
+# preset_k: NVIDIA's DLSS 4 Preset K network for HLX DLSS (--preset-k; built into <release>/HelixSR/k, which HelixSR's
+#           installer puts into games next to HelixSR); vulkan: HLX DLSS's Vulkan kernels, so it runs natively in
+#           Vulkan games (--vulkan; part of the network's build, so adding or dropping them rebuilds it: --rebuild)
+EXTRAS = ("preset_k", "vulkan")
+K_FILES = ("helixsr.dll", "helixsr_modelk_kernels.pak", "helixsr_modelk_weights.bin")
+K_TOTAL = 31   # Preset K's shaders in HelixSR 3.3.0 (setup/lib/modelk/modelk_kernels.json), when a release doesn't say
 
 
 class HelixSR:
@@ -139,6 +146,78 @@ class HelixSR:
         self._write_json(self.settings_file, {**(self._read_json(self.settings_file) or {}), "prereleases": bool(on)})
         return {"ok": True, "prereleases": bool(on)}
 
+    # --- optional extras: Preset K and the Vulkan kernels ---------------------------------------------------------
+
+    def extras_wanted(self) -> dict:
+        settings = self._read_json(self.settings_file) or {}
+        return {k: bool(settings.get(k)) for k in EXTRAS}
+
+    def extra_available(self, tag: str | None, name: str) -> bool:
+        """The release's setup can build it (HelixSR 3.3 on)."""
+        if not tag:
+            return False
+        d = self.release_dir(tag)
+        if name == "preset_k":
+            return (d / "setup" / "preset-k" / "out_lo.bin").is_file()
+        return (d / "setup" / "lib" / "setup_vk_shaders.py").is_file()
+
+    def extra_built(self, tag: str | None, name: str) -> bool:
+        if not tag:
+            return False
+        d = self.release_dir(tag)
+        if name == "preset_k":
+            return all((d / "HelixSR" / "k" / n).is_file() for n in K_FILES)
+        return bool((self._read_json(d / "helixsr_setup.json") or {}).get("vulkan"))
+
+    def k_total(self, tag: str | None) -> int:
+        try:
+            return len(json.loads((self.release_dir(tag) / "setup" / "lib" / "modelk" / "modelk_kernels.json")
+                                  .read_text())["kernels"]) or K_TOTAL
+        except (OSError, ValueError, KeyError, TypeError):
+            return K_TOTAL
+
+    def setup_args(self, tag: str) -> list[str]:
+        """helixsr-setup.sh's options for the extras switched on. The Vulkan kernels are part of the network's build:
+        when the built network has them and they're switched off, or the other way round, it is built again."""
+        want = self.extras_wanted()
+        args = []
+        if want["preset_k"] and self.extra_available(tag, "preset_k"):
+            args.append("--preset-k")
+        if self.extra_available(tag, "vulkan"):
+            if want["vulkan"]:
+                args.append("--vulkan")
+            if self.ready(tag) and want["vulkan"] != self.extra_built(tag, "vulkan"):
+                args.append("--rebuild")
+        return args
+
+    def extras_status(self, tag: str | None) -> dict:
+        want = self.extras_wanted()
+        return {k: {"on": want[k], "available": self.extra_available(tag, k), "built": self.extra_built(tag, k)}
+                for k in EXTRAS}
+
+    def set_extra(self, name: str, on: bool) -> dict:
+        """Switches an extra on or off. With HelixSR set up, its setup runs again at once to build (or, for the Vulkan
+        kernels, rebuild without) it; Preset K switched off is taken out of the release (games get it no more when
+        HelixSR is installed into them again). Without HelixSR set up, the switch applies when it is installed."""
+        if name not in EXTRAS:
+            return {"ok": False, "error": f"Unknown option: {name}"}
+        job = self.status().get("job") or {}
+        if job.get("state") == "running":
+            return {"ok": False, "error": "Wait for HelixSR's setup to finish."}
+        self._write_json(self.settings_file, {**(self._read_json(self.settings_file) or {}), name: bool(on)})
+        tag = self.active()
+        started = False
+        if tag and self.ready(tag) and self.extra_available(tag, name):
+            if name == "preset_k" and not on:
+                shutil.rmtree(self.release_dir(tag) / "HelixSR" / "k", ignore_errors=True)
+                self._log("Preset K switched off: removed from the release")
+            elif bool(on) != self.extra_built(tag, name):
+                r = self.start_install(tag)
+                if not r.get("ok"):
+                    return r
+                started = True
+        return {"ok": True, "started": started, "extras": self.extras_status(tag)}
+
     def local_releases(self) -> list[str]:
         """Downloaded releases (~/HelixSR/<tag>/ with HelixSR's setup), newest first."""
         tags = []
@@ -228,7 +307,9 @@ class HelixSR:
             except OSError:
                 job["downloaded"] = 0
         if job.get("phase") == "setup" and job.get("state") == "running":
-            job.update(setup_progress(_tail(self.log, 60)))
+            lines = _tail(self.log, 400, 65536)
+            job.update(setup_progress(lines[-60:]))
+            job["extras_progress"] = extras_progress(lines, job.get("k_total") or K_TOTAL)
         local = self.local_releases()
         latest = self.latest()
         active = self.active()
@@ -246,6 +327,7 @@ class HelixSR:
                                      and (not active or _version_key(latest["tag"]) > _version_key(active))),
             "prereleases": self.prereleases(),
             "newer_prerelease": self.newer_prerelease(),
+            "extras": self.extras_status(active),
         }
 
     def setup_log(self, lines: int = 80) -> dict:
@@ -318,10 +400,14 @@ class HelixSR:
         tmp.mkdir(parents=True)
         env = self.env()
         env["TMPDIR"] = str(tmp)
-        self._log(f"running {d / 'helixsr-setup.sh'}")
+        args = self.setup_args(d.name)
+        # the extras this run builds, each with its own bar in the panel
+        job.update(extras=[n for n, flag in (("vulkan", "--vulkan"), ("preset_k", "--preset-k")) if flag in args],
+                   k_total=self.k_total(d.name))
+        self._log(f"running {d / 'helixsr-setup.sh'}" + (f" {' '.join(args)}" if args else ""))
         self.log.parent.mkdir(parents=True, exist_ok=True)
         proc = subprocess.Popen([self.driver_python(), "-I", str(DRIVER), str(self.log), str(rc), "bash",
-                                 str(d / "helixsr-setup.sh")], cwd=str(d), env=env, stdin=subprocess.DEVNULL,
+                                 str(d / "helixsr-setup.sh"), *args], cwd=str(d), env=env, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         job.update(pid=proc.pid, rc_file=str(rc), setup_started=time.time())
         self._write_json(self.job_file, job)
@@ -492,17 +578,83 @@ def setup_progress(lines: list[str]) -> dict:
             pct, stage = int(m.group(1)), m.group(2).strip() or None
             continue
         m = _STEP.search(line)
-        if m and not m.group(1).startswith(("stage seconds", "compile ")):
+        if m and not m.group(1).startswith(("stage seconds", "compile ", "Vulkan: ")):
             step = m.group(1).strip()
             if step.startswith("done"):
                 pct, stage = 100, "done"
             elif not step.startswith(("building the network", "HLX FSR 4: its shaders")):
                 pct, stage = None, None   # a step after the build started is a new one (done, installing games)
+    if pct is not None and stage == "done":
+        pct = 100   # the bar's last line with the Vulkan kernels' share in it
     if pct is not None:
         # HelixSR 3.0 builds HLX FSR 4 after the network, with a bar of its own (AMD's download, then its shaders)
-        what = "Building HLX FSR 4" if stage and ("HLX" in stage or "AMD" in stage) else "Building the network"
+        what = ("Building HLX FSR 4" if stage and ("HLX" in stage or "AMD" in stage)
+                else "Building the Vulkan kernels" if stage and stage.startswith("Vulkan") else "Building the network")
         return {"setup_percent": pct, "setup_step": f"{what}: {stage}" if stage else what}
     return {"setup_percent": None, "setup_step": step}
+
+
+_VK = re.compile(r"Vulkan shaders (\d+)/(\d+)")
+_K_SHADER = re.compile(r"^[A-Za-z_]\w* (compiled|cached)$")
+_K_TRANSLATED = re.compile(r"^[A-Za-z_]\w*: ")
+
+
+def extras_progress(lines: list[str], k_total: int = K_TOTAL) -> dict:
+    """How far the optional extras are in this run, from the setup's output:
+    vulkan: HelixSR 3.3's build bar has a stage of its own after the network's shaders ('Vulkan shaders 120/352'),
+            then a step line ('Vulkan: 352 shaders');
+    preset_k: a step line starts it ('building Preset K ...' or 'Preset K: reusing the earlier build'), its builder
+            prints a line per shader translated ('<kernel>: ...') and one per shader compiled ('<kernel> compiled'),
+            and a step line ends it ('done: Preset K is built' or 'Preset K was not built ...').
+    Each is {percent (None: not started or no measure yet), step, state: waiting|building|done|failed}."""
+    vk = {"percent": None, "step": "Waits for the network's build", "state": "waiting"}
+    k = {"percent": None, "step": "Waits for the network's build", "state": "waiting"}
+    in_k, translated, compiled = False, 0, 0
+    starts = [i for i, l in enumerate(lines) if l.startswith("[multifg]") and "helixsr-setup.sh" in l]
+    for line in lines[starts[-1] + 1:] if starts else lines:   # this run's output only
+        m = _BAR.search(line)
+        if m and (m.group(2) or "").strip().startswith("Vulkan"):
+            label = m.group(2).strip()
+            v = _VK.search(label)
+            if v and int(v.group(2)):
+                vk = {"percent": round(100 * int(v.group(1)) / int(v.group(2))),
+                      "step": f"Vulkan shaders {v.group(1)}/{v.group(2)}", "state": "building"}
+            elif "done" in label:
+                vk = {"percent": 100, "step": "Built", "state": "done"}
+            else:
+                vk = {**vk, "step": label, "state": "building"}
+            continue
+        m = _STEP.search(line)
+        step = m.group(1).strip() if m else None
+        if step and step.startswith("Vulkan: "):
+            vk = {"percent": 100, "step": f"Built ({step[8:]})", "state": "done"}
+            continue
+        if step and step.startswith("building Preset K"):
+            in_k, translated, compiled = True, 0, 0
+            k = {"percent": 0, "step": "Starting", "state": "building"}
+            continue
+        if step and step.startswith("Preset K: reusing"):
+            k = {"percent": 100, "step": "Reused the earlier build on this Deck", "state": "building"}
+            continue
+        if step and step.startswith("done: Preset K is built"):
+            in_k = False
+            k = {"percent": 100, "step": "Built", "state": "done"}
+            continue
+        if "Preset K was not built" in line or "Preset K is not in this package" in line:
+            in_k = False
+            k = {"percent": k["percent"], "step": line.split("] ", 1)[-1].strip(), "state": "failed"}
+            continue
+        if in_k and not line.startswith("["):
+            text = line.strip()
+            if _K_SHADER.match(text):
+                compiled += 1
+                k = {"percent": min(99, round(100 * compiled / max(1, k_total))),
+                     "step": f"Shaders {compiled}/{k_total}", "state": "building"}
+            elif _K_TRANSLATED.match(text):
+                translated += 1
+                k = {"percent": 0, "step": f"Translating NVIDIA's network {min(translated, k_total)}/{k_total}",
+                     "state": "building"}
+    return {"vulkan": vk, "preset_k": k}
 
 
 def setup_output(lines: list[str]) -> list[str]:
@@ -517,11 +669,11 @@ def setup_output(lines: list[str]) -> list[str]:
     return out
 
 
-def _tail(p: Path, n: int) -> list[str]:
+def _tail(p: Path, n: int, size: int = 16384) -> list[str]:
     try:
         with open(p, "rb") as f:
             f.seek(0, os.SEEK_END)
-            f.seek(max(0, f.tell() - 16384))
+            f.seek(max(0, f.tell() - size))
             lines = f.read().decode(errors="replace").replace("\r", "\n").splitlines()
         return [l for l in lines if l.strip()][-n:]
     except OSError:

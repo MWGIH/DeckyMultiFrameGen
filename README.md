@@ -21,6 +21,9 @@ without juggling several plugins:
 - **FSR4 Injector** (from [FSR4 Injector](https://github.com/Rayekkk/FSR4Injector)): AMD's own FSR 4.1 library in
   DirectX 12 games that ship FSR 3.1 or newer, through a small shim that tells it the GPU Proton can't report. On the
   Steam Deck (Van Gogh) it uses FSR 4's Lite model, which FSR4 Injector's author lists as beta, not yet tested there.
+- **ANR FG** (from [Apex Neural Rendering](https://github.com/apex-compute/ANR), closed-source beta): neural frame
+  generation that runs in place of DLSS frame generation, in DirectX 12 games that offer it. It comes with Apex's own
+  OptiScaler build, so a game set to ANR FG doesn't use Decky Framegen's OptiScaler. Not yet tested on the Steam Deck.
 
 See [CREDITS.md](CREDITS.md) for who made what.
 
@@ -71,6 +74,10 @@ the Steam Deck, with game-by-game results and performance updates.
   updates under Check for updates), and the Use choices FSR4 Injector and FSR4 Injector + MAKO put it in the game
   with `WINEDLLOVERRIDES=amdxc64=n,b` in the launch options. AMD's FSR 4 watermark can be switched on per game
   (`FSR_WATERMARK=1`), and the game's panel shows whether FSR 4 ran in the last session.
+- ANR FG: installs ANR FG's full package from its releases under Backends (updates under Check for updates, which
+  also refresh the games it is in). The Use choice ANR FG runs the package's own installer in the game's .exe folder
+  (it backs up and restores the proxy DLL and OptiScaler.ini there) and adds `WINEDLLOVERRIDES="dxgi=n,b"` (or
+  `winmm` in Vulkan games). Turn on DLSS frame generation in the game. The game's panel sets ANR FG's model size.
 
 If you also have MAKO Decky installed, keep only one of the two plugins enabled: both manage the same MAKO
 Renderer install.
@@ -116,13 +123,25 @@ What decides whether a game can use HelixSR:
 | DirectX 12 with FSR 3.1 | FSR drop-in (select AMD FSR in the game) |
 | DirectX 12 with DLSS, XeSS or FSR 2 | HelixSR Scaler, or OptiScaler + HelixSR |
 | DirectX 12 with anti-cheat that checks game files (Easy Anti-Cheat) | OptiScaler + HelixSR only; the drop-in stops the game |
-| Vulkan or DirectX 11 | HelixSR Scaler from HelixSR 3.0 (untested here); not supported before |
+| Vulkan or DirectX 11 | HelixSR Scaler from HelixSR 3.0 (untested here); not supported before. From 3.3, Vulkan games run HLX DLSS natively with the **Build Vulkan kernels** option |
 | DirectX 10 or older, native Linux | Not supported |
 
 From HelixSR 3.0 the FSR drop-in is HLX FSR 4 (AMD's FSR 4 network on HelixSR's own pipeline). Its setup builds it from
 one file of AMD's driver package, about 420 MB downloaded from AMD; when that fails, HelixSR Scaler still works and the
 Backends panel offers to build HLX FSR 4 again. HelixSR 3.0 has no frame generation of its own (OptiScaler's and MAKO's
-are unaffected).
+are unaffected). From HelixSR 3.3 HLX FSR 4 comes built, with no download from AMD.
+
+HelixSR 3.3 adds two optional extras, off by default, each a switch in Backends. HelixSR's setup builds them, with a
+progress bar of its own for each:
+
+- **Build Preset K**: NVIDIA's DLSS 4 Preset K network for HLX DLSS, sharper and a little slower (pick it in HelixSR
+  Scaler's DLSS Upscaler list). It takes many minutes to build and is tested on AMD RDNA GPUs only; a game can freeze at
+  start with Steam's overlay on. Switching it off takes it out of HelixSR.
+- **Build Vulkan kernels**: HLX DLSS runs natively in Vulkan games instead of through HelixSR Scaler's DirectX 12
+  bridge. The kernels are part of the network, so switching them on or off builds the network again, which takes a long
+  time.
+
+Games get either one when HelixSR is installed into them again.
 
 OptiScaler + HelixSR uses HelixSR 1.9.3: from 2.0 HelixSR's DLL only runs inside its own OptiScaler build (HelixSR
 Scaler), and the OptiScaler Decky Framegen installs (0.9.4) falls back to FSR 2.1.2 with it. The plugin sets 1.9.3 up

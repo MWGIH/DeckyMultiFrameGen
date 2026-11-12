@@ -20,6 +20,8 @@ UPSCALERS = {
                              "ffx_fsr3upscaler_x64.dll", "ffx_fsr3_x64.dll")),
     "dlss": ("DLSS", ("nvngx_dlss.dll",)),
     "xess": ("XeSS", ("libxess.dll",)),
+    # DLSS frame generation (Streamline's plugin, NVIDIA's DLL): what ANR FG takes the place of
+    "dlssg": ("DLSS frame generation", ("nvngx_dlssg.dll", "sl.dlss_g.dll")),
 }
 MAX_DEPTH = 8   # Unreal games keep plugin DLLs deep (Engine/Plugins/.../Binaries/ThirdParty/Win64); FSR4 Injector uses it too
 SCALER_BACKUP = "HelixSR-Scaler-backup"
@@ -32,6 +34,7 @@ NEEDS = {
     "fsr4injector": ("fsr31",),
     "helixsr": ("fsr31", "fsr2", "dlss", "xess"),   # HelixSR replaces or bridges one of them (DirectX 12)
     "optiscaler+helixsr": ("fsr31", "fsr2", "dlss", "xess"),   # OptiScaler hands HelixSR the game's upscaler input
+    "anrfg": ("dlssg",),   # ANR FG runs when the game turns on DLSS frame generation
 }
 
 
@@ -56,6 +59,8 @@ def detect(install_dir: str) -> set[str] | None:
                 found.add(_NAMES[own])
         if os.path.basename(root) == SCALER_BACKUP:
             dirs[:] = []
+        elif os.path.basename(root) == "OptiScaler" and "custom" in dirs:
+            dirs.remove("custom")   # ANR FG's nvngx_dlssg.dll (OptiScaler/custom/<provider>/dlssg), not the game's
         if root.count(os.sep) - base_depth >= MAX_DEPTH:
             dirs[:] = []
     return found

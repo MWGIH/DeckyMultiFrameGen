@@ -13,6 +13,7 @@ OPTISCALER = "optiscaler"
 HELIXSR = "helixsr"
 MAKO = "mako"
 FSR4INJECTOR = "fsr4injector"
+ANRFG = "anrfg"
 
 # What a game can use. HelixSR picks its own way per game: the FSR drop-in, or HelixSR Scaler (its OptiScaler build).
 # OptiScaler and MAKO can run together: OptiScaler upscales inside the game, MAKO generates frames in Vulkan after it.
@@ -23,8 +24,9 @@ OPTISCALER_HELIXSR = f"{OPTISCALER}+{HELIXSR}"
 OPTISCALER_HELIXSR_MAKO = f"{OPTISCALER}+{HELIXSR}+{MAKO}"
 # FSR4 Injector puts AMD's own FSR 4 library next to the game's FSR 3.1 DLL; MAKO can generate frames after it
 FSR4INJECTOR_MAKO = f"{FSR4INJECTOR}+{MAKO}"
+# ANR FG (Apex Neural Rendering) comes with its own OptiScaler build and is a frame generator itself: on its own only
 GAME_CHOICES = ("none", OPTISCALER, HELIXSR, MAKO, OPTISCALER_MAKO, HELIXSR_MAKO, OPTISCALER_HELIXSR,
-                OPTISCALER_HELIXSR_MAKO, FSR4INJECTOR, FSR4INJECTOR_MAKO)
+                OPTISCALER_HELIXSR_MAKO, FSR4INJECTOR, FSR4INJECTOR_MAKO, ANRFG)
 
 UPSTREAM = {
     OPTISCALER: {
@@ -51,6 +53,13 @@ UPSTREAM = {
         "plugin": "FSR4 Injector",
         "repo": "Rayekkk/FSR4Injector",
         "kind": "AMD's FSR 4.1 in games with FSR 3.1 or newer (DirectX 12)",
+    },
+    # its status comes from multifg.anrfg (main.get_backends): it lives in the plugin's runtime folder
+    ANRFG: {
+        "name": "ANR FG",
+        "plugin": "Apex Neural Rendering",
+        "repo": "apex-compute/ANR",
+        "kind": "Neural frame generation in place of DLSS frame generation (DirectX 12)",
     },
 }
 

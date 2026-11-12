@@ -10,6 +10,7 @@ import decky
 from mako_plugin.plugin import Plugin as MakoPlugin
 
 from multifg import evolution, backends, game_files, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
+from multifg.anrfg import ANRFG
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
@@ -29,6 +30,7 @@ OPTI_PLAIN_VARIANT = "rdna23-int8"   # per game, see _opti_variant
 OPTI_PLAIN_GAMES = {"4115450"}   # Phantom Blade Zero
 MAKO = MakoPlugin()  # MAKO Decky's backend (vendored); its methods are exposed below as mako_<name>
 FSR4 = FSR4Injector(Path(decky.DECKY_PLUGIN_RUNTIME_DIR), Path(decky.DECKY_PLUGIN_SETTINGS_DIR))
+ANR = ANRFG(Path(decky.DECKY_PLUGIN_RUNTIME_DIR))
 updates.use_cache_file(Path(decky.DECKY_PLUGIN_RUNTIME_DIR) / "github-api-cache.json")
 _APPID = re.compile(r"\d{1,10}")
 
@@ -104,7 +106,7 @@ def _direct_start(appid: str, backend: str, options: str) -> str:
     exe = evolution.game_exe(game["install_path"]) if game and game["install_found"] else None
     if exe and not shortcuts.is_evolution_public(game["install_path"]):
         exe = None   # a Digital Extremes game's folder is .../Downloaded/Public
-    needs = bool(set(backend.split("+")) & {"optiscaler", "helixsr", "fsr4injector"})
+    needs = bool(set(backend.split("+")) & {"optiscaler", "helixsr", "fsr4injector", "anrfg"})
     if needs and exe:
         wrapper = evolution.write_wrapper(HOME)
         return evolution.with_wrapper(options, wrapper, exe, SETTINGS.game_value(appid, "direct_args") or "")
@@ -198,6 +200,15 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
     has MAKO. Returns {ok, removed: [names], launch_options: what they become, or None if unchanged} or {ok: False}."""
     keeps = set(keep.split("+"))
     removed, new_launch = [], launch
+    # ANR FG brings its own OptiScaler under a proxy DLL name, in the same slot as OptiScaler and HelixSR Scaler
+    anr_dir = SETTINGS.game_value(appid, "anr_dir")
+    if "anrfg" not in keeps and ANR.installed_in(anr_dir):
+        r = await asyncio.to_thread(ANR.uninstall, anr_dir)
+        if not r.get("ok"):
+            return {"ok": False, "error": f"Couldn't remove ANR FG: {r.get('error')}"}
+        SETTINGS.clear_game_value(appid, "anr_dir")
+        removed.append("ANR FG")
+        new_launch = _without_overrides(new_launch)
     # FSR4 Injector's DLLs sit next to the game's FSR 3.1 DLL, which HelixSR's drop-in replaces
     if "fsr4injector" not in keeps and await asyncio.to_thread(FSR4.enabled, int(appid)):
         r = await asyncio.to_thread(FSR4.disable, int(appid), new_launch)
@@ -226,7 +237,7 @@ async def _clear_game(appid: str, folder: str, keep: str, launch: str) -> dict:
             removed.append("HelixSR")
             if helix.get("current") == "scaler":
                 new_launch = _without_overrides(new_launch)
-    if not keeps & {"optiscaler", "helixsr"}:
+    if not keeps & {"optiscaler", "helixsr"} and not ANR.installed_in(SETTINGS.game_value(appid, "anr_dir")):
         left = await asyncio.to_thread(_sweep_leftovers, appid)
         if left:
             decky.logger.info(f"Leftovers cleaned in {appid}: {left}")
@@ -421,6 +432,55 @@ async def _add_helix_to_opti(appid: str) -> dict:
     return await asyncio.to_thread(helix_opti.install, HELIXSR.release_dir(tag), target, tag)
 
 
+def _anr_target(appid: str) -> str | None:
+    """The folder ANR FG is in for the game, else where it would go (the game's .exe folder, as for OptiScaler)."""
+    known = SETTINGS.game_value(appid, "anr_dir")
+    if ANR.installed_in(known):
+        return known
+    game = OPTISCALER._game_record(appid)
+    if not game or not Path(game["install_path"]).is_dir():
+        return None
+    return str(OPTISCALER._guess_patch_target(game)[0])
+
+
+def _anr_games() -> list[str]:
+    """App ids of the games ANR FG is in."""
+    games = SETTINGS.load().get("games", {})
+    return sorted(a for a, g in games.items() if ANR.installed_in(g.get("anr_dir")))
+
+
+def _anr_on(appid: str, launch: str) -> dict:
+    """ANR FG into the game; launch_options get its WINEDLLOVERRIDES in front."""
+    target = _anr_target(appid)
+    if not target:
+        return {"ok": False, "error": "This game isn't installed"}
+    r = ANR.install(target)
+    if r.get("ok"):
+        SETTINGS.set_game_value(appid, "anr_dir", target)
+        r["launch_options"] = _with_overrides(launch or "", f"{r['overrides']} %command%")
+    return r
+
+
+def _anr_refresh_games() -> int:
+    """After an update: the new ANR FG into every game it is in (install.sh again keeps the game's nr_fg.ini)."""
+    done = 0
+    for appid in _anr_games():
+        try:
+            if ANR.install(SETTINGS.game_value(appid, "anr_dir")).get("ok"):
+                done += 1
+        except Exception:
+            decky.logger.exception(f"ANR FG refresh in {appid}")
+    return done
+
+
+def _anr_backend() -> dict:
+    st = ANR.status(_anr_games())
+    notes = []
+    if st["ready"]:
+        notes.append("Beta. Runs in place of DLSS frame generation: only in DirectX 12 games that offer it")
+    return {"installed": st["ready"], "version": st["version"], "path": str(ANR.base), "notes": notes}
+
+
 async def _for_game(appid, work):
     """Runs work(folder) off the event loop for an installed game; errors come back as {ok: False, error}."""
     try:
@@ -462,6 +522,7 @@ class Plugin:
                     decky.logger.exception("MAKO Renderer check")
         out.append({"id": backends.FSR4INJECTOR, **backends.UPSTREAM[backends.FSR4INJECTOR],
                     **await asyncio.to_thread(_fsr4_backend)})
+        out.append({"id": backends.ANRFG, **backends.UPSTREAM[backends.ANRFG], **await asyncio.to_thread(_anr_backend)})
         return out
 
     async def plugin_version(self) -> str:
@@ -607,6 +668,18 @@ class Plugin:
                                            SETTINGS.game_value(appid, "fsr4_watermark", False))
             if fsr4.get("ok"):
                 cleared["launch_options"] = fsr4["launch_options"]
+        # ANR FG goes in as soon as the game is set to it
+        anr = None
+        if backend == "anrfg" and folder and ANR.ready() \
+                and not ANR.installed_in(SETTINGS.game_value(appid, "anr_dir")):
+            launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options
+            try:
+                anr = await asyncio.to_thread(_anr_on, appid, launch or "")
+            except Exception as exc:
+                decky.logger.exception("ANR FG install")
+                anr = {"ok": False, "error": str(exc)}
+            if anr.get("ok"):
+                cleared["launch_options"] = anr["launch_options"]
         # HelixSR (on its own or with MAKO) goes in as HelixSR Scaler as soon as the game is set to it
         helix = None
         if backend in ("helixsr", "helixsr+mako") and folder and HELIXSR.active() \
@@ -626,7 +699,7 @@ class Plugin:
             if direct != current_launch_options:
                 cleared["launch_options"] = direct
         return {"ok": True, "appid": appid, "backend": backend, "helix_in_opti": added, "fsr4": fsr4, "helix": helix,
-                "opti": opti,
+                "opti": opti, "anr": anr,
                 "removed": cleared["removed"],
                 "launch_options": cleared["launch_options"]}
 
@@ -659,6 +732,10 @@ class Plugin:
     async def helixsr_set_prereleases(self, on: bool) -> dict:
         """Whether HelixSR's pre-releases are offered as updates (HelixSR 3.0.0 came out as one)."""
         return await asyncio.to_thread(HELIXSR.set_prereleases, bool(on))
+
+    async def helixsr_set_extra(self, name: str, on: bool) -> dict:
+        """An optional extra of HelixSR's setup (preset_k, vulkan) on or off; with HelixSR set up it is built now."""
+        return await asyncio.to_thread(HELIXSR.set_extra, str(name), bool(on))
 
     async def helixsr_remove(self) -> dict:
         """HelixSR out of every game, then its files deleted."""
@@ -890,6 +967,77 @@ class Plugin:
         """Games FSR4 Injector is in (to take it out of all of them before it's removed)."""
         return (await asyncio.to_thread(FSR4.status))["games"]
 
+    # --- ANR FG (Apex Neural Rendering) ---
+
+    async def anr_status(self) -> dict:
+        return await asyncio.to_thread(lambda: ANR.status(_anr_games()))
+
+    async def anr_install(self) -> dict:
+        """Downloads (or updates to) ANR FG's latest release; games it is in get the new one. anr_status shows progress."""
+        return ANR.start_install(_anr_refresh_games)
+
+    async def anr_remove(self) -> dict:
+        return await asyncio.to_thread(lambda: ANR.remove(_anr_games()))
+
+    async def anr_game_status(self, appid: str) -> dict:
+        try:
+            appid = _valid_appid(appid)
+            _game_folder(appid)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+
+        def work():
+            target = _anr_target(appid)
+            on = ANR.installed_in(target) and SETTINGS.game_value(appid, "anr_dir") == target
+            return {"ok": True, "ready": ANR.ready(), "enabled": on, "target_dir": target,
+                    "launch_option": f"{ANR.overrides(target)} %command%" if on else None,
+                    "model_size": ANR.model_size(target) if on else None,
+                    "log": ANR.newest_log(target) if on else None}
+        try:
+            return await asyncio.to_thread(work)
+        except Exception as exc:
+            decky.logger.exception("anr_game_status")
+            return {"ok": False, "error": str(exc)}
+
+    async def anr_game_on(self, appid: str, current_launch_options: str) -> dict:
+        """ANR FG into the game (again); launch_options are the game's new ones."""
+        try:
+            appid = _valid_appid(appid)
+            _game_folder(appid)
+            return await asyncio.to_thread(_anr_on, appid, current_launch_options or "")
+        except Exception as exc:
+            decky.logger.exception("anr_game_on")
+            return {"ok": False, "error": str(exc)}
+
+    async def anr_game_off(self, appid: str, current_launch_options: str) -> dict:
+        """ANR FG out of the game; launch_options are without its WINEDLLOVERRIDES (None when it wasn't in)."""
+        try:
+            appid = _valid_appid(appid)
+            target = SETTINGS.game_value(appid, "anr_dir")
+            r = await asyncio.to_thread(ANR.uninstall, target) if target else {"ok": True, "was_on": False}
+            if r.get("ok"):
+                SETTINGS.clear_game_value(appid, "anr_dir")
+                r["launch_options"] = _without_overrides(current_launch_options or "") if r.get("was_on") else None
+            return r
+        except Exception as exc:
+            decky.logger.exception("anr_game_off")
+            return {"ok": False, "error": str(exc)}
+
+    async def anr_model_size(self, appid: str, size: str) -> dict:
+        """ANR FG's model size in the game's nr_fg.ini (auto, large or small); the game reads it on its next start."""
+        try:
+            appid = _valid_appid(appid)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        target = SETTINGS.game_value(appid, "anr_dir")
+        if not ANR.installed_in(target):
+            return {"ok": False, "error": "ANR FG isn't in this game."}
+        ok = await asyncio.to_thread(ANR.set_model_size, target, size)
+        return {"ok": ok, "model_size": ANR.model_size(target)} if ok else {"ok": False, "error": "Couldn't change it."}
+
+    async def anr_games(self) -> list[str]:
+        return await asyncio.to_thread(_anr_games)
+
     # --- OptiScaler (Decky Framegen) ---
 
     async def optiscaler_status(self) -> dict:
@@ -1013,9 +1161,18 @@ class Plugin:
             return {"installed": installed, "available": available,
                     "update_available": bool(installed) and updates.newer(available, installed)}
 
+        async def anrfg():
+            installed = ANR.version()
+            if not installed:
+                return {"installed": None, "available": None, "update_available": False}
+            rel = await asyncio.to_thread(ANR.latest, True)
+            available = rel["version"] if rel else None
+            return {"installed": installed, "available": available,
+                    "update_available": bool(available) and available != installed}
+
         results = await asyncio.gather(guard(plugin), guard(optiscaler), guard(helixsr), guard(mako),
-                                       guard(fsr4injector))
-        return dict(zip(("plugin", "optiscaler", "helixsr", "mako", "fsr4injector"), results))
+                                       guard(fsr4injector), guard(anrfg))
+        return dict(zip(("plugin", "optiscaler", "helixsr", "mako", "fsr4injector", "anrfg"), results))
 
     async def log_error(self, message: str) -> None:
         decky.logger.error(f"frontend: {message}")

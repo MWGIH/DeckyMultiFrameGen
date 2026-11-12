@@ -16,6 +16,8 @@ import {
   helixsrStatus,
   helixsrLog,
   helixsrSetPrereleases,
+  helixsrSetExtra,
+  type HelixExtra,
   type HelixJob,
   type HelixStatus,
 } from "../api";
@@ -62,7 +64,12 @@ function SetupLog() {
   );
 }
 
-// Download (download, checksum, unpack) and HelixSR's own setup, each with its own bar
+const EXTRA_TITLE: Record<HelixExtra, string> = {
+  vulkan: "Vulkan kernels",
+  preset_k: "Preset K",
+};
+
+// Download (download, checksum, unpack), HelixSR's own setup and each optional extra it builds, each with its own bar
 function JobProgress({ job }: { job: HelixJob }) {
   const fraction =
     job.size && job.downloaded
@@ -97,6 +104,25 @@ function JobProgress({ job }: { job: HelixJob }) {
         detail={download.detail}
       />
       <ProgressRow title="Setup" percent={setup.percent} detail={setup.detail} />
+      {(job.extras ?? []).map((name) => {
+        const p = job.phase === "setup" ? job.extras_progress?.[name] : undefined;
+        return (
+          <ProgressRow
+            key={name}
+            title={
+              p?.state === "failed"
+                ? `${EXTRA_TITLE[name]}: not built`
+                : EXTRA_TITLE[name]
+            }
+            percent={
+              !p || p.state === "waiting"
+                ? 0
+                : (p.percent ?? undefined)
+            }
+            detail={p?.step ?? "Waits for the setup"}
+          />
+        );
+      })}
     </>
   );
 }
@@ -108,13 +134,118 @@ function confirmInstall(tag: string, onOk: () => void) {
       strDescription={
         "This downloads HelixSR from its GitHub releases and runs its setup. The setup downloads NVIDIA's DLSS DLL " +
         "from NVIDIA's GitHub (NVIDIA's license applies), builds the upscaling network for your GPU, then deletes " +
-        "NVIDIA's DLL. From HelixSR 3.0 it also downloads about 420 MB of AMD's driver package from AMD (AMD's " +
-        "license applies) and builds HLX FSR 4, its FSR drop-in, from one file in it. It takes a few minutes and " +
-        "needs Proton installed in Steam. Keep the Deck awake meanwhile."
+        "NVIDIA's DLL. HelixSR 3.0 to 3.2 also download about 420 MB of AMD's driver package from AMD (AMD's " +
+        "license applies) to build HLX FSR 4, their FSR drop-in; from 3.3 it comes built. It takes a few minutes " +
+        "(more with the Preset K or Vulkan kernels options on) and needs Proton installed in Steam. Keep the Deck " +
+        "awake meanwhile."
       }
       strOKButtonText="Install"
       onOK={onOk}
     />,
+  );
+}
+
+const EXTRA_INFO: Record<
+  HelixExtra,
+  { label: string; about: string; confirm: string; offConfirm?: string }
+> = {
+  preset_k: {
+    label: "Build Preset K",
+    about:
+      "NVIDIA's DLSS 4 Preset K network for HLX DLSS: sharper, a little slower. Pick it in HelixSR Scaler's DLSS " +
+      "Upscaler list. Tested on AMD RDNA GPUs only; a game can freeze at start with Steam's overlay on.",
+    confirm:
+      "HelixSR's setup runs again now and builds Preset K. It can take many minutes: keep the Deck awake. " +
+      "Games get it when HelixSR is installed into them again.",
+  },
+  vulkan: {
+    label: "Build Vulkan kernels",
+    about:
+      "Lets HLX DLSS run natively in Vulkan games instead of through HelixSR Scaler's DirectX 12 bridge. " +
+      "Switching it on or off builds HelixSR's network again.",
+    confirm:
+      "HelixSR's setup builds its network again now, with the Vulkan kernels. This takes a long time (it can sit " +
+      "at 70% for a while): keep the Deck awake. Games get them when HelixSR is installed into them again.",
+    offConfirm:
+      "HelixSR's setup builds its network again now, without the Vulkan kernels. This takes as long as the first " +
+      "build: keep the Deck awake.",
+  },
+};
+
+// Preset K and the Vulkan kernels: optional extras of HelixSR's setup (HelixSR 3.3 on), off by default
+function ExtraToggles({
+  status,
+  onChange,
+}: {
+  status: HelixStatus;
+  onChange: () => void;
+}) {
+  const extras = status.extras;
+  if (!extras) return null;
+  const apply = async (name: HelixExtra, on: boolean) => {
+    const r = await helixsrSetExtra(name, on);
+    if (!r.ok)
+      toaster.toast({
+        title: "HelixSR",
+        body: r.error ?? "Couldn't change the option",
+      });
+    else if (r.started)
+      toaster.toast({
+        title: "HelixSR",
+        body: `Building ${EXTRA_TITLE[name]}: progress is in Backends`,
+      });
+    onChange();
+  };
+  const toggle = (name: HelixExtra, on: boolean) => {
+    const e = extras[name];
+    const info = EXTRA_INFO[name];
+    // HelixSR is set up and the change needs a build now: ask first, it's a long one
+    const builds =
+      status.active_ready &&
+      e.available &&
+      (on ? !e.built : name === "vulkan" && e.built);
+    if (!builds) {
+      void apply(name, on);
+      return;
+    }
+    showModal(
+      <ConfirmModal
+        strTitle={`${on ? "Build" : "Remove"} ${EXTRA_TITLE[name]}`}
+        strDescription={on ? info.confirm : (info.offConfirm ?? info.confirm)}
+        strOKButtonText={on ? "Build" : "Rebuild"}
+        onOK={() => apply(name, on)}
+      />,
+    );
+  };
+  return (
+    <>
+      {(Object.keys(EXTRA_INFO) as HelixExtra[]).map((name) => {
+        const e = extras[name];
+        const info = EXTRA_INFO[name];
+        const state = !status.active_ready
+          ? e.on
+            ? " Built when HelixSR is installed."
+            : ""
+          : !e.available
+            ? ` Needs HelixSR 3.3 or newer (${status.active} is in use).`
+            : e.on && e.built
+              ? " Built."
+              : e.on
+                ? " Not built: the build failed (see the setup log). Switch it off and on to try again."
+                : "";
+        return (
+          <PanelSectionRow key={name}>
+            <ToggleField
+              label={info.label}
+              description={info.about + state}
+              checked={e.on}
+              disabled={status.active_ready && !e.available && !e.on}
+              onChange={(on) => toggle(name, on)}
+            />
+          </PanelSectionRow>
+        );
+      })}
+    </>
   );
 }
 
@@ -239,6 +370,7 @@ export function HelixSRSetup({
           }}
         />
       </PanelSectionRow>
+      <ExtraToggles status={status} onChange={onChange} />
       {status.active_ready && status.active_hlx === false && (
         <PanelSectionRow>
           <ButtonItem

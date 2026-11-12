@@ -37,8 +37,20 @@ class GameFilesTests(unittest.TestCase):
     def test_fsr31_game_gets_everything(self):
         (self.exe / "amd_fidelityfx_upscaler_dx12.dll").write_bytes(b"")
         g = self.choices()
-        self.assertEqual(g["choices"], list(main.backends.GAME_CHOICES))
-        self.assertEqual(g["hidden"], [])
+        self.assertEqual(g["choices"], [c for c in main.backends.GAME_CHOICES if c != "anrfg"])
+        self.assertEqual(g["hidden"], [{"choice": "anrfg", "needs": ["DLSS frame generation"], "reason": None}])
+
+    def test_dlss_frame_generation_game_gets_anr_fg(self):
+        (self.exe / "sl.dlss_g.dll").write_bytes(b"")
+        g = self.choices()
+        self.assertIn("anrfg", g["choices"])
+        self.assertIn("DLSS frame generation", g["upscalers"])
+
+    def test_anr_fgs_own_dlssg_doesnt_count(self):
+        own = self.exe / "OptiScaler" / "custom" / "Apex Neural Rendering FG" / "dlssg"
+        own.mkdir(parents=True)
+        (own / "nvngx_dlssg.dll").write_bytes(b"")
+        self.assertNotIn("anrfg", self.choices()["choices"])
 
     def test_optiscaler_copies_dont_count_but_kept_originals_do(self):
         for name in ("FRAMEGEN_PATCH", "amd_fidelityfx_dx12.dll", "libxess.dll", "libxess.dll.b"):
