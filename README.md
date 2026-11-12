@@ -15,8 +15,8 @@ without juggling several plugins:
 - **HelixSR** (from [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager)): DLSS and (from HelixSR
   3.0) FSR 4 upscaling networks on GPUs without them, on its own or through OptiScaler.
 - **MAKO** (from [MAKO](https://github.com/eugeniosegala/MAKO)): frame generation, scaling and shaders as a Vulkan
-  layer. Frame generation needs [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/)
-  installed in Steam; the scaler and shaders don't.
+  layer. From MAKO 5 its own MAKO FG frame generation needs nothing else; only the optional LSFG models and LS1
+  scaling need [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) installed in Steam.
 - **FSR4 Injector** (from [FSR4 Injector](https://github.com/Rayekkk/FSR4Injector)): AMD's own FSR 4.1 library in
   DirectX 12 games that ship FSR 3.1 or newer, through a small shim that tells it the GPU Proton can't report. On the
   Steam Deck (Van Gogh) it uses FSR 4's Lite model, which FSR4 Injector's author lists as beta, not yet tested there.

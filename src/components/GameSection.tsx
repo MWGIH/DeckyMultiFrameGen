@@ -224,13 +224,6 @@ export function GameSection({
               ? `OptiScaler is in (${r.opti.dll_name}). In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`
               : `OptiScaler wasn't patched in: ${r.opti.error}`,
           );
-        if (
-          parts(choice).includes("mako") &&
-          backends?.find((b) => b.id === "mako")?.lossless_scaling === false
-        )
-          toast(
-            "Lossless Scaling isn't installed: MAKO's frame generation needs it. Install it from the Steam Store.",
-          );
         if (r.fsr4)
           toast(
             r.fsr4.ok
@@ -429,10 +422,6 @@ export function GameSection({
               <MakoGame
                 appid={selected.appid}
                 makoInstalled={installed.has("mako")}
-                losslessScaling={
-                  backends?.find((b) => b.id === "mako")?.lossless_scaling !==
-                  false
-                }
               />
             )}
         </>

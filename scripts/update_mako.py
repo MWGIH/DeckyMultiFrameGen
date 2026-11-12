@@ -93,6 +93,15 @@ def main():
         print("merged" if r.returncode == 0 else "CONFLICT", ours(up))
         if r.returncode:
             conflicts.append(ours(up))
+    # MAKO Decky's build provides its release info as a virtual module; this plugin has src/mako/config/releaseInfo.ts
+    for f in (ROOT / "src" / "mako").rglob("*.ts*"):
+        text = f.read_text()
+        if '"virtual:mako-release-info";' in text:
+            rel = os.path.relpath(ROOT / "src" / "mako" / "config" / "releaseInfo", f.parent)
+            rel = rel if rel.startswith(".") else "./" + rel
+            f.write_text(text.replace('"virtual:mako-release-info";',
+                                      f'"{rel}"; // Decky MultiFrameGen: was virtual:mako-release-info'))
+            print("release info import", f.relative_to(ROOT))
     if (ROOT / "bin" / "mako-diagnostics").exists():
         os.chmod(ROOT / "bin" / "mako-diagnostics", 0o755)
 

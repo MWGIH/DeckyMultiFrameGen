@@ -27,7 +27,6 @@ import { UpdatesCheck } from "./UpdatesCheck";
 import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
-import { LosslessWarning } from "./LosslessWarning";
 import { useAvailableUpdates } from "../dailyUpdateCheck";
 
 function statusLine(b: Backend): string {
@@ -174,9 +173,6 @@ export function BackendsSection(props: Props) {
             )}
             {b.id === "anrfg" && (
               <AnrSetup status={anr} onChange={onAnrChange} />
-            )}
-            {b.id === "mako" && b.lossless_scaling === false && (
-              <LosslessWarning />
             )}
             {b.id === "mako" && (
               <MakoInstall
