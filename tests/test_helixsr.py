@@ -165,6 +165,40 @@ class ReleaseStateTests(unittest.TestCase):
                 mock.patch.object(helixsr.updates, "_get", side_effect=RuntimeError("offline")):
             self.assertEqual([r["tag"] for r in self.h.releases(refresh=True)], ["v2.0.0"])
 
+    def _download(self, kept_sha, github_sha):
+        data = b"helixsr zip"
+        rel = {"tag": "v3.3.0", "name": "HelixSR-3.3.0.zip", "url": "https://github.com/z/HelixSR-3.3.0.zip",
+               "size": len(data), "prerelease": False, "published_at": None, "sha256": kept_sha}
+        self.h._write_json(self.h.releases_cache, {"checked": 9e12, "releases": [rel]})
+        job = {"state": "running", "phase": "download", "tag": "v3.3.0", "zip": str(self.h.base / rel["name"])}
+
+        def curl(args, **kw):
+            Path(args[args.index("-o") + 1]).write_bytes(data)
+            return subprocess.CompletedProcess(args, 0, b"", b"")
+        fresh = [{"name": "HelixSR-3.3.0.zip", "browser_download_url": rel["url"], "size": len(data),
+                  "digest": "sha256:" + github_sha}]
+        with mock.patch.object(helixsr.subprocess, "run", side_effect=curl), \
+                mock.patch.object(helixsr.updates, "release_assets", return_value=fresh), \
+                mock.patch.object(helixsr, "_extract", side_effect=lambda z, t: t.mkdir(parents=True)), \
+                mock.patch.object(self.h, "_start_setup") as setup:
+            self.h._run_job(rel, job)
+        import hashlib
+        return job, setup, hashlib.sha256(data).hexdigest()
+
+    def test_a_replaced_release_zip_is_checked_against_githubs_current_checksum(self):
+        import hashlib
+        real = hashlib.sha256(b"helixsr zip").hexdigest()
+        job, setup, _ = self._download("b" * 64, real)
+        setup.assert_called_once()
+        self.assertNotEqual(job.get("state"), "failed")
+        self.assertEqual(self.h.releases()[0]["sha256"], real)   # the cache has the new checksum
+
+    def test_a_corrupt_download_still_fails(self):
+        job, setup, _ = self._download("b" * 64, "c" * 64)
+        setup.assert_not_called()
+        self.assertEqual(job["state"], "failed")
+        self.assertIn("checksum", job["error"])
+
     def test_download_interrupted_by_a_restart_is_a_failure(self):
         self.h._write_json(self.h.job_file, {"state": "running", "phase": "download", "tag": "v1.9.3"})
         self.assertEqual(self.h.status()["job"]["state"], "failed")
