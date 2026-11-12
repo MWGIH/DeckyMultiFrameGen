@@ -117,6 +117,28 @@ class HelixSR:
                 out.append(_release_entry(tag, asset, r["prerelease"], r["published_at"]))
         return out
 
+    def _fresh_release(self, tag: str) -> dict | None:
+        """The release's zip as GitHub lists it now (not the cache), stored in the cache when it differs: an
+        upstream release can have its zip replaced after it was published."""
+        try:
+            try:
+                asset = _release_zip(updates.release_assets(REPO, tag))
+            except Exception:
+                asset = _release_zip(updates._get(f"https://api.github.com/repos/{REPO}/releases/tags/{tag}")
+                                     .get("assets", []))
+        except Exception:
+            return None
+        if not asset:
+            return None
+        cached = self._read_json(self.releases_cache) or {}
+        rels = cached.get("releases", [])
+        old = next((r for r in rels if r["tag"] == tag), None)
+        fresh = _release_entry(tag, asset, bool(old and old.get("prerelease")), old and old.get("published_at"))
+        if old and old != fresh:
+            cached["releases"] = [fresh if r["tag"] == tag else r for r in rels]
+            self._write_json(self.releases_cache, cached)
+        return fresh
+
     def _releases_from_api(self) -> list[dict]:
         out = []
         for r in updates._get(RELEASES_API):
@@ -367,9 +389,15 @@ class HelixSR:
                 job.update(phase="verify")
                 self._write_json(self.job_file, job)
                 if rel.get("sha256"):
-                    if _sha256(zip_path) != rel["sha256"]:
-                        zip_path.unlink(missing_ok=True)
-                        raise RuntimeError("The download doesn't match GitHub's checksum. Try again.")
+                    got = _sha256(zip_path)
+                    if got != rel["sha256"]:
+                        # the kept checksum can be stale: the release's zip was replaced after it was read
+                        fresh = self._fresh_release(rel["tag"])
+                        self._log(f"checksum {got} isn't the kept {rel['sha256']}; GitHub now says "
+                                  f"{(fresh or {}).get('sha256')}")
+                        if not fresh or fresh.get("sha256") != got:
+                            zip_path.unlink(missing_ok=True)
+                            raise RuntimeError("The download doesn't match GitHub's checksum. Try again.")
                     self._log("checksum matches GitHub's")
                 job.update(phase="extract")
                 self._write_json(self.job_file, job)
