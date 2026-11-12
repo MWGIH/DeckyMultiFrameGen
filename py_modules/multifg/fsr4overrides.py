@@ -13,22 +13,23 @@ import hashlib
 import os
 import shutil
 import subprocess
-import zipfile
+import tempfile
 from pathlib import Path
 
 CHUNK = 1 << 20
 USER_AGENT = "Mozilla/5.0"
 UPSCALER = "amd_fidelityfx_upscaler_dx12.dll"
 
-# Steam Deck / RDNA2 iGPU archive (dll-2026-11-05). The .zip is used so extraction needs no 7z.
+# Steam Deck / RDNA2 iGPU archive (dll-2026-11-05). The .7z (about 9 MB) holds the same DLLs as the 100 MB .zip;
+# 7z is already needed for OptiScaler's own archives.
 RELEASE = {
     "tag": "dll-2026-11-05",
-    "name": "fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.zip",
+    "name": "fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.7z",
     "url": (
         "https://github.com/zgauthier2000/fsr4-shader-performance-overrides/releases/download/"
-        "dll-2026-11-05/fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.zip"
+        "dll-2026-11-05/fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.7z"
     ),
-    "sha256": "2e5777b1190c59710da7224468142eb1734a8e9daf2b77b7b6d410441054e293",
+    "sha256": "da7c7681bffe7ac60a01e859d5b107900d963557793ef67ddcfd03a832e1c03f",
     "project": "https://github.com/zgauthier2000/fsr4-shader-performance-overrides",
 }
 
@@ -135,7 +136,7 @@ def _curl(url: str, dest: Path, timeout: int = 1800) -> None:
 
 
 def fetch_archive(cache: Path) -> Path:
-    """The igpu-rdna2 release zip in cache, downloaded and SHA-256 checked when missing."""
+    """The igpu-rdna2 release .7z in cache, downloaded and SHA-256 checked when missing."""
     cache.mkdir(parents=True, exist_ok=True)
     archive = cache / RELEASE["name"]
     if archive.is_file() and sha256_file(archive) == RELEASE["sha256"]:
@@ -150,23 +151,25 @@ def fetch_archive(cache: Path) -> Path:
 
 
 def extract_upscaler(archive: Path, folder_name: str, dest: Path, sha256: str, size: int) -> None:
-    """One variant's amd_fidelityfx_upscaler_dx12.dll from the zip into dest."""
+    """One variant's amd_fidelityfx_upscaler_dx12.dll from the .7z into dest."""
     member = f"{folder_name}/{UPSCALER}"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".part")
-    try:
-        with zipfile.ZipFile(archive) as zf:
-            try:
-                info = zf.getinfo(member)
-            except KeyError as exc:
-                raise OverridesError(f"{RELEASE['name']} has no {member}") from exc
-            with zf.open(info) as src, open(tmp, "wb") as out:
-                shutil.copyfileobj(src, out, CHUNK)
-        if tmp.stat().st_size != size or sha256_file(tmp) != sha256:
+    with tempfile.TemporaryDirectory(dir=dest.parent) as tmp:
+        result = subprocess.run(
+            ["7z", "x", "-y", f"-o{tmp}", str(archive), member],
+            capture_output=True,
+            text=True,
+            env={**_env(), "LD_LIBRARY_PATH": ""},
+        )
+        found = Path(tmp) / folder_name / UPSCALER
+        if result.returncode != 0 or not found.is_file():
+            raise OverridesError(
+                f"Couldn't unpack {member} from {RELEASE['name']}: "
+                f"{(result.stderr or result.stdout or '').strip()[-200:]}"
+            )
+        if found.stat().st_size != size or sha256_file(found) != sha256:
             raise OverridesError(f"{member} doesn't match its checksum")
-        tmp.replace(dest)
-    finally:
-        tmp.unlink(missing_ok=True)
+        found.replace(dest)
 
 
 def _archive_folder(files_key: str) -> str:

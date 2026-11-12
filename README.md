@@ -11,8 +11,7 @@ without juggling several plugins:
   FSR 4.1.2 Lite (the small model AMD made for handheld chips, fetched from AMD's own driver installer, with a newer
   OptiScaler nightly that can pick it), Cyboman's faster Exact / Lossy / Lite Exact / Lite Lossy builds for Steam Deck
   RDNA2 from [fsr4-shader-performance-overrides](https://github.com/zgauthier2000/fsr4-shader-performance-overrides)
-  (single-player only), **Decky (Steamdeck Optimised)** (DeckyUpscaler's timing-kit `du-shipped` set), or stock
-  OptiScaler 0.9.4 with FSR 4.0.2.
+  (single-player only), or stock OptiScaler 0.9.4 with FSR 4.0.2.
 - **HelixSR** (from [HelixSR Manager](https://github.com/PeroTuncay/DeckyHelixSRManager)): DLSS and (from HelixSR
   3.0) FSR 4 upscaling networks on GPUs without them, on its own or through OptiScaler.
 - **MAKO** (from [MAKO](https://github.com/eugeniosegala/MAKO)): frame generation, scaling and shaders as a Vulkan

@@ -17,7 +17,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fsr4decky, fsr4lite, fsr4overrides
+from . import fsr4lite, fsr4overrides
 
 OPTISCALER_ARCHIVE_ASSET = {
     "name": "Optiscaler_0.9.4-final.20260718._MM.7z",
@@ -282,49 +282,6 @@ FSR4_VARIANTS = {
                 "source_asset_name": fsr4lite.AMD_DLL["name"],
                 "source_version": f"{fsr4lite.AMD_DLL['fsr']} ({fsr4lite.AMD_DLL['driver']})",
             }
-        ],
-        "config_overrides": dict(fsr4lite.CONFIG),
-    },
-    # DeckyUpscaler shipped set from the FSR4 timing kit (du-shipped), labelled for the Steam Deck
-    fsr4decky.VARIANT: {
-        "label": fsr4decky.LABEL,
-        "dir_name": fsr4decky.DIR_NAME,
-        "sha256": "d0dcccc74a43c44ba435b7a369b456e0970d8a4464e4bd683119b374f2c9fb46",
-        "source_asset_name": fsr4decky.KIT["name"],
-        "source_version": fsr4decky.KIT["tag"],
-        "uses_archive_native": True,
-        "prepared_on_demand": True,
-        "injector": {
-            "name": "OptiScaler.dll",
-            "sha256": "",
-            "source_asset_name": fsr4lite.NIGHTLY["name"],
-            "source_version": fsr4lite.NIGHTLY["tag"],
-        },
-        "extra_files": [
-            {
-                "name": FSR4_DRIVER_OVERRIDE_FILENAME,
-                "sha256": fsr4lite.AMD_DLL["sha256"],
-                "source_asset_name": fsr4lite.AMD_DLL["name"],
-                "source_version": f"{fsr4lite.AMD_DLL['fsr']} ({fsr4lite.AMD_DLL['driver']})",
-            },
-            {
-                "name": "amd_fidelityfx_vk.dll",
-                "sha256": fsr4decky.ASSETS["amd_fidelityfx_upscaler_vk.dll"]["sha256"],
-                "source_asset_name": "amd_fidelityfx_upscaler_vk.dll",
-                "source_version": "DeckyUpscaler v0.2.1",
-            },
-            {
-                "name": "fsr4_shaders.bin",
-                "sha256": fsr4decky.ASSETS["fsr4_shaders.bin"]["sha256"],
-                "source_asset_name": "fsr4_shaders.bin",
-                "source_version": "DeckyUpscaler v0.2.1",
-            },
-            {
-                "name": "fsr4_shaders_dot2.bin",
-                "sha256": fsr4decky.ASSETS["fsr4_shaders_dot2.bin"]["sha256"],
-                "source_asset_name": "fsr4_shaders_dot2.bin",
-                "source_version": "DeckyUpscaler v0.2.1",
-            },
         ],
         "config_overrides": dict(fsr4lite.CONFIG),
     },
@@ -720,26 +677,11 @@ class OptiScaler:
         )
         decky.logger.info(f"[Framegen] FSR override {info['label']} ready at {folder}")
 
-    def prepare_fsr4_decky(self) -> None:
-        """~/fgmod's Decky (Steamdeck Optimised) folder from the FSR4 timing kit."""
-        fgmod_path = Path(decky.HOME) / "fgmod"
-        if fsr4decky.prepared(fgmod_path):
-            return
-        reuse = Path(decky.DECKY_PLUGIN_RUNTIME_DIR) / "fsr4injector" / fsr4lite.AMD_DLL["name"]
-        native = self._fsr4_variant_path(fgmod_path, "rdna4-native")
-        result = fsr4decky.prepare(
-            fgmod_path, BIN_DIR / "fsr4-decky", native, self._create_renamed_copies, reuse
-        )
-        decky.logger.info(f"[Framegen] Decky (Steamdeck Optimised) files ready: {result}")
-
     def prepare_fsr4_variant(self, fsr4_variant: str) -> None:
         """Ensure an on-demand FSR 4 variant folder exists before patching."""
         variant = self._normalize_fsr4_variant(fsr4_variant)
         if variant == fsr4lite.VARIANT:
             self.prepare_fsr4_lite()
-            return
-        if variant == fsr4decky.VARIANT:
-            self.prepare_fsr4_decky()
             return
         for files_key, info in fsr4overrides.BY_FILES.items():
             if info["id"] == variant:
@@ -901,7 +843,7 @@ class OptiScaler:
         return variant_id
 
     def _detect_fsr4_variant(self, directory: Path, upscaler_sha256: str | None) -> str | None:
-        # Prefer the match with the most extra files (e.g. Decky over plain Lite: same upscaler SHA, more sidecars)
+        # Prefer the match with the most extra files (variants that share an upscaler SHA differ in their sidecars)
         best_id: str | None = None
         best_extras = -1
         for variant_id, variant in FSR4_VARIANTS.items():

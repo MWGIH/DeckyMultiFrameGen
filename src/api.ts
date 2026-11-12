@@ -216,7 +216,6 @@ export type OptiFsr4Files =
   | "lossy"
   | "lite-exact"
   | "lite-lossy"
-  | "decky"
   | "plain";
 export type OptiFsr4State = {
   ok: boolean;

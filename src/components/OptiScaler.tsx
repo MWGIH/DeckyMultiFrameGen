@@ -36,7 +36,7 @@ const FSR4_FILES: { value: OptiFsr4Files; label: string; hint: string }[] = [
   {
     value: "exact",
     label: "FSR 4.1.2 Exact (Cyboman)",
-    hint: "Cyboman's exact FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: AMD's picture byte for byte, faster shaders (fsr4-shader-performance-overrides). Downloaded on first use (~100 MB zip). Single-player only.",
+    hint: "Cyboman's exact FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: AMD's picture byte for byte, faster shaders (fsr4-shader-performance-overrides). Downloaded on first use (about 9 MB). Single-player only.",
   },
   {
     value: "lossy",
@@ -52,11 +52,6 @@ const FSR4_FILES: { value: OptiFsr4Files; label: string; hint: string }[] = [
     value: "lite-lossy",
     label: "FSR 4.1.2 Lite Lossy (Cyboman)",
     hint: "Cyboman's lossy FSR 4.1.2 Lite build for Steam Deck / RDNA2 iGPUs: about 13–22% faster than AMD Lite; picture is close to Lite's, not identical. Single-player only.",
-  },
-  {
-    value: "decky",
-    label: "Decky (Steamdeck Optimised)",
-    hint: "DeckyUpscaler's Steam Deck-optimised FSR 4.1.2 Lite from the FSR4 timing kit (du-shipped). Deploys its Vulkan upscaler and shader packs; DirectX 12 still uses AMD Lite through OptiScaler. Up to ~28% faster than stock Lite at Deck resolutions in the kit. Single-player only.",
   },
   {
     value: "plain",
