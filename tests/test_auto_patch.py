@@ -152,7 +152,8 @@ class AutoPatchTests(unittest.TestCase):
     def test_lite_is_only_offered_in_a_directx_12_game(self):
         p = main.Plugin()
         r = run(p.optiscaler_fsr4_files("4242"))
-        self.assertEqual(r["options"], ["deck", "plain"])
+        # Cyboman Lossy stays available; Lite-like options (lite, lite-lossy) do not
+        self.assertEqual(r["options"], ["deck", "lossy", "plain"])
         self.assertIn("DirectX 12", r["lite_unfit"])
         r = run(p.optiscaler_fsr4_files("4242", "lite"))
         self.assertFalse(r["ok"])
@@ -160,7 +161,10 @@ class AutoPatchTests(unittest.TestCase):
         (self.d / "Game.exe").write_bytes(b"MZ" + b"\0" * 64 + b"D3D12.dll\0")
         r = run(p.optiscaler_fsr4_files("4242", "lite"))
         self.assertTrue(r["ok"], r)
-        self.assertEqual(r["options"], ["deck", "lite", "plain"])
+        self.assertEqual(
+            r["options"],
+            ["deck", "lite", "lossy", "lite-lossy", "plain"],
+        )
 
     def test_lite_files_that_cant_be_fetched_stop_the_patch(self):
         from unittest import mock

@@ -14,8 +14,8 @@ from multifg.anrfg import ANRFG
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
 from multifg.opti_job import OptiInstallJob
-from multifg import fsr4lite
-from multifg.optiscaler import OPTISCALER_ARCHIVE_ASSET, OptiScaler
+from multifg import fsr4lite, fsr4overrides
+from multifg.optiscaler import FSR4_VARIANTS, OPTISCALER_ARCHIVE_ASSET, OptiScaler
 from multifg.settings import Settings
 
 HOME = Path(decky.DECKY_USER_HOME)
@@ -265,14 +265,20 @@ def _uninstall_helix(folder: str, status: dict) -> dict:
 
 
 # a game's "FSR 4 files" for OptiScaler (settings games[appid].opti_fsr4) -> the variant it's patched with
-OPTI_FSR4_FILES = {"deck": FSR4_VARIANT, "lite": fsr4lite.VARIANT, "plain": OPTI_PLAIN_VARIANT}
+OPTI_FSR4_FILES = {
+    "deck": FSR4_VARIANT,
+    "lite": fsr4lite.VARIANT,
+    "lossy": fsr4overrides.BY_FILES["lossy"]["id"],
+    "lite-lossy": fsr4overrides.BY_FILES["lite-lossy"]["id"],
+    "plain": OPTI_PLAIN_VARIANT,
+}
+# options that need an upscaler OptiScaler can take over + DirectX 12 (same gate as AMD Lite)
+OPTI_FSR4_LITE_LIKE = {"lite", "lite-lossy"}
 
 
 def _opti_variant(appid: str) -> str:
-    """The FSR 4 files OptiScaler is patched in with: Decky Framegen's Valve RDNA2 4.1.1 build (its pre-0.10 OptiScaler
-    and a custom amdxc64.dll); AMD's FSR 4.1.2 with the Lite model (fsr4lite); or, for a game set to do without them,
-    stock OptiScaler 0.9.4 with FSR 4.0.2c (Phantom Blade Zero stops while setting up its graphics device with the 4.1.1
-    build in)."""
+    """The FSR 4 files OptiScaler is patched in with: Decky Framegen's Valve RDNA2 4.1.1 build; AMD Lite; Cyboman
+    Lossy/Lite Lossy builds; or stock OptiScaler 0.9.4 with FSR 4.0.2c."""
     return OPTI_FSR4_FILES[_opti_fsr4(appid)]
 
 
@@ -800,24 +806,32 @@ class Plugin:
         return _opti_fsr4(appid) == "plain"
 
     async def optiscaler_fsr4_files(self, appid: str, files: str | None = None) -> dict:
-        """The game's FSR 4 files for OptiScaler: "deck" (Valve's 4.1.1 Deck build), "lite" (AMD's 4.1.2 Lite) or
-        "plain" (stock 0.9.4, FSR 4.0.2); set when files is given. The panel repatches the game after a change.
-        Returns {files, options, lite_unfit}: Lite is only offered where the game can run it (see _lite_unfit), or
-        when the game is already set to it."""
+        """The game's FSR 4 files for OptiScaler: deck / lite / Cyboman lossy|lite-lossy /
+        plain; set when files is given. The panel repatches after a change.
+        Returns {files, options, lite_unfit}: Lite-like options are only offered where the game can run them
+        (see _lite_unfit), or when the game is already set to one."""
         appid = _valid_appid(appid)
         unfit = await asyncio.to_thread(_lite_unfit, appid)
+
+        def _options(current: str) -> list[str]:
+            out: list[str] = []
+            for key in OPTI_FSR4_FILES:
+                if key in OPTI_FSR4_LITE_LIKE and unfit and current != key:
+                    continue
+                out.append(key)
+            return out
+
         if files is not None:
             if files not in OPTI_FSR4_FILES:
                 raise ValueError(f"Unknown FSR 4 files: {files!r}")
-            if files == "lite" and unfit and _opti_fsr4(appid) != "lite":
-                return {"ok": False, "error": f"FSR 4.1.2 Lite {unfit}", "files": _opti_fsr4(appid),
-                        "options": [f for f in OPTI_FSR4_FILES if f != "lite"], "lite_unfit": unfit}
+            if files in OPTI_FSR4_LITE_LIKE and unfit and _opti_fsr4(appid) != files:
+                label = FSR4_VARIANTS[OPTI_FSR4_FILES[files]]["label"]
+                return {"ok": False, "error": f"{label} {unfit}", "files": _opti_fsr4(appid),
+                        "options": _options(_opti_fsr4(appid)), "lite_unfit": unfit}
             SETTINGS.set_game_value(appid, "opti_fsr4", files)
             SETTINGS.set_game_value(appid, "opti_plain", files == "plain")
         current = _opti_fsr4(appid)
-        return {"ok": True, "files": current,
-                "options": [f for f in OPTI_FSR4_FILES if f != "lite" or not unfit or current == "lite"],
-                "lite_unfit": unfit}
+        return {"ok": True, "files": current, "options": _options(current), "lite_unfit": unfit}
 
     async def optiscaler_logging(self, appid: str, on: bool | None = None) -> dict:
         """OptiScaler's log file (off by default) in the game's OptiScaler.ini: switched when on is given."""

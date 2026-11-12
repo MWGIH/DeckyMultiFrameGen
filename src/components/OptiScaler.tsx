@@ -34,6 +34,16 @@ const FSR4_FILES: { value: OptiFsr4Files; label: string; hint: string }[] = [
     hint: "AMD's smaller FSR 4 model made for handheld chips, usually faster than the full model. The first time, AMD's FSR 4.1.2 file (about 43 MB) is downloaded from AMD's own driver installer, which means you accept AMD's software licence, and a newer OptiScaler build (about 70 MB) from OptiScaler's GitHub. DirectX 12 games.",
   },
   {
+    value: "lossy",
+    label: "FSR 4.1.2 Lossy (Cyboman)",
+    hint: "Cyboman's lossy FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: about 30% faster than the Valve Deck build by skipping the network on some frames; picture is close to AMD's, not identical. Downloaded on first use (about 9 MB). Single-player only.",
+  },
+  {
+    value: "lite-lossy",
+    label: "FSR 4.1.2 Lite Lossy (Cyboman)",
+    hint: "Cyboman's lossy FSR 4.1.2 Lite build for Steam Deck / RDNA2 iGPUs: about 13–22% faster than AMD Lite; picture is close to Lite's, not identical. Single-player only.",
+  },
+  {
     value: "plain",
     label: "Without the FSR 4.1 Deck files",
     hint: "For a game that won't start with OptiScaler: stock OptiScaler 0.9.4 with FSR 4.0.2.",
@@ -183,7 +193,7 @@ export function OptiScalerGame({
   const fsr4Files: OptiFsr4Files = fsr4?.files ?? "deck";
   const fsr4Options = FSR4_FILES.filter((o) => !fsr4 || fsr4.options.includes(o.value));
   const liteNote = fsr4?.lite_unfit && !fsr4.options.includes("lite")
-    ? ` FSR 4.1.2 Lite isn't offered here: it ${fsr4.lite_unfit}.`
+    ? ` FSR 4.1.2 Lite options aren't offered here: they ${fsr4.lite_unfit}.`
     : "";
   // the game this panel already patched by itself, so a failed patch isn't retried over and over
   const autoTried = useRef<string | null>(null);

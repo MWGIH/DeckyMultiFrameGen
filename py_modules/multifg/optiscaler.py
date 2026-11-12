@@ -17,7 +17,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fsr4lite
+from . import fsr4lite, fsr4overrides
 
 OPTISCALER_ARCHIVE_ASSET = {
     "name": "Optiscaler_0.9.4-final.20260718._MM.7z",
@@ -62,7 +62,12 @@ OPTIPATCHER_ASSET = {
 }
 
 # what a variant's OptiScaler.ini setting goes back to when a game is patched with another variant (else "auto")
-CONFIG_RESET = {"Plugins.LoadCustomAmdxc64OnRdna2": "false"}
+CONFIG_RESET = {
+    "Plugins.LoadCustomAmdxc64OnRdna2": "false",
+    "FSR.Fsr4GpuSupport": "auto",
+    "FSR.Fsr4Model": "auto",
+    "FSR.Fsr4ForceModel": "auto",
+}
 
 FSR4_UPSCALER_FILENAME = "amd_fidelityfx_upscaler_dx12.dll"
 FSR4_DRIVER_OVERRIDE_FILENAME = "amdxcffx64.dll"
@@ -146,6 +151,65 @@ FSR4_VARIANTS = {
         "sha256": "d0dcccc74a43c44ba435b7a369b456e0970d8a4464e4bd683119b374f2c9fb46",
         "source_asset_name": OPTISCALER_ARCHIVE_ASSET["name"],
         "source_version": OPTISCALER_ARCHIVE_ASSET["version"],
+        "uses_archive_native": True,
+        "prepared_on_demand": True,
+        "injector": {
+            "name": "OptiScaler.dll",
+            "sha256": "",
+            "source_asset_name": fsr4lite.NIGHTLY["name"],
+            "source_version": fsr4lite.NIGHTLY["tag"],
+        },
+        "extra_files": [
+            {
+                "name": FSR4_DRIVER_OVERRIDE_FILENAME,
+                "sha256": fsr4lite.AMD_DLL["sha256"],
+                "source_asset_name": fsr4lite.AMD_DLL["name"],
+                "source_version": f"{fsr4lite.AMD_DLL['fsr']} ({fsr4lite.AMD_DLL['driver']})",
+            }
+        ],
+        "config_overrides": dict(fsr4lite.CONFIG),
+    },
+    # Cyboman FSR 4.1.2 overrides for Steam Deck / RDNA2 iGPU (fsr4-shader-performance-overrides). Lossy uses the
+    # Valve Deck OptiScaler injector; Lite Lossy use the AMD Lite nightly stack with Cyboman's upscaler swapped in.
+    fsr4overrides.BY_FILES["lossy"]["id"]: {
+        "label": fsr4overrides.BY_FILES["lossy"]["label"],
+        "dir_name": fsr4overrides.BY_FILES["lossy"]["dir_name"],
+        "sha256": fsr4overrides.BY_FILES["lossy"]["sha256"],
+        "source_asset_name": fsr4overrides.RELEASE["name"],
+        "source_version": fsr4overrides.RELEASE["tag"],
+        "uses_archive_native": True,
+        "prepared_on_demand": True,
+        "injector": {
+            "name": "OptiScaler.dll",
+            "sha256": OPTISCALER_PRE10_ASSET["sha256"],
+            "source_asset_name": OPTISCALER_PRE10_ASSET["name"],
+            "source_version": OPTISCALER_PRE10_ASSET["version"],
+        },
+        "extra_files": [
+            {
+                "name": FSR4_DRIVER_OVERRIDE_FILENAME,
+                "sha256": FSR4_VALVE_411_ASSET["sha256"],
+                "source_asset_name": FSR4_VALVE_411_ASSET["name"],
+                "source_version": FSR4_VALVE_411_ASSET["version"],
+            },
+            {
+                "name": "amdxc64.dll",
+                "sha256": AMDXC64_RDNA2_ASSET["sha256"],
+                "source_asset_name": AMDXC64_RDNA2_ASSET["name"],
+                "source_version": AMDXC64_RDNA2_ASSET["version"],
+            },
+        ],
+        "config_overrides": {
+            "FSR.Fsr4ForceModel": "2",
+            "Plugins.LoadCustomAmdxc64OnRdna2": "true",
+        },
+    },
+    fsr4overrides.BY_FILES["lite-lossy"]["id"]: {
+        "label": fsr4overrides.BY_FILES["lite-lossy"]["label"],
+        "dir_name": fsr4overrides.BY_FILES["lite-lossy"]["dir_name"],
+        "sha256": fsr4overrides.BY_FILES["lite-lossy"]["sha256"],
+        "source_asset_name": fsr4overrides.RELEASE["name"],
+        "source_version": fsr4overrides.RELEASE["tag"],
         "uses_archive_native": True,
         "prepared_on_demand": True,
         "injector": {
@@ -539,6 +603,34 @@ class OptiScaler:
         result = fsr4lite.prepare(fgmod_path, BIN_DIR / "fsr4-lite", native, self._create_renamed_copies, reuse)
         decky.logger.info(f"[Framegen] FSR 4.1.2 Lite files ready: {result}")
 
+    def prepare_fsr4_override(self, files_key: str) -> None:
+        """~/fgmod's Cyboman override folder for files_key (lossy/lite-lossy)."""
+        info = fsr4overrides.BY_FILES[files_key]
+        fgmod_path = Path(decky.HOME) / "fgmod"
+        if fsr4overrides.prepared(fgmod_path, info["id"]):
+            return
+        cache = BIN_DIR / "fsr4-overrides"
+        if info["lite"]:
+            self.prepare_fsr4_lite()
+            base_dir = self._fsr4_variant_dir(fgmod_path, fsr4lite.VARIANT)
+        else:
+            base_dir = self._fsr4_variant_dir(fgmod_path, "rdna2-valve-411-pre10")
+        folder = fsr4overrides.prepare_from(
+            fgmod_path, cache, files_key, base_dir=base_dir, make_renames=self._create_renamed_copies
+        )
+        decky.logger.info(f"[Framegen] FSR override {info['label']} ready at {folder}")
+
+    def prepare_fsr4_variant(self, fsr4_variant: str) -> None:
+        """Ensure an on-demand FSR 4 variant folder exists before patching."""
+        variant = self._normalize_fsr4_variant(fsr4_variant)
+        if variant == fsr4lite.VARIANT:
+            self.prepare_fsr4_lite()
+            return
+        for files_key, info in fsr4overrides.BY_FILES.items():
+            if info["id"] == variant:
+                self.prepare_fsr4_override(files_key)
+                return
+
     def _normalize_fsr4_variant(self, fsr4_variant: str | None) -> str:
         variant = str(fsr4_variant or "").strip()
         if variant in FSR4_VARIANTS:
@@ -694,20 +786,25 @@ class OptiScaler:
         return variant_id
 
     def _detect_fsr4_variant(self, directory: Path, upscaler_sha256: str | None) -> str | None:
+        # Prefer the match with the most extra files (variants that share an upscaler SHA differ in their sidecars)
+        best_id: str | None = None
+        best_extras = -1
         for variant_id, variant in FSR4_VARIANTS.items():
             extra_files = list(variant.get("extra_files") or [])
             if not extra_files:
                 continue
             if not upscaler_sha256 or str(variant.get("sha256") or "").lower() != str(upscaler_sha256).lower():
                 continue
-            all_match = True
-            for extra_file in extra_files:
-                file_path = directory / extra_file["name"]
-                if not file_path.exists() or self._file_sha256(file_path).lower() != extra_file["sha256"].lower():
-                    all_match = False
-                    break
-            if all_match:
-                return variant_id
+            if any(
+                not (directory / extra_file["name"]).exists()
+                or self._file_sha256(directory / extra_file["name"]).lower() != extra_file["sha256"].lower()
+                for extra_file in extra_files
+            ):
+                continue
+            if len(extra_files) > best_extras:
+                best_id, best_extras = variant_id, len(extra_files)
+        if best_id:
+            return best_id
 
         if not upscaler_sha256:
             return None
@@ -1853,11 +1950,20 @@ class OptiScaler:
             decky.logger.error(f"Manual patch validation failed: {exc}")
             return {"status": "error", "message": str(exc)}
 
+        normalized = self._normalize_fsr4_variant(fsr4_variant)
+        if FSR4_VARIANTS.get(normalized, {}).get("prepared_on_demand"):
+            try:
+                await asyncio.to_thread(self.prepare_fsr4_variant, normalized)
+            except Exception as exc:
+                label = FSR4_VARIANTS[normalized]["label"]
+                decky.logger.error(f"[Framegen] {label} files: {exc}")
+                return {"status": "error", "message": f"{label} files: {exc}"}
+
         allow_managed_support_cleanup = (target_dir / MARKER_FILENAME).exists()
         return self._manual_patch_directory_impl(
             target_dir,
             dll_name,
-            fsr4_variant,
+            normalized,
             allow_managed_support_cleanup=allow_managed_support_cleanup,
         )
 
@@ -1969,12 +2075,14 @@ class OptiScaler:
             fgmod_path = Path(decky.HOME) / "fgmod"
             if not fgmod_path.exists():
                 return {"status": "error", "message": "OptiScaler bundle not installed. Run Install first."}
-            if self._normalize_fsr4_variant(fsr4_variant) == fsr4lite.VARIANT:
+            normalized = self._normalize_fsr4_variant(fsr4_variant)
+            if FSR4_VARIANTS.get(normalized, {}).get("prepared_on_demand"):
                 try:
-                    await asyncio.to_thread(self.prepare_fsr4_lite)
+                    await asyncio.to_thread(self.prepare_fsr4_variant, normalized)
                 except Exception as exc:
-                    decky.logger.error(f"[Framegen] FSR 4.1.2 Lite files: {exc}")
-                    return {"status": "error", "message": f"FSR 4.1.2 Lite files: {exc}"}
+                    label = FSR4_VARIANTS[normalized]["label"]
+                    decky.logger.error(f"[Framegen] {label} files: {exc}")
+                    return {"status": "error", "message": f"{label} files: {exc}"}
 
             # Preserve true original launch options across re-patches
             original_launch_options = current_launch_options or ""

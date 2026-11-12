@@ -209,14 +209,19 @@ export const helixsrInstallGame = callable<
   [appid: string, route: string, current_launch_options: string],
   HelixGame & { removed?: string[]; base_launch_options?: string | null }
 >("helixsr_install_game");
-export type OptiFsr4Files = "deck" | "lite" | "plain";
+export type OptiFsr4Files =
+  | "deck"
+  | "lite"
+  | "lossy"
+  | "lite-lossy"
+  | "plain";
 export type OptiFsr4State = {
   ok: boolean;
   error?: string;
   files: OptiFsr4Files;
-  // what the game can be set to: Lite only where it can work (or when it's already set to it)
+  // what the game can be set to: Lite-like options only where they can work (or when already set)
   options: OptiFsr4Files[];
-  // why Lite can't work in the game, or null
+  // why Lite-like options can't work in the game, or null
   lite_unfit: string | null;
 };
 export const optiscalerFsr4Files = callable<[appid: string, files?: OptiFsr4Files], OptiFsr4State>(

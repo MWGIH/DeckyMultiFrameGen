@@ -1,0 +1,16 @@
+fsr4-shader-performance-overrides (Cyboman)
+===========================================
+
+Decky MultiFrameGen does not bundle these binaries. When you pick a Cyboman FSR 4 option,
+the plugin downloads them on your device from:
+
+  https://github.com/zgauthier2000/fsr4-shader-performance-overrides/releases
+
+Cyboman release used: dll-2026-11-05
+  Archive: fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.7z (Steam Deck / RDNA2 iGPU)
+  Project licence: GNU GPL v2 or later (see that repository's LICENSE)
+  The DLLs are modified versions of AMD's amd_fidelityfx_upscaler_dx12.dll; see NOTICE.md in the archive.
+
+WARNING: Never use these in online games or games with anti-cheat. They are modified game files.
+
+Not affiliated with or endorsed by AMD, Valve, Decky Loader or zgauthier2000.
