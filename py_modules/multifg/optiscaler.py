@@ -315,6 +315,10 @@ RESTORABLE_BACKUP_FILES = [
     *OTHER_GAME_FILE_BACKUPS,
 ]
 
+# Files a patch puts in, replaces or deletes. One that changes after patching means Steam updated (or verified) the game:
+# its new copy then becomes the backup and OptiScaler goes back in (see refresh_after_game_update).
+_RESTORABLE_SET = set(RESTORABLE_BACKUP_FILES)
+
 SUPPORT_FILES = [
     "libxess.dll",
     "libxess_dx11.dll",
@@ -327,6 +331,11 @@ SUPPORT_FILES = [
     "fakenvapi.dll",
     "fakenvapi.ini",
 ]
+
+WATCHED_FILES = list(dict.fromkeys(
+    [*RESTORABLE_BACKUP_FILES, *SUPPORT_FILES, *VARIANT_EXTRA_FILENAMES, FSR4_UPSCALER_FILENAME]))
+# a file written this long after the patch time was written by something else (markers from before file_stamps)
+_LATER_WRITE_S = 120
 
 # XeSS / XeLL files a game can ship newer than Decky Framegen's: the game's copy stays in use when it is newer (Phantom
 # Blade Zero stopped while setting up its graphics device with Decky Framegen's older copies in place)
@@ -428,6 +437,9 @@ def _sha256(path: Path) -> str:
 
 
 class OptiScaler:
+    def __init__(self):
+        self._marker_cache: dict[str, Path] = {}   # appid -> its FRAMEGEN_PATCH, so update checks needn't search
+
     def _create_renamed_copies(self, source_file, renames_dir):
         """Create renamed copies of the OptiScaler.dll file"""
         try:
@@ -1880,8 +1892,96 @@ class OptiScaler:
                 }
             ],
             "patched_at": datetime.now(timezone.utc).isoformat(),
+            "file_stamps": self._file_stamps(target_dir),
         }
         self._write_json_file(marker_path, payload)
+
+    # ── After Steam updates a patched game ────────────────────────────────────
+
+    def _file_stamps(self, directory: Path) -> dict:
+        """{name: [size, mtime_ns]} of the WATCHED_FILES in directory."""
+        stamps = {}
+        for name in WATCHED_FILES:
+            try:
+                st = (directory / name).stat()
+            except OSError:
+                continue
+            stamps[name] = [st.st_size, st.st_mtime_ns]
+        return stamps
+
+    def _files_changed_since_patch(self, target_dir: Path, metadata: dict) -> tuple[list[str], bool]:
+        """WATCHED_FILES that something other than the patch wrote, added or removed since; and whether that is known
+        for sure (the marker has file_stamps) or guessed from write times (a marker from an older plugin version)."""
+        now = self._file_stamps(target_dir)
+        recorded = metadata.get("file_stamps")
+        if isinstance(recorded, dict):
+            return [n for n in WATCHED_FILES if now.get(n) != recorded.get(n)], True
+        try:
+            patched = datetime.fromisoformat(str(metadata.get("patched_at"))).timestamp()
+        except (TypeError, ValueError):
+            return [], False
+        # a patch copies files with their ~/fgmod times, always before the patch time
+        return [n for n, (_, mtime) in now.items() if mtime / 1e9 > patched + _LATER_WRITE_S], False
+
+    def _keep_updated_game_files(self, directory: Path, changed: list[str], fgmod_path: Path, sure: bool) -> list[str]:
+        """The game's new copies of files the patch replaces (written by a Steam update or verify) become their .b
+        backups, in place of the copies from before the update, so unpatching puts back what the game now ships."""
+        kept: list[str] = []
+        for name in changed:
+            if name not in _RESTORABLE_SET:
+                continue
+            source, backup = directory / name, directory / f"{name}.b"
+            if not source.is_file() or self._files_match(source, backup):
+                continue
+            if not sure and (self._is_managed_support_file(source, fgmod_path)
+                             or self._is_bundled_proxy_copy(source, fgmod_path)):
+                continue
+            try:
+                if b"OptiScaler" in source.read_bytes():
+                    continue
+            except OSError:
+                continue
+            os.replace(source, backup)
+            kept.append(name)
+        return kept
+
+    async def refresh_after_game_update(self, appid: str, fsr4_variant: str | None = None) -> dict | None:
+        """When Steam has updated (or verified) a patched game, the files it wrote replace OptiScaler's and the
+        backups hold the game's older files: the new ones become the backups and OptiScaler is patched in again with
+        the proxy DLL and settings it had. None when nothing changed (or the game is running, so it waits)."""
+        game_info = self._game_record(str(appid))
+        if not game_info:
+            return None
+        install_root = Path(game_info["install_path"])
+        marker = self._marker_cache.get(str(appid))
+        if not marker or not marker.is_file() or not str(marker).startswith(str(install_root)):
+            marker = self._find_marker(install_root)
+            if not marker:
+                self._marker_cache.pop(str(appid), None)
+                return None
+            self._marker_cache[str(appid)] = marker
+        metadata = self._read_marker(marker)
+        target_dir = Path(metadata.get("target_dir", str(marker.parent)))
+        changed, sure = self._files_changed_since_patch(target_dir, metadata)
+        if not changed:
+            if not sure and metadata:
+                # a marker from an older plugin version: from now on changes are known for sure
+                metadata["file_stamps"] = self._file_stamps(target_dir)
+                self._write_json_file(marker, metadata)
+            return None
+        if self._is_game_running(game_info):
+            return None
+        fgmod_path = Path(decky.HOME) / "fgmod"
+        if not (fgmod_path / "OptiScaler.dll").exists():
+            return None
+        dll_name = metadata.get("dll_name") or "dxgi.dll"
+        kept = self._keep_updated_game_files(target_dir, changed, fgmod_path, sure)
+        decky.logger.info(f"[Framegen] {game_info['name']} ({appid}) changed since it was patched: {changed}; "
+                          f"the game's new files kept as backups: {kept}")
+        result = await self.patch_game(str(appid), dll_name, "", fsr4_variant or metadata.get("fsr4_variant")
+                                       or DEFAULT_FSR4_VARIANT)
+        self._marker_cache.pop(str(appid), None)
+        return {**result, "changed": changed, "kept": kept}
 
     # ── Launch options helpers ────────────────────────────────────────────────
 
