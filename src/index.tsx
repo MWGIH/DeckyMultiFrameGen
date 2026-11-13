@@ -5,7 +5,7 @@ import {
   PanelSectionRow,
   staticClasses,
 } from "@decky/ui";
-import { definePlugin } from "@decky/api";
+import { addEventListener, definePlugin, removeEventListener, toaster } from "@decky/api";
 import { LuGalleryHorizontalEnd } from "react-icons/lu";
 import {
   getBackends,
@@ -179,8 +179,14 @@ function Content() {
   );
 }
 
+// the backend patched OptiScaler back into a game Steam had just updated (the update put the game's files over it)
+const GAME_REPATCHED = "multifg_game_repatched";
+const onGameRepatched = (name: string) =>
+  toaster.toast({ title: "MultiFrameGen", body: `${name} was updated: OptiScaler is patched in again` });
+
 export default definePlugin(() => {
   const stopUpdateCheck = startDailyUpdateCheck();
+  const repatched = addEventListener<[string]>(GAME_REPATCHED, onGameRepatched);
   reopenAfterUpdate().catch(() => {});
   return {
     name: PLUGIN_NAME,
@@ -188,6 +194,9 @@ export default definePlugin(() => {
     alwaysRender: true,
     content: <Content />,
     icon: <LuGalleryHorizontalEnd />,
-    onDismount: stopUpdateCheck,
+    onDismount: () => {
+      stopUpdateCheck();
+      removeEventListener(GAME_REPATCHED, repatched);
+    },
   };
 });

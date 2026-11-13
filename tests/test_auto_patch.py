@@ -203,6 +203,63 @@ class AutoPatchTests(unittest.TestCase):
         self.assertEqual(self.files(), GAME_FILES)
 
 
+    def steam_update(self, files):
+        """Steam writes the game's new files over whatever is there (a later write time, as a real update)."""
+        import os, time
+        later = time.time() + 600
+        for name, data in files.items():
+            (self.d / name).write_bytes(data)
+            os.utime(self.d / name, (later, later))
+
+    def test_a_steam_update_gets_optiscaler_patched_in_again_with_the_new_files_as_backups(self):
+        p = main.Plugin()
+        r = run(p.set_game_backend("4242", "optiscaler", "-foo"))
+        self.assertTrue(r["opti"]["ok"], r)
+        self.assertEqual(run(main._repatch_updated_games()), [])   # nothing changed: left alone
+        new = {"libxess.dll": b"the game's XeSS 2", "amdxc64.dll": b"the game's amdxc64 2",
+               "nvngx.dll": b"the game's nvngx 2", "Game.exe": b"MZ new build"}
+        self.steam_update(new)
+        self.assertEqual(run(main._repatch_updated_games()), ["Some Game"])
+        f = self.files()
+        self.assertEqual(f["libxess.dll"], b"OptiScaler's XeSS")
+        self.assertNotIn("amdxc64.dll", f)   # kept aside, as on the first patch
+        self.assertNotIn("nvngx.dll", f)
+        self.assertEqual(f["dxgi.dll"], b"MZ OptiScaler build")
+        for name in ("libxess.dll", "amdxc64.dll", "nvngx.dll"):
+            self.assertEqual(f[f"{name}.b"], new[name], name)
+        self.assertEqual(run(main._repatch_updated_games()), [])   # once only
+
+        r = run(p.set_game_backend("4242", "none", r["launch_options"]))
+        self.assertEqual(r["launch_options"], "-foo")
+        self.assertEqual(self.files(), {**GAME_FILES, **new})
+
+    def test_no_repatch_while_steam_is_still_updating_the_game(self):
+        p = main.Plugin()
+        run(p.set_game_backend("4242", "optiscaler", ""))
+        self.steam_update({"libxess.dll": b"half written"})
+        manifest = self.d.parent.parent / "appmanifest_4242.acf"
+        manifest.write_text(manifest.read_text().replace('"StateFlags"\t\t"4"', '"StateFlags"\t\t"1030"'))
+        self.assertEqual(run(main._repatch_updated_games()), [])
+        self.assertEqual(self.files()["libxess.dll"], b"half written")
+        manifest.write_text(manifest.read_text().replace('"1030"', '"4"'))
+        self.assertEqual(run(main._repatch_updated_games()), ["Some Game"])
+        self.assertEqual(self.files()["libxess.dll.b"], b"half written")
+
+    def test_a_marker_from_before_this_version_still_notices_an_update(self):
+        import json
+        p = main.Plugin()
+        run(p.set_game_backend("4242", "optiscaler", ""))
+        marker = self.d / "FRAMEGEN_PATCH"
+        data = json.loads(marker.read_text())
+        data.pop("file_stamps")
+        marker.write_text(json.dumps(data))
+        main.OPTISCALER._marker_cache.clear()
+        self.steam_update({"libxess.dll": b"the game's XeSS 2"})
+        self.assertEqual(run(main._repatch_updated_games()), ["Some Game"])
+        self.assertEqual(self.files()["libxess.dll.b"], b"the game's XeSS 2")
+        self.assertIn("file_stamps", json.loads(marker.read_text()))
+
+
 class HelixBackupTests(unittest.TestCase):
     def test_backups_helixsr_left_are_put_back_and_deleted(self):
         from pathlib import Path

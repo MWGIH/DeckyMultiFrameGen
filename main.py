@@ -3,6 +3,7 @@ import inspect
 import os
 import re
 import shlex
+import time
 from pathlib import Path
 
 import decky
@@ -476,6 +477,44 @@ def _anr_backend() -> dict:
     if st["ready"]:
         notes.append("Beta. Runs in place of DLSS frame generation: only in DirectX 12 games that offer it")
     return {"installed": st["ready"], "version": st["version"], "path": str(ANR.base), "notes": notes}
+
+
+GAME_UPDATE_POLL_S = 30
+GAME_UPDATE_RETRY_S = 600   # after a failed repatch (logged), the next try
+_repatch_failed: dict[str, float] = {}
+
+
+async def _repatch_updated_games() -> list[str]:
+    """OptiScaler back in every game with it chosen that Steam has updated or verified since it was patched (the
+    update puts the game's new files over OptiScaler's, so the game broke until it was unpatched and patched again).
+    Waits while Steam is still busy with the game or it's running. Returns the names of the games patched again."""
+    done = []
+    for appid in SETTINGS.games_using("optiscaler"):
+        try:
+            game = _opti_record(appid)
+            if not game or not game.get("install_found") or not game.get("settled", True):
+                continue
+            if time.monotonic() - _repatch_failed.get(appid, -GAME_UPDATE_RETRY_S) < GAME_UPDATE_RETRY_S:
+                continue
+            result = await OPTISCALER.refresh_after_game_update(appid, _opti_variant(appid))
+            if not result:
+                continue
+            if result.get("status") == "success":
+                _repatch_failed.pop(appid, None)
+                done.append(game["name"])
+                await decky.emit("multifg_game_repatched", game["name"])
+            else:
+                _repatch_failed[appid] = time.monotonic()
+                decky.logger.error(f"OptiScaler again after {game['name']} updated: {result.get('message')}")
+        except Exception:
+            decky.logger.exception(f"game update check for {appid}")
+    return done
+
+
+async def _watch_game_updates() -> None:
+    while True:
+        await _repatch_updated_games()
+        await asyncio.sleep(GAME_UPDATE_POLL_S)
 
 
 async def _for_game(appid, work):
@@ -1176,12 +1215,16 @@ class Plugin:
 
     async def _main(self):
         decky.logger.info("DeckyMultiFrameGen loaded")
+        self._update_watch = asyncio.get_event_loop().create_task(_watch_game_updates())
         try:
             await MAKO._main()
         except Exception:
             decky.logger.exception("MAKO startup")
 
     async def _unload(self):
+        watch = getattr(self, "_update_watch", None)
+        if watch:
+            watch.cancel()
         try:
             await MAKO._unload()
         except Exception:

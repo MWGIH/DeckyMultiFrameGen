@@ -133,6 +133,12 @@ def _fully_installed(text: str) -> bool:
     return bool(int(flags) & _STATE_FULLY_INSTALLED)
 
 
+def _settled(text: str) -> bool:
+    """True when Steam isn't doing anything to the game: no update queued, running or paused, not being verified."""
+    flags = _acf_field(text, "StateFlags")
+    return not flags.isdigit() or int(flags) == _STATE_FULLY_INSTALLED
+
+
 def installed_games(home: Path, appid: str | None = None, media_roots=None) -> list[dict]:
     """Installed Steam games as {appid, name, install_path, install_found}, sorted by name."""
     games: dict[str, dict] = {}
@@ -163,6 +169,7 @@ def installed_games(home: Path, appid: str | None = None, media_roots=None) -> l
                 "name": name,
                 "install_path": str(install_path) if install_path else "",
                 "install_found": bool(install_path and install_path.is_dir()) and _fully_installed(text),
+                "settled": _settled(text),
             }
             # a leftover manifest in one library mustn't hide the game installed in another (moved to the SD card)
             if gid not in games or not games[gid]["install_found"]:
