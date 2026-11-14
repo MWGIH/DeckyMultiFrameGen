@@ -36,6 +36,13 @@ OPTI_RELEASE = "v1.9.3"
 EXTRAS = ("preset_k", "vulkan")
 K_FILES = ("helixsr.dll", "helixsr_modelk_kernels.pak", "helixsr_modelk_weights.bin")
 K_TOTAL = 31   # Preset K's shaders in HelixSR 3.3.0 (setup/lib/modelk/modelk_kernels.json), when a release doesn't say
+# HLX FSR 4, HelixSR's FSR drop-in: built by the setup from AMD's file in 3.0 to 3.2, shipped built from 3.3 (its DLL
+# then ends with the HLXFSR4D marker HelixSR's own hlx_built checks), so the FSR drop-in needs no network build
+HLX_DIR = "HLX-FSR4"
+HLX_DLL = "amd_fidelityfx_upscaler_dx12.dll"
+HLX_BUILT = b"HLXFSR4D"
+NO_BUILD_SCALER = ("HelixSR Scaler needs HelixSR's network, which isn't built: turn on Build HelixSR in Backends "
+                   "(Show backends) to build it.")
 
 
 class HelixSR:
@@ -168,6 +175,46 @@ class HelixSR:
         self._write_json(self.settings_file, {**(self._read_json(self.settings_file) or {}), "prereleases": bool(on)})
         return {"ok": True, "prereleases": bool(on)}
 
+    # --- Build HelixSR: whether its setup (the network build) runs ------------------------------------------------
+
+    def build_wanted(self) -> bool:
+        """Build HelixSR (on by default): its setup builds the network HLX DLSS and HelixSR Scaler need. Off, a release
+        that ships HLX FSR 4 built (3.3 on) is only downloaded and unpacked: the FSR drop-in works without the build."""
+        return (self._read_json(self.settings_file) or {}).get("build") is not False
+
+    def hlx_prebuilt(self, tag: str | None) -> bool:
+        """The release ships HLX FSR 4 built (HelixSR 3.3 on: HLX-FSR4/ with its shaders appended, HLXFSR4D)."""
+        if not tag:
+            return False
+        dll = self.release_dir(tag) / HLX_DIR / HLX_DLL
+        try:
+            with open(dll, "rb") as f:
+                f.seek(-24, os.SEEK_END)
+                return f.read(8) == HLX_BUILT
+        except OSError:
+            return False
+
+    def usable(self, tag: str | None) -> bool:
+        """Games can get HelixSR from the release: its network is built, or (FSR drop-in only) HLX FSR 4 came built."""
+        return bool(tag) and (self.ready(tag) or self.hlx_prebuilt(tag))
+
+    def set_build(self, on: bool) -> dict:
+        """Build HelixSR on or off. Switched on, the setup runs at once for the newest downloaded release that isn't
+        built yet; switched off, nothing is removed (a network already built stays usable)."""
+        job = self.status().get("job") or {}
+        if job.get("state") == "running":
+            return {"ok": False, "error": "Wait for HelixSR's setup to finish."}
+        self._write_json(self.settings_file, {**(self._read_json(self.settings_file) or {}), "build": bool(on)})
+        self._log(f"Build HelixSR switched {'on' if on else 'off'}")
+        started = False
+        local = self.local_releases()
+        if on and local and not self.ready(local[0]):
+            r = self.start_install(local[0])
+            if not r.get("ok"):
+                return r
+            started = True
+        return {"ok": True, "build": bool(on), "started": started}
+
     # --- optional extras: Preset K and the Vulkan kernels ---------------------------------------------------------
 
     def extras_wanted(self) -> dict:
@@ -223,6 +270,8 @@ class HelixSR:
         HelixSR is installed into them again). Without HelixSR set up, the switch applies when it is installed."""
         if name not in EXTRAS:
             return {"ok": False, "error": f"Unknown option: {name}"}
+        if on and not self.build_wanted():
+            return {"ok": False, "error": "Turn on Build HelixSR first: this is part of HelixSR's build."}
         job = self.status().get("job") or {}
         if job.get("state") == "running":
             return {"ok": False, "error": "Wait for HelixSR's setup to finish."}
@@ -258,9 +307,10 @@ class HelixSR:
         return self.base / tag
 
     def active(self) -> str | None:
-        """The release games get: the newest downloaded one whose setup has finished, else the newest downloaded."""
+        """The release games get: the newest downloaded one whose setup has finished, else the newest downloaded. With
+        Build HelixSR off, also the newest one that ships HLX FSR 4 built (FSR drop-in only)."""
         local = self.local_releases()
-        ready = [t for t in local if self.ready(t)]
+        ready = [t for t in local if self.usable(t)] if not self.build_wanted() else [t for t in local if self.ready(t)]
         return (ready or local or [None])[0]
 
     def opti_release(self) -> str | None:
@@ -336,6 +386,7 @@ class HelixSR:
         latest = self.latest()
         active = self.active()
         active_ready = bool(active and self.ready(active))
+        build = self.build_wanted()
         return {
             "job": job or None,
             "log": setup_output(_tail(self.log, 60))[-12:],
@@ -344,6 +395,9 @@ class HelixSR:
             "active_ready": active_ready,
             # False: the release has HLX FSR 4 (3.0 on) and its setup didn't build it (AMD's download failed)
             "active_hlx": self.hlx_ready(active) if active_ready else None,
+            # Build HelixSR, and whether the release in use gives games the FSR drop-in without the build
+            "build": build,
+            "active_fsr": bool(active and not active_ready and self.hlx_prebuilt(active)),
             "latest": latest,
             "update_available": bool(latest and latest["tag"] not in local
                                      and (not active or _version_key(latest["tag"]) > _version_key(active))),
@@ -408,6 +462,13 @@ class HelixSR:
                 tmp.rename(d)
                 zip_path.unlink(missing_ok=True)
                 self._log(f"extracted into {d}")
+            if not self.build_wanted() and self.hlx_prebuilt(rel["tag"]):
+                # Build HelixSR off: HLX FSR 4 came built, so the FSR drop-in works without HelixSR's setup
+                self._installer_ready.clear()
+                job.update(state="succeeded", no_build=True, finished=time.time())
+                self._write_json(self.job_file, job)
+                self._log(f"Build HelixSR is off: {rel['tag']}'s setup not run (FSR drop-in with HLX FSR 4 only)")
+                return
             job.update(phase="setup")
             self._start_setup(d, job)
         except Exception as e:
@@ -499,14 +560,30 @@ class HelixSR:
         return {"ok": True, "removed": removed}
 
     def game_status(self, folder: str) -> dict:
-        return self.bridge("status", folder)
+        """HelixSR's status for the game; without the built network only the FSR drop-in (HLX FSR 4) is offered."""
+        st = self.bridge("status", folder)
+        tag = self.active()
+        if not st.get("ok") or not st.get("found") or not tag or self.ready(tag):
+            return st
+        ways = [w for w in st.get("ways") or [] if w == "direct"] if self.hlx_prebuilt(tag) else []
+        route = st.get("route")
+        if route not in ways:
+            route = ways[0] if ways else "blocked"
+        hidden = {**(st.get("hidden_ways") or {})}
+        if "scaler" in (st.get("ways") or []):
+            hidden["scaler"] = NO_BUILD_SCALER
+        return {**st, "ways": ways, "route": route, "hidden_ways": hidden, "no_build": True}
 
     def install_game(self, folder: str, route: str | None = None) -> dict:
         if route not in (None, "", "direct", "scaler"):
             return {"ok": False, "error": f"Unknown install method: {route}"}
         tag = self.active()
         if tag and not self.ready(tag):
-            return {"ok": False, "error": "HelixSR's setup hasn't finished yet."}
+            if not self.hlx_prebuilt(tag):
+                return {"ok": False, "error": "HelixSR's setup hasn't finished yet."}
+            if route == "scaler":
+                return {"ok": False, "error": NO_BUILD_SCALER}
+            route = "direct"   # HelixSR's own pick could be HelixSR Scaler, which needs the network
         return self.bridge("install", folder, *([route] if route else []))
 
     def uninstall_game(self, folder: str) -> dict:

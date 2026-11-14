@@ -121,6 +121,8 @@ export type HelixJob = {
   // the optional extras this run builds, and how far each is
   extras?: HelixExtra[];
   extras_progress?: Partial<Record<HelixExtra, HelixExtraProgress>>;
+  // Build HelixSR was off: the release was only downloaded (HLX FSR 4 came built), its setup didn't run
+  no_build?: boolean;
 };
 
 export type HelixStatus = {
@@ -138,6 +140,9 @@ export type HelixStatus = {
   newer_prerelease?: string | null;
   // optional extras of HelixSR's setup (HelixSR 3.3 on): switched on, offered by the release in use, built
   extras?: Record<HelixExtra, { on: boolean; available: boolean; built: boolean }>;
+  // Build HelixSR (on by default); the release in use isn't built but gives games the FSR drop-in (HLX FSR 4)
+  build?: boolean;
+  active_fsr?: boolean;
 };
 
 export type HelixExtra = "preset_k" | "vulkan";
@@ -190,6 +195,10 @@ export const helixsrSetPrereleases = callable<
   [on: boolean],
   { ok: boolean; prereleases: boolean }
 >("helixsr_set_prereleases");
+export const helixsrSetBuild = callable<
+  [on: boolean],
+  { ok: boolean; error?: string; build?: boolean; started?: boolean }
+>("helixsr_set_build");
 export const helixsrSetExtra = callable<
   [name: HelixExtra, on: boolean],
   {

@@ -535,6 +535,10 @@ class Plugin:
         for b in out:
             if b["id"] == backends.HELIXSR and active:
                 b.update(installed=True, version=active)
+                if not await asyncio.to_thread(HELIXSR.ready, active) \
+                        and await asyncio.to_thread(HELIXSR.hlx_prebuilt, active):
+                    b["notes"] = ["Not built (Build HelixSR is off): FSR drop-in (HLX FSR 4) only",
+                                  *(b.get("notes") or [])]
             # MAKO's optional LSFG models need Lossless Scaling's DLL: found the way MAKO looks for it (any Steam library)
             if b["id"] == backends.MAKO:
                 try:
@@ -602,10 +606,14 @@ class Plugin:
             except Exception:
                 decky.logger.exception("game_files.detect")
         key = game_files.exe_key(game["install_path"]) if installed and game.get("non_steam") else None
+        # Build HelixSR off: OptiScaler + HelixSR needs a built HelixSR 1.x, which only the build makes
+        no_build = None
+        if not HELIXSR.build_wanted() and not await asyncio.to_thread(HELIXSR.opti_release):
+            no_build = "needs Build HelixSR on in Backends"
+        why = lambda c: game_files.not_working(appid, c, key) or (no_build if c.startswith("optiscaler+helixsr") else None)
         choices = [c for c in backends.GAME_CHOICES
-                   if c == current or (game_files.fits(c, found) and not game_files.not_working(appid, c, key))]
-        hidden = [{"choice": c, "needs": game_files.labels(set(game_files.needs(c))),
-                   "reason": game_files.not_working(appid, c, key)}
+                   if c == current or (game_files.fits(c, found) and not why(c))]
+        hidden = [{"choice": c, "needs": game_files.labels(set(game_files.needs(c))), "reason": why(c)}
                   for c in backends.GAME_CHOICES if c not in choices]
         return {
             "ok": True,
@@ -719,7 +727,7 @@ class Plugin:
         # HelixSR (on its own or with MAKO) goes in as HelixSR Scaler as soon as the game is set to it
         helix = None
         if backend in ("helixsr", "helixsr+mako") and folder and HELIXSR.active() \
-                and await asyncio.to_thread(HELIXSR.ready, HELIXSR.active()):
+                and await asyncio.to_thread(HELIXSR.usable, HELIXSR.active()):
             launch = cleared["launch_options"] if cleared["launch_options"] is not None else current_launch_options
             helix = await _auto_install_helix(appid, folder, launch or "")
             if helix and helix.get("ok") and helix.get("launch_options"):
@@ -768,6 +776,10 @@ class Plugin:
     async def helixsr_set_prereleases(self, on: bool) -> dict:
         """Whether HelixSR's pre-releases are offered as updates (HelixSR 3.0.0 came out as one)."""
         return await asyncio.to_thread(HELIXSR.set_prereleases, bool(on))
+
+    async def helixsr_set_build(self, on: bool) -> dict:
+        """Build HelixSR on or off (on by default). Off, HelixSR 3.3 on is only downloaded: FSR drop-in only."""
+        return await asyncio.to_thread(HELIXSR.set_build, bool(on))
 
     async def helixsr_set_extra(self, name: str, on: bool) -> dict:
         """An optional extra of HelixSR's setup (preset_k, vulkan) on or off; with HelixSR set up it is built now."""

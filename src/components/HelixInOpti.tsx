@@ -60,7 +60,11 @@ export function HelixInOptiGame({
       <PanelSectionRow>
         <Field
           label="HelixSR in OptiScaler"
-          description="Set up HelixSR below first."
+          description={
+            helix?.build === false
+              ? "Turn on Build HelixSR in Backends first: HelixSR in OptiScaler needs HelixSR's build."
+              : "Set up HelixSR below first."
+          }
         />
       </PanelSectionRow>
     );
