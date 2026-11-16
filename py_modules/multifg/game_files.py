@@ -120,7 +120,7 @@ def helix_ways(appid: str, status: dict) -> dict:
     route = status.get("route")
     if route in banned:
         route = ways[0] if ways else "blocked"
-    return {**status, "ways": ways, "route": route, "hidden_ways": banned}
+    return {**status, "ways": ways, "route": route, "hidden_ways": {**(status.get("hidden_ways") or {}), **banned}}
 
 
 def exe_key(folder: str | None) -> str | None:

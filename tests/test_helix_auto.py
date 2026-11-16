@@ -19,6 +19,9 @@ class FakeHelix:
     def ready(self, tag):
         return True
 
+    def usable(self, tag):
+        return self.ready(tag)
+
     def game_status(self, folder):
         return {"ok": True, "found": True, "installed": bool(self.installs), "anticheat": [], **self.status}
 

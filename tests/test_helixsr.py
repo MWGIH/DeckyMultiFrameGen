@@ -285,6 +285,108 @@ class ExtrasTests(unittest.TestCase):
         self.assertFalse(self.h.set_extra("nope", True)["ok"])
 
 
+class NoBuildTests(unittest.TestCase):
+    """Build HelixSR off (issue #30): HelixSR 3.3 on ships HLX FSR 4 built, so the FSR drop-in needs no setup."""
+    def setUp(self):
+        self.home = support.reset_home()
+        self.h = make_helix(self.home)
+
+    def add_release(self, tag, built=False, hlx=True):
+        d = self.home / "HelixSR" / tag
+        d.mkdir(parents=True)
+        (d / "helixsr-setup.sh").write_text("")
+        (d / helixsr.DLL).write_bytes(b"MZ" + (b"HXSRNET1" + b"\0" * 24 if built else b"\0" * 32))
+        if hlx:
+            (d / helixsr.HLX_DIR).mkdir()
+            (d / helixsr.HLX_DIR / helixsr.HLX_DLL).write_bytes(b"MZ" + b"\0" * 64 + helixsr.HLX_BUILT + b"\0" * 16)
+        return d
+
+    def test_on_by_default(self):
+        self.assertTrue(self.h.build_wanted())
+        self.assertTrue(self.h.status()["build"])
+
+    def test_prebuilt_hlx_is_recognised(self):
+        self.add_release("v3.3.0")
+        d = self.add_release("v3.1.0", hlx=False)
+        self.assertTrue(self.h.hlx_prebuilt("v3.3.0"))
+        self.assertFalse(self.h.hlx_prebuilt("v3.1.0"))
+        (d / helixsr.HLX_DIR).mkdir()
+        (d / helixsr.HLX_DIR / helixsr.HLX_DLL).write_bytes(b"MZ" + b"\0" * 64)   # 3.0 to 3.2: setup builds it
+        self.assertFalse(self.h.hlx_prebuilt("v3.1.0"))
+
+    def test_off_the_download_skips_the_setup(self):
+        self.h.set_build(False)
+        d = self.add_release("v3.3.0")
+        job = {"state": "running", "phase": "download", "tag": "v3.3.0", "zip": str(self.h.base / "x.zip")}
+        with mock.patch.object(self.h, "_start_setup") as setup:
+            self.h._run_job({"tag": "v3.3.0", "name": "x.zip"}, job)
+        setup.assert_not_called()
+        self.assertEqual((job["state"], job.get("no_build")), ("succeeded", True))
+        with mock.patch.object(self.h, "ready", return_value=False):
+            st = self.h.status()
+        self.assertEqual((st["active"], st["active_ready"], st["active_fsr"], st["build"]),
+                         ("v3.3.0", False, True, False))
+        self.assertTrue(d.exists())
+
+    def test_off_a_release_without_built_hlx_still_runs_its_setup(self):
+        self.h.set_build(False)
+        self.add_release("v3.1.0", hlx=False)
+        job = {"state": "running", "phase": "download", "tag": "v3.1.0", "zip": str(self.h.base / "x.zip")}
+        with mock.patch.object(self.h, "_start_setup") as setup:
+            self.h._run_job({"tag": "v3.1.0", "name": "x.zip"}, job)
+        setup.assert_called_once()
+
+    def test_on_the_download_runs_the_setup(self):
+        self.add_release("v3.3.0")
+        job = {"state": "running", "phase": "download", "tag": "v3.3.0", "zip": str(self.h.base / "x.zip")}
+        with mock.patch.object(self.h, "_start_setup") as setup:
+            self.h._run_job({"tag": "v3.3.0", "name": "x.zip"}, job)
+        setup.assert_called_once()
+
+    def test_off_the_newest_fsr_ready_release_is_used(self):
+        self.add_release("v3.1.0", built=True, hlx=False)
+        self.add_release("v3.3.0")
+        self.assertEqual(self.h.active(), "v3.1.0")    # on: the built one
+        self.h.set_build(False)
+        self.assertEqual(self.h.active(), "v3.3.0")    # off: the FSR drop-in from 3.3
+
+    def test_switching_on_builds_the_newest_release(self):
+        self.h.set_build(False)
+        self.add_release("v3.3.0")
+        with mock.patch.object(self.h, "ready", return_value=False), \
+                mock.patch.object(self.h, "start_install", return_value={"ok": True}) as start:
+            r = self.h.set_build(True)
+        self.assertEqual((r["ok"], r["started"]), (True, True))
+        start.assert_called_once_with("v3.3.0")
+        with mock.patch.object(self.h, "start_install") as start:
+            self.assertFalse(self.h.set_build(False)["started"])
+        start.assert_not_called()
+
+    def test_extras_need_the_build(self):
+        self.h.set_build(False)
+        self.assertFalse(self.h.set_extra("preset_k", True)["ok"])
+        self.assertTrue(self.h.set_extra("preset_k", False)["ok"])
+
+    def test_games_get_only_the_fsr_drop_in(self):
+        self.h.set_build(False)
+        self.add_release("v3.3.0")
+        game = {"ok": True, "found": True, "ways": ["direct", "scaler"], "route": "scaler", "installed": False}
+        with mock.patch.object(self.h, "ready", return_value=False), \
+                mock.patch.object(self.h, "bridge", return_value=dict(game)) as bridge:
+            st = self.h.game_status("/games/x")
+            self.assertEqual((st["ways"], st["route"]), (["direct"], "direct"))
+            self.assertIn("Build HelixSR", st["hidden_ways"]["scaler"])
+            self.assertFalse(self.h.install_game("/games/x", "scaler")["ok"])
+            self.h.install_game("/games/x")
+            bridge.assert_called_with("install", "/games/x", "direct")
+
+    def test_built_games_keep_every_way(self):
+        self.add_release("v3.3.0", built=True)
+        game = {"ok": True, "found": True, "ways": ["direct", "scaler"], "route": "scaler"}
+        with mock.patch.object(self.h, "bridge", return_value=dict(game)):
+            self.assertEqual(self.h.game_status("/games/x"), game)
+
+
 class ExtrasProgressTests(unittest.TestCase):
     def test_vulkan_kernels_follow_their_stage_of_the_bar(self):
         ep = helixsr.extras_progress

@@ -17,6 +17,7 @@ import {
   helixsrLog,
   helixsrSetPrereleases,
   helixsrSetExtra,
+  helixsrSetBuild,
   type HelixExtra,
   type HelixJob,
   type HelixStatus,
@@ -127,12 +128,17 @@ function JobProgress({ job }: { job: HelixJob }) {
   );
 }
 
-function confirmInstall(tag: string, onOk: () => void) {
+function confirmInstall(tag: string, onOk: () => void, build = true) {
   showModal(
     <ConfirmModal
       strTitle={`Install HelixSR ${tag}`}
       strDescription={
-        "This downloads HelixSR from its GitHub releases and runs its setup. The setup downloads NVIDIA's DLSS DLL " +
+        !build
+          ? "This downloads HelixSR from its GitHub releases (about 280 MB). Build HelixSR is off, so its setup " +
+            "doesn't run: nothing is downloaded from NVIDIA or AMD and nothing is built. Games get only the FSR " +
+            "drop-in (HLX FSR 4, which comes built from HelixSR 3.3). HelixSR 3.0 to 3.2 still need their setup " +
+            "for it, so for those it runs anyway."
+          : "This downloads HelixSR from its GitHub releases and runs its setup. The setup downloads NVIDIA's DLSS DLL " +
         "from NVIDIA's GitHub (NVIDIA's license applies), builds the upscaling network for your GPU, then deletes " +
         "NVIDIA's DLL. HelixSR 3.0 to 3.2 also download about 420 MB of AMD's driver package from AMD (AMD's " +
         "license applies) to build HLX FSR 4, their FSR drop-in; from 3.3 it comes built. It takes a few minutes " +
@@ -172,6 +178,75 @@ const EXTRA_INFO: Record<
   },
 };
 
+// Build HelixSR: HelixSR's setup builds the upscaling network HLX DLSS and HelixSR Scaler run on. Off, a release that
+// ships HLX FSR 4 built (3.3 on) is only downloaded, for the FSR drop-in
+function BuildToggle({
+  status,
+  onChange,
+}: {
+  status: HelixStatus;
+  onChange: () => void;
+}) {
+  const build = status.build !== false;
+  const apply = async (on: boolean) => {
+    const r = await helixsrSetBuild(on);
+    if (!r.ok)
+      toaster.toast({
+        title: "HelixSR",
+        body: r.error ?? "Couldn't change Build HelixSR",
+      });
+    else if (r.started)
+      toaster.toast({
+        title: "HelixSR",
+        body: "Building HelixSR: progress is in Backends",
+      });
+    onChange();
+  };
+  const toggle = (on: boolean) => {
+    // a downloaded release that isn't built: switching on builds it now, a long job
+    const newest = status.local[0];
+    if (on && newest && !(status.active === newest && status.active_ready)) {
+      showModal(
+        <ConfirmModal
+          strTitle="Build HelixSR"
+          strDescription={
+            `HelixSR ${newest}'s setup runs now: it downloads NVIDIA's DLSS DLL from NVIDIA's GitHub (NVIDIA's ` +
+            "license applies), builds the upscaling network for your GPU, then deletes NVIDIA's DLL. It takes a " +
+            "few minutes and needs Proton installed in Steam: keep the Deck awake."
+          }
+          strOKButtonText="Build"
+          onOK={() => apply(true)}
+        />,
+      );
+      return;
+    }
+    void apply(on);
+  };
+  const state = build
+    ? status.active_ready
+      ? " Built."
+      : ""
+    : status.active_ready
+      ? " The network already built stays: updates aren't built."
+      : status.active_fsr
+        ? " Not built: games get the FSR drop-in only."
+        : "";
+  return (
+    <PanelSectionRow>
+      <ToggleField
+        label="Build HelixSR"
+        description={
+          "Needed for HLX DLSS and HelixSR Scaler. Off: HelixSR is only downloaded, with no NVIDIA download and no " +
+          "long build, and games get only the FSR drop-in (HLX FSR 4, built in from HelixSR 3.3)." +
+          state
+        }
+        checked={build}
+        onChange={toggle}
+      />
+    </PanelSectionRow>
+  );
+}
+
 // Preset K and the Vulkan kernels: optional extras of HelixSR's setup (HelixSR 3.3 on), off by default
 function ExtraToggles({
   status,
@@ -182,6 +257,7 @@ function ExtraToggles({
 }) {
   const extras = status.extras;
   if (!extras) return null;
+  const build = status.build !== false;
   const apply = async (name: HelixExtra, on: boolean) => {
     const r = await helixsrSetExtra(name, on);
     if (!r.ok)
@@ -222,7 +298,9 @@ function ExtraToggles({
       {(Object.keys(EXTRA_INFO) as HelixExtra[]).map((name) => {
         const e = extras[name];
         const info = EXTRA_INFO[name];
-        const state = !status.active_ready
+        const state = !build
+          ? " Part of HelixSR's build: turn on Build HelixSR first."
+          : !status.active_ready
           ? e.on
             ? " Built when HelixSR is installed."
             : ""
@@ -239,7 +317,7 @@ function ExtraToggles({
               label={info.label}
               description={info.about + state}
               checked={e.on}
-              disabled={status.active_ready && !e.available && !e.on}
+              disabled={(!build && !e.on) || (status.active_ready && !e.available && !e.on)}
               onChange={(on) => toggle(name, on)}
             />
           </PanelSectionRow>
@@ -271,7 +349,7 @@ export function useHelixStatus() {
   const lastState = useRef(status?.job?.state);
   useEffect(() => {
     const state = status?.job?.state;
-    if (lastState.current === "running" && state === "succeeded")
+    if (lastState.current === "running" && state === "succeeded" && !status?.job?.no_build)
       promptRestart(`HelixSR ${status?.job?.tag ?? ""}`.trim());
     lastState.current = state;
   }, [status?.job?.state]);
@@ -290,16 +368,23 @@ export function HelixSRSetup({
   const job = status.job;
   const running = job?.state === "running";
 
+  const build = status.build !== false;
+  // games can get HelixSR from the release in use: built, or (Build HelixSR off) the FSR drop-in only
+  const usable = status.active_ready || (!build && !!status.active_fsr);
   const start = (tag: string) =>
-    confirmInstall(tag, async () => {
-      const r = await helixsrInstall(tag);
-      if (!r.ok)
-        toaster.toast({
-          title: "HelixSR",
-          body: r.error ?? "Couldn't start the install",
-        });
-      onChange();
-    });
+    confirmInstall(
+      tag,
+      async () => {
+        const r = await helixsrInstall(tag);
+        if (!r.ok)
+          toaster.toast({
+            title: "HelixSR",
+            body: r.error ?? "Couldn't start the install",
+          });
+        onChange();
+      },
+      build,
+    );
 
   if (running && job) {
     return (
@@ -370,6 +455,7 @@ export function HelixSRSetup({
           }}
         />
       </PanelSectionRow>
+      <BuildToggle status={status} onChange={onChange} />
       <ExtraToggles status={status} onChange={onChange} />
       {status.active_ready && status.active_hlx === false && (
         <PanelSectionRow>
@@ -398,7 +484,7 @@ export function HelixSRSetup({
         </PanelSectionRow>
       )}
       {(job?.state === "failed" || status.log.length > 0) && <SetupLog />}
-      {status.active && !status.active_ready && job?.state !== "failed" && (
+      {status.active && !usable && job?.state !== "failed" && (
         <PanelSectionRow>
           <Field
             label={`HelixSR ${status.active}`}
@@ -406,10 +492,10 @@ export function HelixSRSetup({
           />
         </PanelSectionRow>
       )}
-      {latest && (status.update_available || !status.active_ready) && (
+      {latest && (status.update_available || !usable) && (
         <PanelSectionRow>
           <ButtonItem layout="below" onClick={() => start(latest.tag)}>
-            {status.active_ready
+            {usable
               ? `Update HelixSR to ${latest.tag}`
               : status.local.includes(latest.tag)
                 ? `Run HelixSR ${latest.tag} setup`
@@ -424,7 +510,7 @@ export function HelixSRSetup({
           </ButtonItem>
         </PanelSectionRow>
       )}
-      {!latest && !status.active_ready && (
+      {!latest && !usable && (
         <PanelSectionRow>
           <Field
             label="HelixSR"

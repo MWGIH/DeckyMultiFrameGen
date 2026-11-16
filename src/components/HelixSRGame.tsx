@@ -79,7 +79,8 @@ export function HelixSRGame({
   const [game, setGame] = useState<HelixGame | null>(null);
   const [route, setRoute] = useState<HelixRoute | "auto">("auto");
   const [busy, setBusy] = useState(false);
-  const ready = Boolean(helix?.active_ready);
+  // built, or (Build HelixSR off) a release with HLX FSR 4 built in: the FSR drop-in only
+  const ready = Boolean(helix?.active_ready || helix?.active_fsr);
 
   // HelixSR Scaler's DLL override in the launch options, also for installs made before the plugin set it
   const load = () =>

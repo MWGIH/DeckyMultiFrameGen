@@ -130,6 +130,12 @@ one file of AMD's driver package, about 420 MB downloaded from AMD; when that fa
 Backends panel offers to build HLX FSR 4 again. HelixSR 3.0 has no frame generation of its own (OptiScaler's and MAKO's
 are unaffected). From HelixSR 3.3 HLX FSR 4 comes built, with no download from AMD.
 
+**Build HelixSR** (on by default, a switch in Backends): HelixSR's setup downloads NVIDIA's DLSS DLL and builds the
+upscaling network HLX DLSS and HelixSR Scaler run on, which takes a while. If you only use the FSR drop-in, turn it off:
+HelixSR 3.3 or newer is then only downloaded (no setup, nothing from NVIDIA or AMD), games are offered only the FSR drop-in
+(HLX FSR 4), HelixSR Scaler isn't put in by itself, and OptiScaler + HelixSR isn't offered. Turning it on later runs the
+build. A network already built stays when you turn it off.
+
 HelixSR 3.3 adds two optional extras, off by default, each a switch in Backends. HelixSR's setup builds them, with a
 progress bar of its own for each:
 
