@@ -551,6 +551,13 @@ CONFIG_SCHEMA_DEF: Dict[str, ConfigFieldDefinition] = {
         "location": "script"
     },
 
+    "enable_low_latency": {
+        "fieldType": ConfigFieldType.BOOLEAN,
+        "default": False,
+        "description": "Enable Proton/DXVK low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly",
+        "location": "script"
+    },
+
     "force_alsa_audio": {
         "fieldType": ConfigFieldType.BOOLEAN,
         "default": False,
