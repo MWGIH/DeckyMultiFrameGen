@@ -196,6 +196,7 @@ export const VKBASALT_MANAGE_CUSTOM_SHADERS = "vkbasalt_manage_custom_shaders" a
 export const DISABLE_STEAMDECK_MODE = "disable_steamdeck_mode" as const;
 export const DISABLE_STEAM_OVERLAY = "disable_steam_overlay" as const;
 export const ENABLE_ZINK = "enable_zink" as const;
+export const ENABLE_LOW_LATENCY = "enable_low_latency" as const;
 export const FORCE_ALSA_AUDIO = "force_alsa_audio" as const;
 
 // Configuration field definition
@@ -496,6 +497,12 @@ export const CONFIG_SCHEMA: Record<string, ConfigField> = {
     default: false,
     description: "Enable Zink (Vulkan-based OpenGL implementation) for OpenGL games"
   },
+  enable_low_latency: {
+    name: "enable_low_latency",
+    fieldType: ConfigFieldType.BOOLEAN,
+    default: false,
+    description: "Enable Proton/DXVK low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly"
+  },
   force_alsa_audio: {
     name: "force_alsa_audio",
     fieldType: ConfigFieldType.BOOLEAN,
@@ -554,6 +561,7 @@ export interface ConfigurationData {
   disable_steamdeck_mode: boolean;
   disable_steam_overlay: boolean;
   enable_zink: boolean;
+  enable_low_latency: boolean;
   force_alsa_audio: boolean;
 }
 
@@ -615,6 +623,7 @@ export function getDefaults(): ConfigurationData {
     disable_steamdeck_mode: false,
     disable_steam_overlay: true,
     enable_zink: false,
+    enable_low_latency: false,
     force_alsa_audio: false,
   };
 }
@@ -669,6 +678,7 @@ export function getFieldTypes(): Record<string, ConfigFieldType> {
     disable_steamdeck_mode: ConfigFieldType.BOOLEAN,
     disable_steam_overlay: ConfigFieldType.BOOLEAN,
     enable_zink: ConfigFieldType.BOOLEAN,
+    enable_low_latency: ConfigFieldType.BOOLEAN,
     force_alsa_audio: ConfigFieldType.BOOLEAN,
   };
 }

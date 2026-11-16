@@ -57,6 +57,7 @@ VKBASALT_MANAGE_CUSTOM_SHADERS = "vkbasalt_manage_custom_shaders"
 DISABLE_STEAMDECK_MODE = "disable_steamdeck_mode"
 DISABLE_STEAM_OVERLAY = "disable_steam_overlay"
 ENABLE_ZINK = "enable_zink"
+ENABLE_LOW_LATENCY = "enable_low_latency"
 FORCE_ALSA_AUDIO = "force_alsa_audio"
 
 
@@ -110,6 +111,7 @@ class ConfigurationData(TypedDict):
     disable_steamdeck_mode: bool
     disable_steam_overlay: bool
     enable_zink: bool
+    enable_low_latency: bool
     force_alsa_audio: bool
 
 
@@ -163,6 +165,7 @@ class ConfigurationPatch(TypedDict, total=False):
     disable_steamdeck_mode: bool
     disable_steam_overlay: bool
     enable_zink: bool
+    enable_low_latency: bool
     force_alsa_audio: bool
 
 
@@ -182,6 +185,7 @@ class WrapperSettingsData(TypedDict):
     disable_steamdeck_mode: bool
     disable_steam_overlay: bool
     enable_zink: bool
+    enable_low_latency: bool
     force_alsa_audio: bool
 
 
@@ -212,6 +216,9 @@ def get_script_generation_logic():
                 "esac",
                 "export MAKO_GAMESCOPE_COMPOSITE_FORCE=1",
             ])
+        if config.get("enable_low_latency", False):
+            lines.append("export PROTON_DXVK_LOWLATENCY=1")
+            lines.append("export DXVK_FRAME_PACE=low-latency")
         if config.get("force_alsa_audio", False):
             lines.extend([
                 "export SDL_AUDIODRIVER=alsa",
@@ -228,4 +235,4 @@ def get_script_generation_logic():
     return generate_script_lines
 
 
-ALL_FIELDS = ['frame_generation_model', 'mako_fg_mode', 'dll', 'allow_fp16', 'scaling_enabled', 'scaling_method', 'scaling_factor', 'scaling_supersampling', 'scaling_sharpness', 'frame_generation_provisioned', 'frame_generation_enabled', 'frame_generation_refresh_threshold', 'gpu_headroom_percent', 'base_fps_cap', 'multiplier', 'adaptive', 'adaptive_auto_base_fps_cap', 'adaptive_fractional_real_frame_priority', 'target_fps', 'adaptive_target_refresh_rate', 'adaptive_max_multiplier', 'adaptive_stable_cadence', 'gamescope_vrr_mode', 'dynamic_cadence_recovery', 'dynamic_cadence_probe_interval_seconds', 'ultra_performance', 'flow_scale', 'performance_mode', 'pacing', 'active_in', 'gpu', 'disable_mako', 'hdr_quality', 'disable_hdr_exposure', 'gamescope_wsi_compatibility', 'swapchain_image_count_compatibility', 'mailbox_presentation_compatibility', 'external_vulkan_layer', 'mangohud_count_real_frames', 'vkbasalt_sharpening', 'vkbasalt_sharpness', 'vkbasalt_dls_denoise', 'vkbasalt_antialiasing', 'vkbasalt_shader', 'vkbasalt_manage_custom_shaders', 'disable_steamdeck_mode', 'disable_steam_overlay', 'enable_zink', 'force_alsa_audio']
+ALL_FIELDS = ['frame_generation_model', 'mako_fg_mode', 'dll', 'allow_fp16', 'scaling_enabled', 'scaling_method', 'scaling_factor', 'scaling_supersampling', 'scaling_sharpness', 'frame_generation_provisioned', 'frame_generation_enabled', 'frame_generation_refresh_threshold', 'gpu_headroom_percent', 'base_fps_cap', 'multiplier', 'adaptive', 'adaptive_auto_base_fps_cap', 'adaptive_fractional_real_frame_priority', 'target_fps', 'adaptive_target_refresh_rate', 'adaptive_max_multiplier', 'adaptive_stable_cadence', 'gamescope_vrr_mode', 'dynamic_cadence_recovery', 'dynamic_cadence_probe_interval_seconds', 'ultra_performance', 'flow_scale', 'performance_mode', 'pacing', 'active_in', 'gpu', 'disable_mako', 'hdr_quality', 'disable_hdr_exposure', 'gamescope_wsi_compatibility', 'swapchain_image_count_compatibility', 'mailbox_presentation_compatibility', 'external_vulkan_layer', 'mangohud_count_real_frames', 'vkbasalt_sharpening', 'vkbasalt_sharpness', 'vkbasalt_dls_denoise', 'vkbasalt_antialiasing', 'vkbasalt_shader', 'vkbasalt_manage_custom_shaders', 'disable_steamdeck_mode', 'disable_steam_overlay', 'enable_zink', 'enable_low_latency', 'force_alsa_audio']
