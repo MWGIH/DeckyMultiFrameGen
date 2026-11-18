@@ -10,7 +10,7 @@ import decky
 
 from mako_plugin.plugin import Plugin as MakoPlugin
 
-from multifg import evolution, backends, game_files, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
+from multifg import evolution, backends, game_files, helix_fg, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
 from multifg.anrfg import ANRFG
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
@@ -257,6 +257,8 @@ def _uninstall_helix(folder: str, status: dict) -> dict:
     restored (and those backups deleted)."""
     r = HELIXSR.uninstall_game(folder)
     if r.get("ok"):
+        if status.get("exe_folder"):
+            helix_fg.cleanup(status["exe_folder"])
         restored = []
         for d in leftovers.helix_backup_folders(Path(folder), status.get("exe_folder")):
             restored += leftovers.restore_helix_backups(d)
@@ -904,6 +906,28 @@ class Plugin:
             return {"ok": False, "error": "HelixSR Scaler isn't installed in this game"}
         logging = await asyncio.to_thread(helix_opti.opti_logging, game["exe_folder"], bool(on))
         return {"ok": logging is not None, "logging": logging}
+
+    async def helixsr_fg(self, appid: str, on: bool | None = None) -> dict:
+        """HelixSR's frame generation in a game with HelixSR Scaler: switched when on is given, then its status
+        (multifg.helix_fg)."""
+        game = await _for_game(appid, HELIXSR.game_status)
+        folder = game.get("exe_folder")
+        if game.get("current") != "scaler" or not folder:
+            return {"ok": False, "error": "HelixSR Scaler isn't installed in this game"}
+        if on is not None:
+            if on and not await asyncio.to_thread(helix_fg.available, folder):
+                return {"ok": False, "error": "HelixSR's frame generation isn't in this game: install HelixSR again "
+                                              "after its setup built it (HelixSR 3.4 or newer)"}
+            await asyncio.to_thread(helix_fg.switch, folder, bool(on))
+        return {"ok": True, **await asyncio.to_thread(helix_fg.status, folder)}
+
+    async def helixsr_fix_streamline(self, appid: str) -> dict:
+        """Adds the Streamline plugins OptiScaler's Streamline folder lacks (from NVIDIA's SDK of its version)."""
+        game = await _for_game(appid, HELIXSR.game_status)
+        folder = game.get("exe_folder")
+        if game.get("current") != "scaler" or not folder:
+            return {"ok": False, "error": "HelixSR Scaler isn't installed in this game"}
+        return await asyncio.to_thread(helix_fg.fix_streamline, folder)
 
     async def helixsr_uninstall_game(self, appid: str) -> dict:
         return await _for_game(appid, lambda folder: _uninstall_helix(folder, HELIXSR.game_status(folder)))

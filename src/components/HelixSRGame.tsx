@@ -10,6 +10,7 @@ import {
 import { BelowDropdown } from "./BelowDropdown";
 import { toaster } from "@decky/api";
 import { HelixLog } from "./HelixLog";
+import { HelixFG } from "./HelixFG";
 import {
   helixsrGameStatus,
   helixsrInstallGame,
@@ -214,6 +215,7 @@ export function HelixSRGame({
           missing="HelixSR writes a log when the game loads it. If there is none after playing with the right upscaler selected, the game didn't load HelixSR."
         />
       )}
+      {game.installed && game.current === "scaler" && <HelixFG appid={appid} />}
       {game.installed && game.current === "scaler" ? (
         <PanelSectionRow>
           <ToggleField
