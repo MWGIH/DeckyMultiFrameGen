@@ -8,6 +8,7 @@ import {
 } from "@decky/ui";
 import { BelowDropdown } from "./BelowDropdown";
 import { toaster } from "@decky/api";
+import { HelixFG } from "./HelixFG";
 import {
   helixsrGameStatus,
   helixsrInstallGame,
@@ -205,6 +206,7 @@ export function HelixSRGame({
           }
         />
       </PanelSectionRow>
+      {game.installed && game.current === "scaler" && <HelixFG appid={appid} />}
       {game.graphics === "vulkan" && (
         <PanelSectionRow>
           <Field

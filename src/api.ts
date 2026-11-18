@@ -250,6 +250,27 @@ export const helixsrScalerLogging = callable<
   [appid: string, on: boolean],
   { ok: boolean; logging?: boolean | null; error?: string }
 >("helixsr_scaler_logging");
+export type HelixFgStatus = {
+  ok: boolean;
+  error?: string;
+  // HelixSR's frame generation is in the game (OptiScaler/custom/HelixSR-FG)
+  available?: boolean;
+  enabled?: boolean | null;
+  streamline?: { version: string | null; missing: string[] };
+  log?: {
+    path: string;
+    modified: number;
+    lines: string[];
+    started: boolean;
+  } | null;
+};
+export const helixsrFg = callable<[appid: string, on?: boolean], HelixFgStatus>(
+  "helixsr_fg",
+);
+export const helixsrFixStreamline = callable<
+  [appid: string],
+  { ok: boolean; error?: string; added?: string[]; missing?: string[] }
+>("helixsr_fix_streamline");
 export const helixsrUninstallGame = callable<[appid: string], HelixGame>(
   "helixsr_uninstall_game",
 );
