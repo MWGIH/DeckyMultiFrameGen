@@ -9,9 +9,10 @@ import {
   setTestBuilds,
   helixsrInstall,
   optiscalerInstall,
+  type Updates,
 } from "../api";
 import { installMako } from "../mako/api/makoApi";
-import { rememberUpdates, useLastUpdateResult } from "../dailyUpdateCheck";
+import { availableUpdates, rememberUpdates, useLastUpdateResult } from "../dailyUpdateCheck";
 import { promptRestart } from "../restartPrompt";
 
 import { markUpdating, PLUGIN_NAME } from "../reopenAfterUpdate";
@@ -19,7 +20,7 @@ import { markUpdating, PLUGIN_NAME } from "../reopenAfterUpdate";
 const toast = (body: string) => toaster.toast({ title: "Updates", body });
 
 // Decky's own "install from URL" (it asks for confirmation, then replaces this plugin and reloads it)
-async function updatePlugin(
+export async function updatePlugin(
   url: string,
   version: string,
   sha256: string | null | undefined,
@@ -40,6 +41,63 @@ async function updatePlugin(
     sha256 ?? false,
     2 /* InstallType.UPDATE */,
   );
+}
+
+export type UpdateRefresh = {
+  opti: () => void;
+  helix: () => void;
+  mako: () => void;
+  fsr4: () => void;
+  anr: () => void;
+};
+
+// "Update now" under the update notice: everything with an update in one go. A newer MultiFrameGen goes alone first
+// (Decky reloads the plugin, which can change how the rest is updated). Returns the one toast to show.
+export async function updateAll(u: Updates, refresh: UpdateRefresh): Promise<string> {
+  const p = u.plugin;
+  if (p.update_available && p.url && p.latest) {
+    await updatePlugin(p.url, p.latest, p.sha256);
+    const rest = availableUpdates(u).length > 1;
+    return `Updating MultiFrameGen to ${p.latest}.${rest ? " Press Update now again afterwards for the rest." : ""}`;
+  }
+  const started: string[] = [];
+  const failed: string[] = [];
+  const step = async (
+    name: string,
+    work: () => Promise<{ ok?: boolean; success?: boolean; status?: string; error?: string | null; message?: string | null }>,
+    after: () => void,
+  ) => {
+    try {
+      const r = await work();
+      if (r.ok ?? r.success ?? r.status !== "error") started.push(name);
+      else failed.push(`${name}: ${r.error || r.message || "failed"}`);
+    } catch (e) {
+      failed.push(`${name}: ${e}`);
+    } finally {
+      after();
+    }
+  };
+  if (u.optiscaler.update_available) await step("OptiScaler", optiscalerInstall, refresh.opti);
+  if (u.helixsr.update_available && u.helixsr.available)
+    await step("HelixSR", () => helixsrInstall(u.helixsr.available!), refresh.helix);
+  if (u.fsr4injector?.update_available) await step("FSR4 Injector", fsr4Install, refresh.fsr4);
+  if (u.anrfg?.update_available) await step("ANR FG", anrInstall, refresh.anr);
+  let mako = false;
+  if (u.mako.update_available)
+    await step(
+      "MAKO",
+      async () => {
+        const r = await installMako();
+        mako = !!r.success;
+        return r;
+      },
+      refresh.mako,
+    );
+  if (mako) promptRestart("The MAKO update");
+  const parts = [];
+  if (started.length) parts.push(`Updating ${started.join(", ")}. Progress shows in Backends at the bottom.`);
+  if (failed.length) parts.push(`Couldn't update ${failed.join("; ")}.`);
+  return parts.join(" ") || "Nothing to update.";
 }
 
 type Props = {

@@ -17,6 +17,7 @@ import {
 import { useSelectedGame } from "./hooks/useSelectedGame";
 import { BackendsHeader, BackendsSection, useBackendsCollapsed } from "./components/BackendsSection";
 import { GameSection } from "./components/GameSection";
+import { DebugSection } from "./components/DebugSection";
 import { useHelixStatus } from "./components/HelixSRSetup";
 import { useOptiStatus } from "./components/OptiScaler";
 import { useFsr4Status } from "./components/FSR4Injector";
@@ -136,6 +137,14 @@ function Content() {
         helix={helix}
         collapsed={backendsCollapsed}
         onToggle={toggleBackends}
+        jobs={[opti?.job?.state, helix?.job?.state, fsr4?.job?.state, anr?.job?.state]}
+        onUpdated={{
+          opti: refreshOpti,
+          helix: refreshHelix,
+          mako: refreshBackends,
+          fsr4: refreshFsr4,
+          anr: refreshAnr,
+        }}
       />
       <GameSection
         selected={selected}
@@ -185,6 +194,7 @@ function Content() {
             onAnrChange={refreshAnr}
         />
       )}
+      <DebugSection appid={selected?.appid ?? null} choice={choice} helix={helix} />
     </div>
   );
 }

@@ -27,7 +27,7 @@ const POLL_RUNNING_MS = 1500;
 const POLL_IDLE_MS = 10000;
 
 // HelixSR's setup log (its own output and this plugin's steps), shown on request: it is long
-function SetupLog() {
+export function SetupLog() {
   const [log, setLog] = useState<{ path: string; lines: string[] } | null>(
     null,
   );
@@ -309,7 +309,7 @@ function ExtraToggles({
             : e.on && e.built
               ? " Built."
               : e.on
-                ? " Not built: the build failed (see the setup log). Switch it off and on to try again."
+                ? " Not built: the build failed (its setup log is under Debug at the bottom). Switch it off and on to try again."
                 : "";
         return (
           <PanelSectionRow key={name}>
@@ -462,7 +462,7 @@ export function HelixSRSetup({
           <ButtonItem
             layout="below"
             label="HLX FSR 4 isn't built"
-            description="The FSR drop-in needs it; HelixSR Scaler works without it. AMD's download or the build failed (see the setup log). Running the setup again only builds what is missing."
+            description="The FSR drop-in needs it; HelixSR Scaler works without it. AMD's download or the build failed (its setup log is under Debug at the bottom). Running the setup again only builds what is missing."
             onClick={() => status.active && start(status.active)}
           >
             Build HLX FSR 4
@@ -483,7 +483,6 @@ export function HelixSRSetup({
           />
         </PanelSectionRow>
       )}
-      {(job?.state === "failed" || status.log.length > 0) && <SetupLog />}
       {status.active && !usable && job?.state !== "failed" && (
         <PanelSectionRow>
           <Field

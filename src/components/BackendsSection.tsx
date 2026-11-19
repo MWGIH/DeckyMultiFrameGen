@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ButtonItem,
   ConfirmModal,
@@ -9,6 +9,7 @@ import {
   ToggleField,
 } from "@decky/ui";
 import {
+  checkUpdates,
   makoGameLaunchOptions,
   makoGames,
   pluginVersion,
@@ -23,11 +24,11 @@ import { AnrSetup } from "./ANRFG";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRSetup } from "./HelixSRSetup";
 import { OptiScalerSetup } from "./OptiScaler";
-import { UpdatesCheck } from "./UpdatesCheck";
+import { UpdatesCheck, updateAll, type UpdateRefresh } from "./UpdatesCheck";
 import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
-import { useAvailableUpdates } from "../dailyUpdateCheck";
+import { rememberUpdates, useAvailableUpdates } from "../dailyUpdateCheck";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -82,42 +83,67 @@ function usePluginVersion() {
   return version;
 }
 
-// One line per backend while the section is hidden, e.g. "OptiScaler 0.9.4 · HelixSR v1.9.3 · MAKO not installed"
-function summary(backends: Backend[]): string {
-  return backends
-    .map(
-      (b) =>
-        `${b.name} ${b.installed ? (b.version ?? "installed") : "not installed"}`,
-    )
-    .join(" · ");
-}
-
-// At the top of the panel: the update notice and the Show backends switch; the backends open at the bottom
+// At the top of the panel: the update notice with Update now, and the Show backends switch; the backends open at
+// the bottom
 export function BackendsHeader({
-  backends,
   helix,
   collapsed,
   onToggle,
+  jobs,
+  onUpdated,
 }: {
   backends: Backend[] | null;
   helix: HelixStatus | null;
   collapsed: boolean;
   onToggle: () => void;
+  jobs: (string | null | undefined)[];
+  onUpdated: UpdateRefresh;
 }) {
   const version = usePluginVersion();
   // the installed MultiFrameGen isn't an update (it was found before this one was installed)
   const updates = useAvailableUpdates().filter(
     (u) => !(version && u === `MultiFrameGen ${version}`),
   );
+  const [busy, setBusy] = useState(false);
+  const running = jobs.includes("running");
+  // once the updates started here finish, the notice is checked again so it goes away
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (wasRunning.current && !running)
+      checkUpdates()
+        .then(rememberUpdates)
+        .catch(() => undefined);
+    wasRunning.current = running;
+  }, [running]);
+  const updateNow = async () => {
+    setBusy(true);
+    try {
+      const u = await checkUpdates();
+      rememberUpdates(u);
+      toaster.toast({ title: "Updates", body: await updateAll(u, onUpdated) });
+    } catch (e) {
+      toaster.toast({ title: "Updates", body: `Couldn't update: ${e}` });
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <PanelSection title="Backends">
       {updates.length > 0 && (
-        <PanelSectionRow>
-          <Field
-            label={updates.length > 1 ? "Updates available" : "Update available"}
-            description={`${updates.join(", ")}.${collapsed ? " Show backends to update." : " Its Update button is in Backends at the bottom."}`}
-          />
-        </PanelSectionRow>
+        <>
+          <PanelSectionRow>
+            <Field
+              label={updates.length > 1 ? "Updates available" : "Update available"}
+              description={`${updates.join(", ")}.`}
+              bottomSeparator="none"
+            />
+          </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem layout="below" disabled={busy || running} onClick={updateNow}>
+              {busy ? "Starting the updates…" : running ? "Updating…" : "Update now"}
+            </ButtonItem>
+          </PanelSectionRow>
+        </>
       )}
       <PanelSectionRow>
         <ToggleField
@@ -126,12 +152,8 @@ export function BackendsHeader({
           onChange={onToggle}
           description={
             collapsed
-              ? backends
-                ? (version ? `MultiFrameGen ${version} · ` : "") +
-                  summary(backends) +
-                  (helix?.job?.state === "failed"
-                    ? `. HelixSR ${helix.job.tag} setup failed: show backends for its log.`
-                    : "")
+              ? helix?.job?.state === "failed"
+                ? `HelixSR ${helix.job.tag} setup failed: show backends to try again.`
                 : undefined
               : "Shown at the bottom, below the game."
           }

@@ -79,6 +79,16 @@ function PickerModal({
   );
 }
 
+// The same centred list, opened from any button (e.g. Use's "Change option")
+export function openPicker(
+  title: ReactNode,
+  options: DropdownOption[],
+  selected: unknown,
+  onPick: (o: SingleDropdownOption) => void,
+) {
+  showModal(<PickerModal title={title} options={flat(options)} selected={selected} onPick={onPick} />);
+}
+
 // A choice on its own full-width line under its label (Steam's DropdownItem keeps it on the label's line, which
 // cuts long game names and choices short). The list opens as a centred Steam dialog: the SteamOS beta client
 // opens a Dropdown's own menu off the right edge of the screen from the Quick Access Menu.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
-import { BelowDropdown } from "./BelowDropdown";
+import { ButtonItem, Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
+import { BelowDropdown, openPicker } from "./BelowDropdown";
 import { ProgressRow } from "./ProgressRow";
 import { GAME_NOTES } from "../gameNotes";
 import { toaster } from "@decky/api";
@@ -72,21 +72,24 @@ const choiceRank = (c: GameChoice) => {
 // One line above Use on what the game is set up with, split into upscaler and frame generation
 const SETUP: Record<GameChoice, [string, string]> = {
   none: ["", ""],
-  optiscaler: ["OptiScaler", "OptiScaler (with the game's DLSS FG on)"],
+  optiscaler: ["OptiScaler", "OptiScaler"],
   helixsr: ["HelixSR", "none"],
-  mako: ["the game's own", "MAKO"],
+  mako: ["game's own", "MAKO"],
   "optiscaler+mako": ["OptiScaler", "MAKO"],
   "helixsr+mako": ["HelixSR", "MAKO"],
-  "optiscaler+helixsr": ["HelixSR in OptiScaler", "OptiScaler (with the game's DLSS FG on)"],
+  "optiscaler+helixsr": ["HelixSR in OptiScaler", "OptiScaler"],
   "optiscaler+helixsr+mako": ["HelixSR in OptiScaler", "MAKO"],
-  fsr4injector: ["FSR 4 (FSR4 Injector)", "the game's own"],
+  fsr4injector: ["FSR 4 (FSR4 Injector)", "game's own"],
   "fsr4injector+mako": ["FSR 4 (FSR4 Injector)", "MAKO"],
-  anrfg: ["the game's own", "ANR FG"],
+  anrfg: ["game's own", "ANR FG"],
 };
 
 function setupSummary(choice: GameChoice, running: boolean): string {
   const [up, fg] = SETUP[choice] ?? ["", ""];
-  const line = choice === "none" ? "Nothing set up: the game runs as it ships" : `Upscaler: ${up} · Frame gen: ${fg}`;
+  const line =
+    choice === "none"
+      ? "Currently set: Off"
+      : `Currently set: ${up} upscaler, ${fg === "none" ? "no" : fg} frame gen`;
   return running ? `${line} · Running` : line;
 }
 
@@ -361,31 +364,38 @@ export function GameSection({
           {detail?.ok && gameRunning && (
             <PanelSectionRow>
               <Field
-                label="⚠️ Close the game to change Use"
+                label="⚠️ Close the game to change the option"
                 description="Changing it while the game runs swaps files the game has open and can crash it, and new launch options only apply on the next start. Exit the game, then pick again."
               />
             </PanelSectionRow>
           )}
           {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
             <PanelSectionRow>
-              <BelowDropdown
-                label="Use"
+              <ButtonItem
+                layout="below"
                 description={useDescription(detail, showAll)}
-                rgOptions={((showAll ? detail.all_choices : null) ?? detail.choices ?? [])
-                  // only methods that are installed, plus whatever the game is set to now
-                  .filter(
-                    (c) =>
-                      c === "none" ||
-                      c === detail.backend ||
-                      parts(c).every((id) => installed.has(id)),
-                  )
-                  .slice()
-                  .sort((a, b) => choiceRank(a) - choiceRank(b))
-                  .map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
-                selectedOption={detail.backend}
                 disabled={switching !== null || gameRunning}
-                onChange={(o) => choose(o.data as GameChoice)}
-              />
+                onClick={() =>
+                  openPicker(
+                    "Use",
+                    ((showAll ? detail.all_choices : null) ?? detail.choices ?? [])
+                      // only methods that are installed, plus whatever the game is set to now
+                      .filter(
+                        (c) =>
+                          c === "none" ||
+                          c === detail.backend ||
+                          parts(c).every((id) => installed.has(id)),
+                      )
+                      .slice()
+                      .sort((a, b) => choiceRank(a) - choiceRank(b))
+                      .map((c) => ({ data: c, label: CHOICE_LABELS[c] })),
+                    detail.backend,
+                    (o) => choose(o.data as GameChoice),
+                  )
+                }
+              >
+                {(detail.backend ?? "none") === "none" ? "Choose an option" : "Change option"}
+              </ButtonItem>
             </PanelSectionRow>
           )}
           {switching !== null && (

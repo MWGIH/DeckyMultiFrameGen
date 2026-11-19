@@ -117,7 +117,7 @@ async function checkIfDue(force = false) {
   write(NOTIFIED_KEY, key);
   toaster.toast({
     title: "MultiFrameGen: updates available",
-    body: `${key}. Open MultiFrameGen, Backends, Show backends${found.length > 1 && found[0].startsWith("MultiFrameGen") ? ", and update MultiFrameGen first" : ""}.`,
+    body: `${key}. Open MultiFrameGen and press Update now.`,
     duration: 10000,
   });
 }
