@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { OptiLog } from "./OptiLog";
 import { BelowDropdown } from "./BelowDropdown";
 import { ButtonItem, ConfirmModal, Field, PanelSectionRow, showModal } from "@decky/ui";
 import { ProgressRow } from "./ProgressRow";
@@ -223,19 +222,21 @@ export function OptiScalerGame({
     }
     setBusy(true);
     const name = game?.name ?? "the game";
-    toast(`${why} Patching ${name} with OptiScaler (${dllName}). Please wait before starting the game.`.trim());
+    // one toast, once it's done: the panel shows it's busy meanwhile
     try {
       const current = (await readLaunchOptions(id)) ?? "";
       const r = await optiscalerPatchGame(appid, dllName, current);
       if (r.status === "success") {
-        if (r.launch_options && !writeLaunchOptions(id, r.launch_options)) {
-          toast(`Patched, but couldn't set the launch options. Set them in Steam: ${r.launch_options}`);
-        } else {
-          const removed = r.removed?.length ? `Removed ${r.removed.join(" and ")}. ` : "";
-          toast(`${removed}${r.message ?? "Patched"} In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`);
-        }
-        if (r.helix_in_opti && !r.helix_in_opti.ok) toast(`HelixSR wasn't added: ${r.helix_in_opti.error}`);
-        toast(`${name} is ready. You can start the game now.`);
+        const problems: string[] = [];
+        if (r.launch_options && !writeLaunchOptions(id, r.launch_options))
+          problems.push(`Couldn't set the launch options. Set them in Steam: ${r.launch_options}`);
+        if (r.helix_in_opti && !r.helix_in_opti.ok) problems.push(`HelixSR wasn't added: ${r.helix_in_opti.error}`);
+        const removed = r.removed?.length ? `Removed ${r.removed.join(" and ")}. ` : "";
+        toast(
+          problems.length
+            ? `${why} Patched ${name} with OptiScaler (${dllName}), but: ${problems.join(" ")}`.trim()
+            : `${why} ${removed}${name} is patched with OptiScaler (${dllName}). You can start the game now: select DLSS in the game to get FSR / XeSS; Insert opens OptiScaler's menu.`.trim(),
+        );
       } else {
         toast(r.message ?? "Patching failed");
       }
@@ -301,7 +302,6 @@ export function OptiScalerGame({
           description="OptiScaler's menu opens with the keyboard's Insert key. In the game's controller settings (Steam button, then Controller), set a back button (L4, L5, R4 or R5) to the keyboard key Insert to open the menu in game."
         />
       </PanelSectionRow>
-      {game.patched && <OptiLog appid={appid} />}
       <PanelSectionRow>
         <BelowDropdown
           label="Proxy DLL"

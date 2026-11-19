@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ButtonItem,
   ConfirmModal,
@@ -9,6 +9,7 @@ import {
   ToggleField,
 } from "@decky/ui";
 import {
+  checkUpdates,
   makoGameLaunchOptions,
   makoGames,
   pluginVersion,
@@ -23,11 +24,13 @@ import { AnrSetup } from "./ANRFG";
 import { readLaunchOptions, writeLaunchOptions } from "../launchOptions";
 import { HelixSRSetup } from "./HelixSRSetup";
 import { OptiScalerSetup } from "./OptiScaler";
-import { UpdatesCheck } from "./UpdatesCheck";
+import { UpdatesCheck, updateAll, type UpdateRefresh } from "./UpdatesCheck";
 import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
-import { useAvailableUpdates } from "../dailyUpdateCheck";
+import { rememberUpdates, useAvailableUpdates } from "../dailyUpdateCheck";
+import { ProgressRow } from "./ProgressRow";
+import { backendProgress, jobRunning, type BatchName, type UpdateJobs } from "../updateProgress";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -50,24 +53,168 @@ type Props = {
 
 const COLLAPSED_KEY = "multifg:backendsCollapsed";
 
+// Backends start hidden: they're needed rarely, the game comes first
 function readCollapsed(): boolean {
   try {
-    return localStorage.getItem(COLLAPSED_KEY) === "1";
+    return localStorage.getItem(COLLAPSED_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
-// One line per backend while the section is hidden, e.g. "OptiScaler 0.9.4 · HelixSR v1.9.3 · MAKO not installed"
-function summary(backends: Backend[]): string {
-  return backends
-    .map(
-      (b) =>
-        `${b.name} ${b.installed ? (b.version ?? "installed") : "not installed"}`,
-    )
-    .join(" · ");
+export function useBackendsCollapsed() {
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggle = () => {
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem(COLLAPSED_KEY, collapsed ? "0" : "1");
+    } catch {
+      // just not remembered
+    }
+  };
+  return [collapsed, toggle] as const;
 }
 
+function usePluginVersion() {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    pluginVersion()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
+  return version;
+}
+
+// At the top of the panel: the update notice with Update All, and the Show backends switch; the backends open at
+// the bottom
+export function BackendsHeader({
+  helix,
+  collapsed,
+  onToggle,
+  jobs,
+  onUpdated,
+}: {
+  backends: Backend[] | null;
+  helix: HelixStatus | null;
+  collapsed: boolean;
+  onToggle: () => void;
+  jobs: UpdateJobs;
+  onUpdated: UpdateRefresh;
+}) {
+  const version = usePluginVersion();
+  // the installed MultiFrameGen isn't an update (it was found before this one was installed)
+  const updates = useAvailableUpdates().filter(
+    (u) => !(version && u === `MultiFrameGen ${version}`),
+  );
+  // the update run started here: what it updates, and which of them have been seen running
+  const [batch, setBatch] = useState<{ names: BatchName[]; seen: BatchName[]; at: number } | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+  const running = [jobs.opti, jobs.helix, jobs.fsr4, jobs.anr].some((j) => j?.state === "running");
+  // a backend counts as finished once its job ran and stopped (or, if it was too quick to be seen, after a while)
+  const finished = (n: BatchName) =>
+    n === "MAKO" ||
+    (!jobRunning(n, jobs) && (batch!.seen.includes(n) || Date.now() - batch!.at > 20000));
+  useEffect(() => {
+    if (!batch) return;
+    const nowRunning = batch.names.filter((n) => jobRunning(n, jobs) && !batch.seen.includes(n));
+    if (nowRunning.length) setBatch({ ...batch, seen: [...batch.seen, ...nowRunning] });
+    else if (batch.names.every(finished)) {
+      const failed = batch.names.filter((n) => backendProgress(n, jobs).stage === "failed");
+      setBatch(null);
+      toaster.toast({
+        title: "Updates",
+        body: failed.length
+          ? `Updated, except ${failed.join(", ")}: show backends for what went wrong.`
+          : `${batch.names.join(", ")} updated.`,
+      });
+      checkUpdates()
+        .then(rememberUpdates)
+        .catch(() => undefined);
+    }
+  }, [jobs, batch]);
+  // a run started elsewhere (Backends' own buttons) still clears the notice when it ends
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (wasRunning.current && !running && !batch)
+      checkUpdates()
+        .then(rememberUpdates)
+        .catch(() => undefined);
+    wasRunning.current = running;
+  }, [running]);
+  const updateAllNow = async () => {
+    setStarting("Checking for updates");
+    try {
+      const u = await checkUpdates();
+      rememberUpdates(u);
+      const r = await updateAll(u, onUpdated, (name) => setStarting(`Starting ${name}`));
+      const names = r.started as BatchName[];
+      if (names.some((n) => n !== "MAKO")) setBatch({ names, seen: [], at: Date.now() });
+      else if (names.length) toaster.toast({ title: "Updates", body: `${names.join(", ")} updated.` });
+      if (r.message) toaster.toast({ title: "Updates", body: r.message });
+    } catch (e) {
+      toaster.toast({ title: "Updates", body: `Couldn't update: ${e}` });
+    } finally {
+      setStarting(null);
+    }
+  };
+  // one bar over everything being updated: each backend's share is the same, its stages fill it
+  const progress = batch
+    ? (() => {
+        const each = batch.names.map((n) => ({ n, ...backendProgress(n, jobs), done: finished(n) }));
+        const fraction = each.reduce((t, e) => t + (e.done ? 1 : jobRunning(e.n, jobs) ? e.fraction : 0), 0) / each.length;
+        const current = each.find((e) => !e.done);
+        const doneCount = each.filter((e) => e.done).length;
+        return {
+          percent: fraction * 100,
+          title: current
+            ? `Updating ${current.n} (${Math.min(doneCount + 1, each.length)} of ${each.length})`
+            : "Finishing the updates",
+          detail: current ? (jobRunning(current.n, jobs) ? current.stage : "starting") : null,
+        };
+      })()
+    : null;
+  const busy = !!starting || !!batch;
+  return (
+    <PanelSection title="Backends">
+      {starting && <ProgressRow title={starting} detail="Don't close Steam until the updates are done." />}
+      {progress && <ProgressRow title={progress.title} percent={progress.percent} detail={progress.detail} />}
+      {updates.length > 0 && !batch && (
+        <>
+          <PanelSectionRow>
+            <Field
+              label={updates.length > 1 ? "Updates available" : "Update available"}
+              description={`${updates.join(", ")}.`}
+              bottomSeparator="none"
+            />
+          </PanelSectionRow>
+          {!busy && (
+            <PanelSectionRow>
+              <ButtonItem layout="below" disabled={running} onClick={updateAllNow}>
+                {running ? "Updating…" : "Update All"}
+              </ButtonItem>
+            </PanelSectionRow>
+          )}
+        </>
+      )}
+      <PanelSectionRow>
+        <ToggleField
+          label="Show backends"
+          checked={!collapsed}
+          onChange={onToggle}
+          description={
+            collapsed
+              ? helix?.job?.state === "failed"
+                ? `HelixSR ${helix.job.tag} setup failed: show backends to try again.`
+                : undefined
+              : "Shown at the bottom, below the game."
+          }
+        />
+      </PanelSectionRow>
+    </PanelSection>
+  );
+}
+
+// The backends themselves (installs, updates, setup), at the bottom of the panel while Show backends is on
 export function BackendsSection(props: Props) {
   const {
     backends,
@@ -81,72 +228,26 @@ export function BackendsSection(props: Props) {
     anr,
     onAnrChange,
   } = props;
-  const [collapsed, setCollapsed] = useState(readCollapsed);
-  const [version, setVersion] = useState<string | null>(null);
-  useEffect(() => {
-    pluginVersion()
-      .then(setVersion)
-      .catch(() => undefined);
-  }, []);
-  // the installed MultiFrameGen isn't an update (it was found before this one was installed)
-  const updates = useAvailableUpdates().filter(
-    (u) => !(version && u === `MultiFrameGen ${version}`),
-  );
-  const toggle = () => {
-    setCollapsed(!collapsed);
-    try {
-      localStorage.setItem(COLLAPSED_KEY, collapsed ? "0" : "1");
-    } catch {
-      // just not remembered
-    }
-  };
+  const version = usePluginVersion();
   return (
     <PanelSection title="Backends">
-      {updates.length > 0 && (
-        <PanelSectionRow>
-          <Field
-            label={updates.length > 1 ? "Updates available" : "Update available"}
-            description={`${updates.join(", ")}.${collapsed ? " Show backends to update." : " Its Update button is below."}`}
-          />
-        </PanelSectionRow>
-      )}
       <PanelSectionRow>
-        <ToggleField
-          label="Show backends"
-          checked={!collapsed}
-          onChange={toggle}
-          description={
-            collapsed && backends
-              ? (version ? `MultiFrameGen ${version} · ` : "") +
-                summary(backends) +
-                (helix?.job?.state === "failed"
-                  ? `. HelixSR ${helix.job.tag} setup failed: show backends for its log.`
-                  : "")
-              : undefined
-          }
-        />
+        <Field label="MultiFrameGen" bottomSeparator="standard">
+          {version ?? "…"}
+        </Field>
       </PanelSectionRow>
-      {!collapsed && (
-        <PanelSectionRow>
-          <Field label="MultiFrameGen" bottomSeparator="standard">
-            {version ?? "…"}
-          </Field>
-        </PanelSectionRow>
-      )}
-      {!collapsed && (
-        <UpdatesCheck
-          optiJobState={opti?.job?.state}
-          helixJobState={helix?.job?.state}
-          onOptiChange={onOptiChange}
-          onHelixChange={onHelixChange}
-          onMakoChange={onMakoChange}
-          fsr4JobState={fsr4?.job?.state}
-          onFsr4Change={onFsr4Change}
-          anrJobState={anr?.job?.state}
-          onAnrChange={onAnrChange}
-        />
-      )}
-      {collapsed ? null : backends === null ? (
+      <UpdatesCheck
+        optiJobState={opti?.job?.state}
+        helixJobState={helix?.job?.state}
+        onOptiChange={onOptiChange}
+        onHelixChange={onHelixChange}
+        onMakoChange={onMakoChange}
+        fsr4JobState={fsr4?.job?.state}
+        onFsr4Change={onFsr4Change}
+        anrJobState={anr?.job?.state}
+        onAnrChange={onAnrChange}
+      />
+      {backends === null ? (
         <PanelSectionRow>
           <Field label="Checking…" />
         </PanelSectionRow>

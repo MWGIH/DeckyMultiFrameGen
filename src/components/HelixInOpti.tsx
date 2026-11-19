@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
-import { HelixLog } from "./HelixLog";
 import { ProgressRow } from "./ProgressRow";
 import {
   helixsrInstall,
@@ -39,7 +38,6 @@ export function HelixInOptiGame({
     tried.current = appid;
     setBusy(true);
     setAutoAdding(true);
-    toast("Adding HelixSR to OptiScaler. Please wait before starting the game.");
     helixsrOptiAdd(appid)
       .then((r) =>
         toast(
@@ -158,12 +156,6 @@ export function HelixInOptiGame({
           }
         />
       </PanelSectionRow>
-      {st.installed && (
-        <HelixLog
-          log={st.runtime_log}
-          missing="HelixSR writes a log when OptiScaler loads it. If there is none after playing, check that OptiScaler's upscaler is FSR 3.X/4."
-        />
-      )}
       {(!st.installed || outdated || !st.ini_ok) && (
         <PanelSectionRow>
           <ButtonItem

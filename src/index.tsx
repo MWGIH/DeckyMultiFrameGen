@@ -15,8 +15,9 @@ import {
   type GameSummary,
 } from "./api";
 import { useSelectedGame } from "./hooks/useSelectedGame";
-import { BackendsSection } from "./components/BackendsSection";
+import { BackendsHeader, BackendsSection, useBackendsCollapsed } from "./components/BackendsSection";
 import { GameSection } from "./components/GameSection";
+import { DebugSection } from "./components/DebugSection";
 import { useHelixStatus } from "./components/HelixSRSetup";
 import { useOptiStatus } from "./components/OptiScaler";
 import { useFsr4Status } from "./components/FSR4Injector";
@@ -73,6 +74,7 @@ function Content() {
   const [picked, setPicked] = useState<string | null>(readPicked);
   const selected = useSelectedGame(picked);
   const touchRef = useTouchScroll<HTMLDivElement>();
+  const [backendsCollapsed, toggleBackends] = useBackendsCollapsed();
   const [helix, setHelix] = useHelixStatus();
   const refreshHelix = () => helixsrStatus().then(setHelix);
   const [opti, setOpti] = useOptiStatus();
@@ -130,17 +132,19 @@ function Content() {
   return (
     // touch-action: none, so a swipe is scrolled once, by useTouchScroll
     <div ref={touchRef} style={{ touchAction: "none" }}>
-      <BackendsSection
+      <BackendsHeader
         backends={backends}
         helix={helix}
-        onHelixChange={refreshHelix}
-        opti={opti}
-        onOptiChange={refreshOpti}
-        onMakoChange={refreshBackends}
-        fsr4={fsr4}
-        onFsr4Change={refreshFsr4}
-        anr={anr}
-        onAnrChange={refreshAnr}
+        collapsed={backendsCollapsed}
+        onToggle={toggleBackends}
+        jobs={{ opti: opti?.job, helix: helix?.job, fsr4: fsr4?.job, anr: anr?.job }}
+        onUpdated={{
+          opti: refreshOpti,
+          helix: refreshHelix,
+          mako: refreshBackends,
+          fsr4: refreshFsr4,
+          anr: refreshAnr,
+        }}
       />
       <GameSection
         selected={selected}
@@ -175,6 +179,22 @@ function Content() {
           </PanelSectionRow>
         </PanelSection>
       )}
+      {/* installs, updates and setup: needed rarely, so below the game */}
+      {!backendsCollapsed && (
+        <BackendsSection
+            backends={backends}
+            helix={helix}
+            onHelixChange={refreshHelix}
+            opti={opti}
+            onOptiChange={refreshOpti}
+            onMakoChange={refreshBackends}
+            fsr4={fsr4}
+            onFsr4Change={refreshFsr4}
+            anr={anr}
+            onAnrChange={refreshAnr}
+        />
+      )}
+      <DebugSection appid={selected?.appid ?? null} choice={choice} helix={helix} />
     </div>
   );
 }
