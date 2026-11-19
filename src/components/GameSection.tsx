@@ -50,9 +50,11 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   anrfg: "ANR FG (DLSS frame generation games)",
 };
 
-// The Use list's order: combined options first (most recommended at the top), single methods last; Off stays first
+// The Use list's order (Martin's pick): Off, ANR FG, FSR4 Injector, then combined options, single methods last
 const CHOICE_ORDER: GameChoice[] = [
   "none",
+  "anrfg",
+  "fsr4injector",
   "helixsr+mako",
   "optiscaler+helixsr+mako",
   "optiscaler+helixsr",
@@ -60,9 +62,7 @@ const CHOICE_ORDER: GameChoice[] = [
   "fsr4injector+mako",
   "helixsr",
   "optiscaler",
-  "fsr4injector",
   "mako",
-  "anrfg",
 ];
 const choiceRank = (c: GameChoice) => {
   const i = CHOICE_ORDER.indexOf(c);
