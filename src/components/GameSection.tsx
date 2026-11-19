@@ -32,7 +32,7 @@ import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
 import { AnrGame } from "./ANRFG";
-import { GameFiles } from "./GameFiles";
+import { useShowAll } from "../showAll";
 import { GameFolder } from "./GameFolder";
 import { defaultProxyDll } from "../optiscalerOptions";
 
@@ -98,16 +98,6 @@ const parts = (choice: GameChoice | null | undefined) =>
 
 const toast = (body: string) => toaster.toast({ title: "MultiFrameGen", body });
 
-const SHOW_ALL_KEY = "multifg:showAllChoices";
-
-function readShowAll(): boolean {
-  try {
-    return localStorage.getItem(SHOW_ALL_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 // Under Use: what the game ships, and which choices that leaves out
 function useDescription(detail: GameDetail, showAll: boolean): string | undefined {
   if (detail.upscalers == null) return undefined;
@@ -115,7 +105,8 @@ function useDescription(detail: GameDetail, showAll: boolean): string | undefine
     ? `Found in the game: ${detail.upscalers.join(", ")}.`
     : "No FSR, DLSS or XeSS files found in the game.";
   const hidden = (detail.hidden ?? []).filter((h) => !h.choice.endsWith("+mako"));
-  if (!hidden.length || showAll) return found;
+  if (showAll) return `${found} Showing all options (Debug).`;
+  if (!hidden.length) return found;
   const left = hidden
     .map(
       (h) =>
@@ -205,15 +196,7 @@ export function GameSection({
       );
   };
 
-  const [showAll, setShowAllState] = useState(readShowAll);
-  const setShowAll = (on: boolean) => {
-    setShowAllState(on);
-    try {
-      localStorage.setItem(SHOW_ALL_KEY, on ? "1" : "0");
-    } catch {
-      // just not remembered
-    }
-  };
+  const [showAll] = useShowAll();
   // The choice being patched in (or "none" while a method is taken out); null when nothing is running
   const [switching, setSwitching] = useState<GameChoice | null>(null);
   // Switching swaps DLLs and launch options the running game already loaded, so it waits until the game is closed
@@ -408,21 +391,6 @@ export function GameSection({
               detail="Don't start the game until this is done."
             />
           )}
-          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
-            <PanelSectionRow>
-              <ToggleField
-                label="Show all Use options"
-                description={
-                  showAll
-                    ? "Every installed method is offered, whatever the game ships."
-                    : "Off: only the methods that can work with the game's upscaler files. Turn on if detection got it wrong or to experiment."
-                }
-                checked={showAll}
-                onChange={setShowAll}
-              />
-            </PanelSectionRow>
-          )}
-          {detail?.ok && detail.installed && <GameFiles files={detail.files} running={detail.running_exes} />}
           {detail?.ok &&
             detail.installed &&
             parts(detail.backend).includes("helixsr") &&

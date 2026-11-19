@@ -3,6 +3,8 @@ import { Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
 import { toaster } from "@decky/api";
 import {
   anrGameStatus,
+  getGame,
+  type GameDetail,
   helixsrGameStatus,
   helixsrOptiStatus,
   helixsrScalerLogging,
@@ -13,6 +15,8 @@ import {
   type HelixStatus,
 } from "../api";
 import { OptiLog } from "./OptiLog";
+import { GameFiles } from "./GameFiles";
+import { useShowAll } from "../showAll";
 import { HelixLog } from "./HelixLog";
 import { SetupLog } from "./HelixSRSetup";
 
@@ -87,6 +91,16 @@ function AnrDebug({ appid }: { appid: string }) {
   );
 }
 
+// The game's .exe and upscaler files (read again each time Debug opens or the choice changes)
+function GameFilesDebug({ appid, choice }: { appid: string; choice: GameChoice | null }) {
+  const [detail, setDetail] = useState<GameDetail | null>(null);
+  useEffect(() => {
+    getGame(appid).then(setDetail);
+  }, [appid, choice]);
+  if (!detail?.ok || !detail.installed) return null;
+  return <GameFiles files={detail.files} running={detail.running_exes} />;
+}
+
 // Logs and log switches of every method, hidden until asked for, at the bottom of the panel
 export function DebugSection({
   appid,
@@ -98,6 +112,7 @@ export function DebugSection({
   helix: HelixStatus | null;
 }) {
   const [shown, setShownState] = useState(readShown);
+  const [showAll, setShowAll] = useShowAll();
   const setShown = (on: boolean) => {
     setShownState(on);
     try {
@@ -110,17 +125,32 @@ export function DebugSection({
   const opti = parts.includes("optiscaler");
   const helixParts = parts.includes("helixsr");
   const setupLog = !!helix && (helix.job?.state === "failed" || helix.log.length > 0);
-  const gameDebug = !!appid && (opti || helixParts || choice === "anrfg");
+  const gameDebug = !!appid;
   return (
     <PanelSection title="Debug">
       <PanelSectionRow>
         <ToggleField
           label="Show debug options"
-          description={shown ? undefined : "Logs and log switches for the game's methods and HelixSR's setup."}
+          description={shown ? undefined : "Show all Use options, the game's upscaler files, and logs."}
           checked={shown}
           onChange={setShown}
         />
       </PanelSectionRow>
+      {shown && appid && (
+        <PanelSectionRow>
+          <ToggleField
+            label="Show all Use options"
+            description={
+              showAll
+                ? "Every installed method is offered, whatever the game ships."
+                : "Off: only the methods that can work with the game's upscaler files. Turn on if detection got it wrong or to experiment."
+            }
+            checked={showAll}
+            onChange={setShowAll}
+          />
+        </PanelSectionRow>
+      )}
+      {shown && appid && <GameFilesDebug key={appid} appid={appid} choice={choice} />}
       {shown && appid && opti && <OptiLog key={appid} appid={appid} />}
       {shown && appid && helixParts && !opti && <HelixGameDebug key={appid} appid={appid} />}
       {shown && appid && helixParts && opti && <HelixInOptiDebug key={appid} appid={appid} />}
