@@ -50,12 +50,36 @@ type Props = {
 
 const COLLAPSED_KEY = "multifg:backendsCollapsed";
 
+// Backends start hidden: they're needed rarely, the game comes first
 function readCollapsed(): boolean {
   try {
-    return localStorage.getItem(COLLAPSED_KEY) === "1";
+    return localStorage.getItem(COLLAPSED_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
+}
+
+export function useBackendsCollapsed() {
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggle = () => {
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem(COLLAPSED_KEY, collapsed ? "0" : "1");
+    } catch {
+      // just not remembered
+    }
+  };
+  return [collapsed, toggle] as const;
+}
+
+function usePluginVersion() {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    pluginVersion()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
+  return version;
 }
 
 // One line per backend while the section is hidden, e.g. "OptiScaler 0.9.4 · HelixSR v1.9.3 · MAKO not installed"
@@ -68,6 +92,56 @@ function summary(backends: Backend[]): string {
     .join(" · ");
 }
 
+// At the top of the panel: the update notice and the Show backends switch; the backends open at the bottom
+export function BackendsHeader({
+  backends,
+  helix,
+  collapsed,
+  onToggle,
+}: {
+  backends: Backend[] | null;
+  helix: HelixStatus | null;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const version = usePluginVersion();
+  // the installed MultiFrameGen isn't an update (it was found before this one was installed)
+  const updates = useAvailableUpdates().filter(
+    (u) => !(version && u === `MultiFrameGen ${version}`),
+  );
+  return (
+    <PanelSection title="Backends">
+      {updates.length > 0 && (
+        <PanelSectionRow>
+          <Field
+            label={updates.length > 1 ? "Updates available" : "Update available"}
+            description={`${updates.join(", ")}.${collapsed ? " Show backends to update." : " Its Update button is in Backends at the bottom."}`}
+          />
+        </PanelSectionRow>
+      )}
+      <PanelSectionRow>
+        <ToggleField
+          label="Show backends"
+          checked={!collapsed}
+          onChange={onToggle}
+          description={
+            collapsed
+              ? backends
+                ? (version ? `MultiFrameGen ${version} · ` : "") +
+                  summary(backends) +
+                  (helix?.job?.state === "failed"
+                    ? `. HelixSR ${helix.job.tag} setup failed: show backends for its log.`
+                    : "")
+                : undefined
+              : "Shown at the bottom, below the game."
+          }
+        />
+      </PanelSectionRow>
+    </PanelSection>
+  );
+}
+
+// The backends themselves (installs, updates, setup), at the bottom of the panel while Show backends is on
 export function BackendsSection(props: Props) {
   const {
     backends,
@@ -81,72 +155,26 @@ export function BackendsSection(props: Props) {
     anr,
     onAnrChange,
   } = props;
-  const [collapsed, setCollapsed] = useState(readCollapsed);
-  const [version, setVersion] = useState<string | null>(null);
-  useEffect(() => {
-    pluginVersion()
-      .then(setVersion)
-      .catch(() => undefined);
-  }, []);
-  // the installed MultiFrameGen isn't an update (it was found before this one was installed)
-  const updates = useAvailableUpdates().filter(
-    (u) => !(version && u === `MultiFrameGen ${version}`),
-  );
-  const toggle = () => {
-    setCollapsed(!collapsed);
-    try {
-      localStorage.setItem(COLLAPSED_KEY, collapsed ? "0" : "1");
-    } catch {
-      // just not remembered
-    }
-  };
+  const version = usePluginVersion();
   return (
     <PanelSection title="Backends">
-      {updates.length > 0 && (
-        <PanelSectionRow>
-          <Field
-            label={updates.length > 1 ? "Updates available" : "Update available"}
-            description={`${updates.join(", ")}.${collapsed ? " Show backends to update." : " Its Update button is below."}`}
-          />
-        </PanelSectionRow>
-      )}
       <PanelSectionRow>
-        <ToggleField
-          label="Show backends"
-          checked={!collapsed}
-          onChange={toggle}
-          description={
-            collapsed && backends
-              ? (version ? `MultiFrameGen ${version} · ` : "") +
-                summary(backends) +
-                (helix?.job?.state === "failed"
-                  ? `. HelixSR ${helix.job.tag} setup failed: show backends for its log.`
-                  : "")
-              : undefined
-          }
-        />
+        <Field label="MultiFrameGen" bottomSeparator="standard">
+          {version ?? "…"}
+        </Field>
       </PanelSectionRow>
-      {!collapsed && (
-        <PanelSectionRow>
-          <Field label="MultiFrameGen" bottomSeparator="standard">
-            {version ?? "…"}
-          </Field>
-        </PanelSectionRow>
-      )}
-      {!collapsed && (
-        <UpdatesCheck
-          optiJobState={opti?.job?.state}
-          helixJobState={helix?.job?.state}
-          onOptiChange={onOptiChange}
-          onHelixChange={onHelixChange}
-          onMakoChange={onMakoChange}
-          fsr4JobState={fsr4?.job?.state}
-          onFsr4Change={onFsr4Change}
-          anrJobState={anr?.job?.state}
-          onAnrChange={onAnrChange}
-        />
-      )}
-      {collapsed ? null : backends === null ? (
+      <UpdatesCheck
+        optiJobState={opti?.job?.state}
+        helixJobState={helix?.job?.state}
+        onOptiChange={onOptiChange}
+        onHelixChange={onHelixChange}
+        onMakoChange={onMakoChange}
+        fsr4JobState={fsr4?.job?.state}
+        onFsr4Change={onFsr4Change}
+        anrJobState={anr?.job?.state}
+        onAnrChange={onAnrChange}
+      />
+      {backends === null ? (
         <PanelSectionRow>
           <Field label="Checking…" />
         </PanelSectionRow>

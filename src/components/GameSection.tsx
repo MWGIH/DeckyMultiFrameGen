@@ -50,6 +50,46 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   anrfg: "ANR FG (DLSS frame generation games)",
 };
 
+// The Use list's order: combined options first (most recommended at the top), single methods last; Off stays first
+const CHOICE_ORDER: GameChoice[] = [
+  "none",
+  "helixsr+mako",
+  "optiscaler+helixsr+mako",
+  "optiscaler+helixsr",
+  "optiscaler+mako",
+  "fsr4injector+mako",
+  "helixsr",
+  "optiscaler",
+  "fsr4injector",
+  "mako",
+  "anrfg",
+];
+const choiceRank = (c: GameChoice) => {
+  const i = CHOICE_ORDER.indexOf(c);
+  return i < 0 ? CHOICE_ORDER.length : i;
+};
+
+// One line above Use on what the game is set up with, split into upscaler and frame generation
+const SETUP: Record<GameChoice, [string, string]> = {
+  none: ["", ""],
+  optiscaler: ["OptiScaler", "OptiScaler (with the game's DLSS FG on)"],
+  helixsr: ["HelixSR", "none"],
+  mako: ["the game's own", "MAKO"],
+  "optiscaler+mako": ["OptiScaler", "MAKO"],
+  "helixsr+mako": ["HelixSR", "MAKO"],
+  "optiscaler+helixsr": ["HelixSR in OptiScaler", "OptiScaler (with the game's DLSS FG on)"],
+  "optiscaler+helixsr+mako": ["HelixSR in OptiScaler", "MAKO"],
+  fsr4injector: ["FSR 4 (FSR4 Injector)", "the game's own"],
+  "fsr4injector+mako": ["FSR 4 (FSR4 Injector)", "MAKO"],
+  anrfg: ["the game's own", "ANR FG"],
+};
+
+function setupSummary(choice: GameChoice, running: boolean): string {
+  const [up, fg] = SETUP[choice] ?? ["", ""];
+  const line = choice === "none" ? "Nothing set up: the game runs as it ships" : `Upscaler: ${up} · Frame gen: ${fg}`;
+  return running ? `${line} · Running` : line;
+}
+
 const parts = (choice: GameChoice | null | undefined) =>
   choice ? choice.split("+") : [];
 
@@ -189,12 +229,7 @@ export function GameSection({
     const gameName = detail?.name ?? selected.name ?? "the game";
     setSwitching(choice);
     setOptiFailed(null);
-    // Patching swaps DLLs and launch options: starting the game before it's done can load half of it
-    toast(
-      choice === "none"
-        ? `Removing ${CHOICE_LABELS[detail?.backend ?? "none"]} from ${gameName}. Please wait before starting the game.`
-        : `Patching ${gameName} for ${CHOICE_LABELS[choice].replace(/ \(.*\)$/, "")}. Please wait before starting the game.`,
-    );
+    // One toast per change, once it's done: the panel shows the progress meanwhile
     try {
       const current = detail?.installed ? await readLaunchOptions(id) : null;
       const r = await setGameBackend(
@@ -206,53 +241,45 @@ export function GameSection({
       if (r.ok) {
         if (r.opti && !r.opti.ok) setOptiFailed(selected.appid);
         setDetail((d) => (d ? { ...d, backend: choice } : d));
+        const problems: string[] = [];
+        const hints: string[] = [];
         if (
           r.launch_options != null &&
           !writeLaunchOptions(id, r.launch_options)
-        ) {
-          toast(
+        )
+          problems.push(
             `Couldn't update the launch options. Set them in Steam: ${r.launch_options || "(empty)"}`,
           );
+        if (r.opti) {
+          if (r.opti.ok) hints.push("Select DLSS in the game to get FSR / XeSS; Insert opens OptiScaler's menu.");
+          else problems.push(`OptiScaler wasn't patched in: ${r.opti.error}`);
         }
-        if (r.removed?.length)
-          toast(
-            `Removed ${r.removed.join(" and ")} from this game. Its own files are back.`,
-          );
-        if (r.opti)
-          toast(
-            r.opti.ok
-              ? `OptiScaler is in (${r.opti.dll_name}). In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`
-              : `OptiScaler wasn't patched in: ${r.opti.error}`,
-          );
-        if (r.fsr4)
-          toast(
-            r.fsr4.ok
-              ? "FSR4 Injector is on. Start the game and choose AMD FSR as its upscaler."
-              : `FSR4 Injector wasn't put in: ${r.fsr4.error}`,
-          );
-        if (r.anr)
-          toast(
-            r.anr.ok
-              ? "ANR FG is in. Start the game and turn on DLSS frame generation."
-              : `ANR FG wasn't put in: ${r.anr.error}`,
-          );
-        if (r.helix)
-          toast(
-            r.helix.ok
-              ? r.helix.route === "scaler"
-                ? "HelixSR Scaler is in. In the game, select DLSS (or FSR / XeSS if it has no DLSS). Insert opens its menu."
-                : "HelixSR's FSR drop-in is in. In the game, select AMD FSR as the upscaler."
-              : `HelixSR wasn't put in: ${r.helix.error}`,
-          );
-        if (r.helix_in_opti) {
-          toast(
-            r.helix_in_opti.ok
-              ? "HelixSR added to OptiScaler"
-              : `HelixSR wasn't added: ${r.helix_in_opti.error}`,
-          );
+        if (r.fsr4) {
+          if (r.fsr4.ok) hints.push("Choose AMD FSR as the game's upscaler.");
+          else problems.push(`FSR4 Injector wasn't put in: ${r.fsr4.error}`);
         }
+        if (r.anr) {
+          if (r.anr.ok) hints.push("Turn on DLSS frame generation in the game.");
+          else problems.push(`ANR FG wasn't put in: ${r.anr.error}`);
+        }
+        if (r.helix) {
+          if (!r.helix.ok) problems.push(`HelixSR wasn't put in: ${r.helix.error}`);
+          else if (r.helix.route === "scaler")
+            hints.push("Select DLSS in the game (or FSR / XeSS without DLSS); Insert opens HelixSR's menu.");
+          else hints.push("Select AMD FSR as the game's upscaler.");
+        }
+        if (r.helix_in_opti && !r.helix_in_opti.ok)
+          problems.push(`HelixSR wasn't added to OptiScaler: ${r.helix_in_opti.error}`);
         setOptiChanged((n) => n + 1);
-        toast(`${gameName} is ready. You can start the game now.`);
+        const what =
+          choice === "none"
+            ? `${CHOICE_LABELS[detail?.backend ?? "none"].replace(/ \(.*\)$/, "")} removed from ${gameName}.`
+            : `${gameName} is set to ${CHOICE_LABELS[choice].replace(/ \(.*\)$/, "")}.`;
+        toast(
+          problems.length
+            ? `${what} ${problems.join(" ")}`
+            : `${what} You can start the game now.${hints.length ? " " + hints.join(" ") : ""}`,
+        );
       } else {
         toast(r.message ?? "Couldn't save the choice");
       }
@@ -323,6 +350,14 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
+          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
+            <PanelSectionRow>
+              <Field
+                label={switching !== null ? "Changing the setup…" : setupSummary(detail.backend ?? "none", gameRunning)}
+                bottomSeparator="none"
+              />
+            </PanelSectionRow>
+          )}
           {detail?.ok && gameRunning && (
             <PanelSectionRow>
               <Field
@@ -344,6 +379,8 @@ export function GameSection({
                       c === detail.backend ||
                       parts(c).every((id) => installed.has(id)),
                   )
+                  .slice()
+                  .sort((a, b) => choiceRank(a) - choiceRank(b))
                   .map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
                 selectedOption={detail.backend}
                 disabled={switching !== null || gameRunning}

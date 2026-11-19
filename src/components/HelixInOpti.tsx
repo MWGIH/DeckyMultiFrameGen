@@ -39,7 +39,6 @@ export function HelixInOptiGame({
     tried.current = appid;
     setBusy(true);
     setAutoAdding(true);
-    toast("Adding HelixSR to OptiScaler. Please wait before starting the game.");
     helixsrOptiAdd(appid)
       .then((r) =>
         toast(
