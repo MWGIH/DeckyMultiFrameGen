@@ -137,7 +137,7 @@ function Content() {
         helix={helix}
         collapsed={backendsCollapsed}
         onToggle={toggleBackends}
-        jobs={[opti?.job?.state, helix?.job?.state, fsr4?.job?.state, anr?.job?.state]}
+        jobs={{ opti: opti?.job, helix: helix?.job, fsr4: fsr4?.job, anr: anr?.job }}
         onUpdated={{
           opti: refreshOpti,
           helix: refreshHelix,

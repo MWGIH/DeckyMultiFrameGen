@@ -51,14 +51,21 @@ export type UpdateRefresh = {
   anr: () => void;
 };
 
-// "Update now" under the update notice: everything with an update in one go. A newer MultiFrameGen goes alone first
+// "Update All" under the update notice: everything with an update in one go. A newer MultiFrameGen goes alone first
 // (Decky reloads the plugin, which can change how the rest is updated). Returns the one toast to show.
-export async function updateAll(u: Updates, refresh: UpdateRefresh): Promise<string> {
+export async function updateAll(
+  u: Updates,
+  refresh: UpdateRefresh,
+  onStarting?: (name: string) => void,
+): Promise<{ message: string; started: string[] }> {
   const p = u.plugin;
   if (p.update_available && p.url && p.latest) {
     await updatePlugin(p.url, p.latest, p.sha256);
     const rest = availableUpdates(u).length > 1;
-    return `Updating MultiFrameGen to ${p.latest}.${rest ? " Press Update now again afterwards for the rest." : ""}`;
+    return {
+      message: `Updating MultiFrameGen to ${p.latest}.${rest ? " Press Update All again afterwards for the rest." : ""}`,
+      started: [],
+    };
   }
   const started: string[] = [];
   const failed: string[] = [];
@@ -67,6 +74,7 @@ export async function updateAll(u: Updates, refresh: UpdateRefresh): Promise<str
     work: () => Promise<{ ok?: boolean; success?: boolean; status?: string; error?: string | null; message?: string | null }>,
     after: () => void,
   ) => {
+    onStarting?.(name);
     try {
       const r = await work();
       if (r.ok ?? r.success ?? r.status !== "error") started.push(name);
@@ -95,9 +103,8 @@ export async function updateAll(u: Updates, refresh: UpdateRefresh): Promise<str
     );
   if (mako) promptRestart("The MAKO update");
   const parts = [];
-  if (started.length) parts.push(`Updating ${started.join(", ")}. Progress shows in Backends at the bottom.`);
   if (failed.length) parts.push(`Couldn't update ${failed.join("; ")}.`);
-  return parts.join(" ") || "Nothing to update.";
+  return { message: parts.join(" "), started };
 }
 
 type Props = {

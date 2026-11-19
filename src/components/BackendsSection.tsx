@@ -29,6 +29,8 @@ import { installMako, uninstallMako } from "../mako/api/makoApi";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
 import { rememberUpdates, useAvailableUpdates } from "../dailyUpdateCheck";
+import { ProgressRow } from "./ProgressRow";
+import { backendProgress, jobRunning, type BatchName, type UpdateJobs } from "../updateProgress";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -83,7 +85,7 @@ function usePluginVersion() {
   return version;
 }
 
-// At the top of the panel: the update notice with Update now, and the Show backends switch; the backends open at
+// At the top of the panel: the update notice with Update All, and the Show backends switch; the backends open at
 // the bottom
 export function BackendsHeader({
   helix,
@@ -96,7 +98,7 @@ export function BackendsHeader({
   helix: HelixStatus | null;
   collapsed: boolean;
   onToggle: () => void;
-  jobs: (string | null | undefined)[];
+  jobs: UpdateJobs;
   onUpdated: UpdateRefresh;
 }) {
   const version = usePluginVersion();
@@ -104,32 +106,79 @@ export function BackendsHeader({
   const updates = useAvailableUpdates().filter(
     (u) => !(version && u === `MultiFrameGen ${version}`),
   );
-  const [busy, setBusy] = useState(false);
-  const running = jobs.includes("running");
-  // once the updates started here finish, the notice is checked again so it goes away
+  // the update run started here: what it updates, and which of them have been seen running
+  const [batch, setBatch] = useState<{ names: BatchName[]; seen: BatchName[]; at: number } | null>(null);
+  const [starting, setStarting] = useState<string | null>(null);
+  const running = [jobs.opti, jobs.helix, jobs.fsr4, jobs.anr].some((j) => j?.state === "running");
+  // a backend counts as finished once its job ran and stopped (or, if it was too quick to be seen, after a while)
+  const finished = (n: BatchName) =>
+    n === "MAKO" ||
+    (!jobRunning(n, jobs) && (batch!.seen.includes(n) || Date.now() - batch!.at > 20000));
+  useEffect(() => {
+    if (!batch) return;
+    const nowRunning = batch.names.filter((n) => jobRunning(n, jobs) && !batch.seen.includes(n));
+    if (nowRunning.length) setBatch({ ...batch, seen: [...batch.seen, ...nowRunning] });
+    else if (batch.names.every(finished)) {
+      const failed = batch.names.filter((n) => backendProgress(n, jobs).stage === "failed");
+      setBatch(null);
+      toaster.toast({
+        title: "Updates",
+        body: failed.length
+          ? `Updated, except ${failed.join(", ")}: show backends for what went wrong.`
+          : `${batch.names.join(", ")} updated.`,
+      });
+      checkUpdates()
+        .then(rememberUpdates)
+        .catch(() => undefined);
+    }
+  }, [jobs, batch]);
+  // a run started elsewhere (Backends' own buttons) still clears the notice when it ends
   const wasRunning = useRef(running);
   useEffect(() => {
-    if (wasRunning.current && !running)
+    if (wasRunning.current && !running && !batch)
       checkUpdates()
         .then(rememberUpdates)
         .catch(() => undefined);
     wasRunning.current = running;
   }, [running]);
-  const updateNow = async () => {
-    setBusy(true);
+  const updateAllNow = async () => {
+    setStarting("Checking for updates");
     try {
       const u = await checkUpdates();
       rememberUpdates(u);
-      toaster.toast({ title: "Updates", body: await updateAll(u, onUpdated) });
+      const r = await updateAll(u, onUpdated, (name) => setStarting(`Starting ${name}`));
+      const names = r.started as BatchName[];
+      if (names.some((n) => n !== "MAKO")) setBatch({ names, seen: [], at: Date.now() });
+      else if (names.length) toaster.toast({ title: "Updates", body: `${names.join(", ")} updated.` });
+      if (r.message) toaster.toast({ title: "Updates", body: r.message });
     } catch (e) {
       toaster.toast({ title: "Updates", body: `Couldn't update: ${e}` });
     } finally {
-      setBusy(false);
+      setStarting(null);
     }
   };
+  // one bar over everything being updated: each backend's share is the same, its stages fill it
+  const progress = batch
+    ? (() => {
+        const each = batch.names.map((n) => ({ n, ...backendProgress(n, jobs), done: finished(n) }));
+        const fraction = each.reduce((t, e) => t + (e.done ? 1 : jobRunning(e.n, jobs) ? e.fraction : 0), 0) / each.length;
+        const current = each.find((e) => !e.done);
+        const doneCount = each.filter((e) => e.done).length;
+        return {
+          percent: fraction * 100,
+          title: current
+            ? `Updating ${current.n} (${Math.min(doneCount + 1, each.length)} of ${each.length})`
+            : "Finishing the updates",
+          detail: current ? (jobRunning(current.n, jobs) ? current.stage : "starting") : null,
+        };
+      })()
+    : null;
+  const busy = !!starting || !!batch;
   return (
     <PanelSection title="Backends">
-      {updates.length > 0 && (
+      {starting && <ProgressRow title={starting} detail="Don't close Steam until the updates are done." />}
+      {progress && <ProgressRow title={progress.title} percent={progress.percent} detail={progress.detail} />}
+      {updates.length > 0 && !batch && (
         <>
           <PanelSectionRow>
             <Field
@@ -138,11 +187,13 @@ export function BackendsHeader({
               bottomSeparator="none"
             />
           </PanelSectionRow>
-          <PanelSectionRow>
-            <ButtonItem layout="below" disabled={busy || running} onClick={updateNow}>
-              {busy ? "Starting the updates…" : running ? "Updating…" : "Update now"}
-            </ButtonItem>
-          </PanelSectionRow>
+          {!busy && (
+            <PanelSectionRow>
+              <ButtonItem layout="below" disabled={running} onClick={updateAllNow}>
+                {running ? "Updating…" : "Update All"}
+              </ButtonItem>
+            </PanelSectionRow>
+          )}
         </>
       )}
       <PanelSectionRow>
