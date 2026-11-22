@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
-import { BelowDropdown } from "./BelowDropdown";
+import { ButtonItem, Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
+import { BelowDropdown, openPicker } from "./BelowDropdown";
 import { ProgressRow } from "./ProgressRow";
 import { GAME_NOTES } from "../gameNotes";
 import { toaster } from "@decky/api";
@@ -32,7 +32,7 @@ import { MakoGame } from "./MakoGame";
 import { HelixInOptiGame } from "./HelixInOpti";
 import { Fsr4Game } from "./FSR4Injector";
 import { AnrGame } from "./ANRFG";
-import { GameFiles } from "./GameFiles";
+import { useShowAll } from "../showAll";
 import { GameFolder } from "./GameFolder";
 import { defaultProxyDll } from "../optiscalerOptions";
 
@@ -50,20 +50,53 @@ const CHOICE_LABELS: Record<GameChoice, string> = {
   anrfg: "ANR FG (DLSS frame generation games)",
 };
 
+// The Use list's order (Martin's pick): Off, ANR FG, FSR4 Injector, then combined options, single methods last
+const CHOICE_ORDER: GameChoice[] = [
+  "none",
+  "anrfg",
+  "fsr4injector",
+  "helixsr+mako",
+  "optiscaler+helixsr+mako",
+  "optiscaler+helixsr",
+  "optiscaler+mako",
+  "fsr4injector+mako",
+  "helixsr",
+  "optiscaler",
+  "mako",
+];
+const choiceRank = (c: GameChoice) => {
+  const i = CHOICE_ORDER.indexOf(c);
+  return i < 0 ? CHOICE_ORDER.length : i;
+};
+
+// One line above Use on what the game is set up with, split into upscaler and frame generation
+const SETUP: Record<GameChoice, [string, string]> = {
+  none: ["", ""],
+  optiscaler: ["OptiScaler", "OptiScaler"],
+  helixsr: ["HelixSR", "none"],
+  mako: ["game's own", "MAKO"],
+  "optiscaler+mako": ["OptiScaler", "MAKO"],
+  "helixsr+mako": ["HelixSR", "MAKO"],
+  "optiscaler+helixsr": ["HelixSR in OptiScaler", "OptiScaler"],
+  "optiscaler+helixsr+mako": ["HelixSR in OptiScaler", "MAKO"],
+  fsr4injector: ["FSR 4 (FSR4 Injector)", "game's own"],
+  "fsr4injector+mako": ["FSR 4 (FSR4 Injector)", "MAKO"],
+  anrfg: ["game's own", "ANR FG"],
+};
+
+function setupSummary(choice: GameChoice, running: boolean): string {
+  const [up, fg] = SETUP[choice] ?? ["", ""];
+  const line =
+    choice === "none"
+      ? "Currently set: Off"
+      : `Currently set: ${up} upscaler, ${fg === "none" ? "no" : fg} frame gen`;
+  return running ? `${line} · Running` : line;
+}
+
 const parts = (choice: GameChoice | null | undefined) =>
   choice ? choice.split("+") : [];
 
 const toast = (body: string) => toaster.toast({ title: "MultiFrameGen", body });
-
-const SHOW_ALL_KEY = "multifg:showAllChoices";
-
-function readShowAll(): boolean {
-  try {
-    return localStorage.getItem(SHOW_ALL_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 // Under Use: what the game ships, and which choices that leaves out
 function useDescription(detail: GameDetail, showAll: boolean): string | undefined {
@@ -72,7 +105,8 @@ function useDescription(detail: GameDetail, showAll: boolean): string | undefine
     ? `Found in the game: ${detail.upscalers.join(", ")}.`
     : "No FSR, DLSS or XeSS files found in the game.";
   const hidden = (detail.hidden ?? []).filter((h) => !h.choice.endsWith("+mako"));
-  if (!hidden.length || showAll) return found;
+  if (showAll) return `${found} Showing all options (Debug).`;
+  if (!hidden.length) return found;
   const left = hidden
     .map(
       (h) =>
@@ -162,15 +196,7 @@ export function GameSection({
       );
   };
 
-  const [showAll, setShowAllState] = useState(readShowAll);
-  const setShowAll = (on: boolean) => {
-    setShowAllState(on);
-    try {
-      localStorage.setItem(SHOW_ALL_KEY, on ? "1" : "0");
-    } catch {
-      // just not remembered
-    }
-  };
+  const [showAll] = useShowAll();
   // The choice being patched in (or "none" while a method is taken out); null when nothing is running
   const [switching, setSwitching] = useState<GameChoice | null>(null);
   // Switching swaps DLLs and launch options the running game already loaded, so it waits until the game is closed
@@ -189,12 +215,7 @@ export function GameSection({
     const gameName = detail?.name ?? selected.name ?? "the game";
     setSwitching(choice);
     setOptiFailed(null);
-    // Patching swaps DLLs and launch options: starting the game before it's done can load half of it
-    toast(
-      choice === "none"
-        ? `Removing ${CHOICE_LABELS[detail?.backend ?? "none"]} from ${gameName}. Please wait before starting the game.`
-        : `Patching ${gameName} for ${CHOICE_LABELS[choice].replace(/ \(.*\)$/, "")}. Please wait before starting the game.`,
-    );
+    // One toast per change, once it's done: the panel shows the progress meanwhile
     try {
       const current = detail?.installed ? await readLaunchOptions(id) : null;
       const r = await setGameBackend(
@@ -206,53 +227,45 @@ export function GameSection({
       if (r.ok) {
         if (r.opti && !r.opti.ok) setOptiFailed(selected.appid);
         setDetail((d) => (d ? { ...d, backend: choice } : d));
+        const problems: string[] = [];
+        const hints: string[] = [];
         if (
           r.launch_options != null &&
           !writeLaunchOptions(id, r.launch_options)
-        ) {
-          toast(
+        )
+          problems.push(
             `Couldn't update the launch options. Set them in Steam: ${r.launch_options || "(empty)"}`,
           );
+        if (r.opti) {
+          if (r.opti.ok) hints.push("Select DLSS in the game to get FSR / XeSS; Insert opens OptiScaler's menu.");
+          else problems.push(`OptiScaler wasn't patched in: ${r.opti.error}`);
         }
-        if (r.removed?.length)
-          toast(
-            `Removed ${r.removed.join(" and ")} from this game. Its own files are back.`,
-          );
-        if (r.opti)
-          toast(
-            r.opti.ok
-              ? `OptiScaler is in (${r.opti.dll_name}). In the game, select DLSS to get FSR / XeSS. Insert opens OptiScaler's menu.`
-              : `OptiScaler wasn't patched in: ${r.opti.error}`,
-          );
-        if (r.fsr4)
-          toast(
-            r.fsr4.ok
-              ? "FSR4 Injector is on. Start the game and choose AMD FSR as its upscaler."
-              : `FSR4 Injector wasn't put in: ${r.fsr4.error}`,
-          );
-        if (r.anr)
-          toast(
-            r.anr.ok
-              ? "ANR FG is in. Start the game and turn on DLSS frame generation."
-              : `ANR FG wasn't put in: ${r.anr.error}`,
-          );
-        if (r.helix)
-          toast(
-            r.helix.ok
-              ? r.helix.route === "scaler"
-                ? "HelixSR Scaler is in. In the game, select DLSS (or FSR / XeSS if it has no DLSS). Insert opens its menu."
-                : "HelixSR's FSR drop-in is in. In the game, select AMD FSR as the upscaler."
-              : `HelixSR wasn't put in: ${r.helix.error}`,
-          );
-        if (r.helix_in_opti) {
-          toast(
-            r.helix_in_opti.ok
-              ? "HelixSR added to OptiScaler"
-              : `HelixSR wasn't added: ${r.helix_in_opti.error}`,
-          );
+        if (r.fsr4) {
+          if (r.fsr4.ok) hints.push("Choose AMD FSR as the game's upscaler.");
+          else problems.push(`FSR4 Injector wasn't put in: ${r.fsr4.error}`);
         }
+        if (r.anr) {
+          if (r.anr.ok) hints.push("Turn on DLSS frame generation in the game.");
+          else problems.push(`ANR FG wasn't put in: ${r.anr.error}`);
+        }
+        if (r.helix) {
+          if (!r.helix.ok) problems.push(`HelixSR wasn't put in: ${r.helix.error}`);
+          else if (r.helix.route === "scaler")
+            hints.push("Select DLSS in the game (or FSR / XeSS without DLSS); Insert opens HelixSR's menu.");
+          else hints.push("Select AMD FSR as the game's upscaler.");
+        }
+        if (r.helix_in_opti && !r.helix_in_opti.ok)
+          problems.push(`HelixSR wasn't added to OptiScaler: ${r.helix_in_opti.error}`);
         setOptiChanged((n) => n + 1);
-        toast(`${gameName} is ready. You can start the game now.`);
+        const what =
+          choice === "none"
+            ? `${CHOICE_LABELS[detail?.backend ?? "none"].replace(/ \(.*\)$/, "")} removed from ${gameName}.`
+            : `${gameName} is set to ${CHOICE_LABELS[choice].replace(/ \(.*\)$/, "")}.`;
+        toast(
+          problems.length
+            ? `${what} ${problems.join(" ")}`
+            : `${what} You can start the game now.${hints.length ? " " + hints.join(" ") : ""}`,
+        );
       } else {
         toast(r.message ?? "Couldn't save the choice");
       }
@@ -323,32 +336,49 @@ export function GameSection({
               />
             </PanelSectionRow>
           )}
+          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
+            <PanelSectionRow>
+              <Field
+                label={switching !== null ? "Changing the setup…" : setupSummary(detail.backend ?? "none", gameRunning)}
+                bottomSeparator="none"
+              />
+            </PanelSectionRow>
+          )}
           {detail?.ok && gameRunning && (
             <PanelSectionRow>
               <Field
-                label="⚠️ Close the game to change Use"
+                label="⚠️ Close the game to change the option"
                 description="Changing it while the game runs swaps files the game has open and can crash it, and new launch options only apply on the next start. Exit the game, then pick again."
               />
             </PanelSectionRow>
           )}
           {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
             <PanelSectionRow>
-              <BelowDropdown
-                label="Use"
+              <ButtonItem
+                layout="below"
                 description={useDescription(detail, showAll)}
-                rgOptions={((showAll ? detail.all_choices : null) ?? detail.choices ?? [])
-                  // only methods that are installed, plus whatever the game is set to now
-                  .filter(
-                    (c) =>
-                      c === "none" ||
-                      c === detail.backend ||
-                      parts(c).every((id) => installed.has(id)),
-                  )
-                  .map((c) => ({ data: c, label: CHOICE_LABELS[c] }))}
-                selectedOption={detail.backend}
                 disabled={switching !== null || gameRunning}
-                onChange={(o) => choose(o.data as GameChoice)}
-              />
+                onClick={() =>
+                  openPicker(
+                    "Use",
+                    ((showAll ? detail.all_choices : null) ?? detail.choices ?? [])
+                      // only methods that are installed, plus whatever the game is set to now
+                      .filter(
+                        (c) =>
+                          c === "none" ||
+                          c === detail.backend ||
+                          parts(c).every((id) => installed.has(id)),
+                      )
+                      .slice()
+                      .sort((a, b) => choiceRank(a) - choiceRank(b))
+                      .map((c) => ({ data: c, label: CHOICE_LABELS[c] })),
+                    detail.backend,
+                    (o) => choose(o.data as GameChoice),
+                  )
+                }
+              >
+                {(detail.backend ?? "none") === "none" ? "Choose an option" : "Change option"}
+              </ButtonItem>
             </PanelSectionRow>
           )}
           {switching !== null && (
@@ -361,21 +391,6 @@ export function GameSection({
               detail="Don't start the game until this is done."
             />
           )}
-          {detail?.ok && (detail.installed || !detail.non_steam || detail.backend !== "none") && (
-            <PanelSectionRow>
-              <ToggleField
-                label="Show all Use options"
-                description={
-                  showAll
-                    ? "Every installed method is offered, whatever the game ships."
-                    : "Off: only the methods that can work with the game's upscaler files. Turn on if detection got it wrong or to experiment."
-                }
-                checked={showAll}
-                onChange={setShowAll}
-              />
-            </PanelSectionRow>
-          )}
-          {detail?.ok && detail.installed && <GameFiles files={detail.files} running={detail.running_exes} />}
           {detail?.ok &&
             detail.installed &&
             parts(detail.backend).includes("helixsr") &&

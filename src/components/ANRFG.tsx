@@ -236,11 +236,6 @@ export function AnrGame({ appid, status }: { appid: string; status: AnrStatus | 
               onChange={(o) => setSize(String(o.data))}
             />
           </PanelSectionRow>
-          {game.log && (
-            <PanelSectionRow>
-              <Field label="Newest ANR FG log" description={game.log} />
-            </PanelSectionRow>
-          )}
           <PanelSectionRow>
             <ButtonItem layout="below" disabled={busy} onClick={putIn}>
               Put ANR FG in again

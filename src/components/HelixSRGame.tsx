@@ -5,18 +5,15 @@ import {
   Field,
   PanelSectionRow,
   showModal,
-  ToggleField,
 } from "@decky/ui";
 import { BelowDropdown } from "./BelowDropdown";
 import { toaster } from "@decky/api";
-import { HelixLog } from "./HelixLog";
 import {
   helixsrGameStatus,
   helixsrInstallGame,
   type HelixGame,
   type HelixRoute,
   type HelixStatus,
-  helixsrScalerLogging,
 } from "../api";
 import {
   readLaunchOptions,
@@ -208,39 +205,6 @@ export function HelixSRGame({
           }
         />
       </PanelSectionRow>
-      {game.installed && (
-        <HelixLog
-          log={game.runtime_log}
-          missing="HelixSR writes a log when the game loads it. If there is none after playing with the right upscaler selected, the game didn't load HelixSR."
-        />
-      )}
-      {game.installed && game.current === "scaler" ? (
-        <PanelSectionRow>
-          <ToggleField
-            label="Write OptiScaler's log"
-            description="Off by default. On, HelixSR Scaler writes OptiScaler.log next to the game's .exe, which shows how far the game gets when it crashes before HelixSR loads. It slows the game a little: turn it off again afterwards."
-            checked={!!game.opti_logging}
-            onChange={async (on) => {
-              const r = await helixsrScalerLogging(appid, on);
-              if (!r.ok) toast(r.error ?? "Couldn't change OptiScaler's log");
-              load();
-            }}
-          />
-        </PanelSectionRow>
-      ) : (
-        <PanelSectionRow>
-          <ToggleField
-            label="Write OptiScaler's log"
-            description={
-              game.installed
-                ? "Only for HelixSR Scaler: the FSR drop-in has no OptiScaler. HelixSR's own log is above."
-                : "Available once HelixSR Scaler is installed in this game."
-            }
-            checked={false}
-            disabled
-          />
-        </PanelSectionRow>
-      )}
       {game.graphics === "vulkan" && (
         <PanelSectionRow>
           <Field
