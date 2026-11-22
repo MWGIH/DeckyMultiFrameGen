@@ -256,6 +256,8 @@ export type HelixFgStatus = {
   // HelixSR's frame generation is in the game (OptiScaler/custom/HelixSR-FG)
   available?: boolean;
   enabled?: boolean | null;
+  // why it can't be switched on here (anti-cheat, MAKO in the game's choice), or null
+  blocked?: string | null;
   streamline?: { version: string | null; missing: string[] };
   log?: {
     path: string;

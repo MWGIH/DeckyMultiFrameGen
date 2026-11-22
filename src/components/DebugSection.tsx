@@ -5,11 +5,13 @@ import {
   anrGameStatus,
   getGame,
   type GameDetail,
+  helixsrFg,
   helixsrGameStatus,
   helixsrOptiStatus,
   helixsrScalerLogging,
   type AnrGame,
   type GameChoice,
+  type HelixFgStatus,
   type HelixGame,
   type HelixInOpti,
   type HelixStatus,
@@ -33,7 +35,13 @@ function readShown(): boolean {
 // HelixSR on its own in the game: its log, and OptiScaler's log for HelixSR Scaler
 function HelixGameDebug({ appid }: { appid: string }) {
   const [game, setGame] = useState<HelixGame | null>(null);
-  const load = () => helixsrGameStatus(appid).then(setGame);
+  const [fg, setFg] = useState<HelixFgStatus | null>(null);
+  const load = () =>
+    helixsrGameStatus(appid).then((g) => {
+      setGame(g);
+      if (g?.installed && g.current === "scaler") helixsrFg(appid).then(setFg);
+      else setFg(null);
+    });
   useEffect(() => {
     load();
   }, [appid]);
@@ -58,6 +66,13 @@ function HelixGameDebug({ appid }: { appid: string }) {
             }}
           />
         </PanelSectionRow>
+      )}
+      {game.current === "scaler" && fg?.ok && fg.enabled && (
+        <HelixLog
+          name="HelixSR frame generation"
+          log={fg.log}
+          missing="It writes a log once the game turns DLSS Frame Generation on."
+        />
       )}
     </>
   );

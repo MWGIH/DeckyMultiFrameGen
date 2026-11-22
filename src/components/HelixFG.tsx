@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { ButtonItem, PanelSectionRow, ToggleField } from "@decky/ui";
 import { toaster } from "@decky/api";
-import { HelixLog } from "./HelixLog";
 import { helixsrFg, helixsrFixStreamline, type HelixFgStatus } from "../api";
 
 function toast(body: string) {
@@ -9,7 +8,7 @@ function toast(body: string) {
 }
 
 // HelixSR's own frame generation in a game with HelixSR Scaler: its switch, the Streamline plugins OptiScaler's own
-// Streamline lacks, and its log (multifg.helix_fg).
+// Streamline lacks (multifg.helix_fg). Its log is in the Debug section.
 export function HelixFG({ appid }: { appid: string }) {
   const [fg, setFg] = useState<HelixFgStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,16 +55,19 @@ export function HelixFG({ appid }: { appid: string }) {
         <ToggleField
           label="HelixSR frame generation"
           description={
-            !fg.available
+            fg.blocked
+              ? fg.blocked
+              : !fg.available
               ? "Not in this game: HelixSR 3.4 or newer builds it with its setup; install HelixSR in the game again afterwards."
               : "Runs when the game's DLSS Frame Generation is on. It spoofs an NVIDIA GPU and hardware GPU scheduling so the game offers it, and turns off OptiScaler's .asi plugins (OptiPatcher), which undo the spoofing. Close the game first."
           }
           checked={!!fg.enabled}
-          disabled={busy || !fg.available}
+          // when blocked it can still be switched off (turned on before the game got MAKO or an anti-cheat note)
+          disabled={busy || !fg.available || (!!fg.blocked && !fg.enabled)}
           onChange={toggle}
         />
       </PanelSectionRow>
-      {missing.length > 0 && (
+      {missing.length > 0 && !fg.blocked && (
         <PanelSectionRow>
           <ButtonItem
             layout="below"
@@ -76,13 +78,6 @@ export function HelixFG({ appid }: { appid: string }) {
             Get the missing Streamline files from NVIDIA
           </ButtonItem>
         </PanelSectionRow>
-      )}
-      {fg.enabled && (
-        <HelixLog
-          name="HelixSR frame generation"
-          log={fg.log}
-          missing="It writes a log once the game turns DLSS Frame Generation on."
-        />
       )}
     </>
   );

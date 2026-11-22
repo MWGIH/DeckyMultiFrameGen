@@ -403,6 +403,18 @@ async def _opti_target(appid: str) -> str | None:
     return st.get("target_dir") if st.get("patched") else None
 
 
+def _helix_fg_blocked(appid: str, game: dict) -> str | None:
+    """Why HelixSR's frame generation can't be switched on in this game, or None: it spoofs an NVIDIA GPU, which
+    anti-cheat may flag, and with MAKO in the game's choice MAKO generates the frames (two frame generators must not
+    run together)."""
+    if game.get("anticheat"):
+        return (f"Not in games with anti-cheat ({', '.join(game['anticheat'])}): it makes the game see an NVIDIA GPU, "
+                "which can get you banned online.")
+    if "mako" in SETTINGS.game_choice(appid).split("+"):
+        return "Not with MAKO: MAKO does the frame generation in this game."
+    return None
+
+
 async def _opti_frame_generation_off(appid: str, helix: dict | None = None) -> None:
     """With MAKO in the game, OptiScaler's frame generation goes off: in the OptiScaler Decky Framegen put in, and in
     HelixSR Scaler (an OptiScaler build next to the game's .exe)."""
@@ -416,6 +428,9 @@ async def _opti_frame_generation_off(appid: str, helix: dict | None = None) -> N
             except Exception:
                 helix = {}
         if helix.get("current") == "scaler" and helix.get("exe_folder"):
+            # HelixSR's frame generation goes back off first, so its spoofing settings are restored too
+            if await asyncio.to_thread(helix_fg.enabled, helix["exe_folder"]):
+                await asyncio.to_thread(helix_fg.switch, helix["exe_folder"], False)
             await asyncio.to_thread(helix_opti.frame_generation_off, helix["exe_folder"])
     except Exception:
         decky.logger.exception("OptiScaler frame generation off")
@@ -914,12 +929,15 @@ class Plugin:
         folder = game.get("exe_folder")
         if game.get("current") != "scaler" or not folder:
             return {"ok": False, "error": "HelixSR Scaler isn't installed in this game"}
+        blocked = _helix_fg_blocked(appid, game)
         if on is not None:
+            if on and blocked:
+                return {"ok": False, "error": blocked, "blocked": blocked}
             if on and not await asyncio.to_thread(helix_fg.available, folder):
                 return {"ok": False, "error": "HelixSR's frame generation isn't in this game: install HelixSR again "
                                               "after its setup built it (HelixSR 3.4 or newer)"}
             await asyncio.to_thread(helix_fg.switch, folder, bool(on))
-        return {"ok": True, **await asyncio.to_thread(helix_fg.status, folder)}
+        return {"ok": True, "blocked": blocked, **await asyncio.to_thread(helix_fg.status, folder)}
 
     async def helixsr_fix_streamline(self, appid: str) -> dict:
         """Adds the Streamline plugins OptiScaler's Streamline folder lacks (from NVIDIA's SDK of its version)."""
@@ -927,6 +945,8 @@ class Plugin:
         folder = game.get("exe_folder")
         if game.get("current") != "scaler" or not folder:
             return {"ok": False, "error": "HelixSR Scaler isn't installed in this game"}
+        if game.get("anticheat"):
+            return {"ok": False, "error": _helix_fg_blocked(appid, game)}
         return await asyncio.to_thread(helix_fg.fix_streamline, folder)
 
     async def helixsr_uninstall_game(self, appid: str) -> dict:
