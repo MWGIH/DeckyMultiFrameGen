@@ -551,6 +551,13 @@ CONFIG_SCHEMA_DEF: Dict[str, ConfigFieldDefinition] = {
         "location": "script"
     },
 
+    "enable_low_latency": {
+        "fieldType": ConfigFieldType.BOOLEAN,
+        "default": False,
+        "description": "Enable Proton-CachyOS DXVK (DX9-11) and VKD3D (DX12) low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly; no effect on Valve Proton",
+        "location": "script"
+    },
+
     "force_alsa_audio": {
         "fieldType": ConfigFieldType.BOOLEAN,
         "default": False,

@@ -6,6 +6,7 @@ import {
   DYNAMIC_CADENCE_PROBE_INTERVAL_SECONDS,
   DYNAMIC_CADENCE_PROBE_INTERVAL_SECONDS_VALUES,
   ENABLE_ZINK,
+  ENABLE_LOW_LATENCY,
   FORCE_ALSA_AUDIO,
   GAMESCOPE_WSI_COMPATIBILITY,
   MAILBOX_PRESENTATION_COMPATIBILITY,
@@ -292,6 +293,25 @@ export function CompatibilityConfigurationGroup({
               )}
               checked={config.enable_zink}
               onChange={(value) => onConfigChange(ENABLE_ZINK, value)}
+            />
+          </PanelSectionRow>
+
+          <PanelSectionRow>
+            <ToggleField
+              label={
+                <MakoRestartLabel
+                  label={t(
+                    "CONFIG_ENABLE_LOW_LATENCY",
+                    "Low Latency Mode (Restart)",
+                  )}
+                />
+              }
+              description={t(
+                "CONFIG_ENABLE_LOW_LATENCY_DESC",
+                "Needs Proton-CachyOS; no effect on Valve Proton. Enables DXVK (DX9–11) and VKD3D (DX12) low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly, which can improve FG cadence and reduce ghosting. Restart the game after changing.",
+              )}
+              checked={config.enable_low_latency}
+              onChange={(value) => onConfigChange(ENABLE_LOW_LATENCY, value)}
             />
           </PanelSectionRow>
 
