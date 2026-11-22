@@ -308,7 +308,7 @@ export function CompatibilityConfigurationGroup({
               }
               description={t(
                 "CONFIG_ENABLE_LOW_LATENCY_DESC",
-                "Enables Proton/DXVK low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly, which can improve FG cadence and reduce ghosting. Restart the game after changing.",
+                "Needs Proton-CachyOS; no effect on Valve Proton. Enables DXVK (DX9–11) and VKD3D (DX12) low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly, which can improve FG cadence and reduce ghosting. Restart the game after changing.",
               )}
               checked={config.enable_low_latency}
               onChange={(value) => onConfigChange(ENABLE_LOW_LATENCY, value)}

@@ -501,7 +501,7 @@ export const CONFIG_SCHEMA: Record<string, ConfigField> = {
     name: "enable_low_latency",
     fieldType: ConfigFieldType.BOOLEAN,
     default: false,
-    description: "Enable Proton/DXVK low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly"
+    description: "Enable Proton-CachyOS DXVK (DX9-11) and VKD3D (DX12) low-latency frame pacing so real frames reach MAKO frame generation sooner and more evenly; no effect on Valve Proton"
   },
   force_alsa_audio: {
     name: "force_alsa_audio",

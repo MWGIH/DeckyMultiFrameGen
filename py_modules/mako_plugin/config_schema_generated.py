@@ -217,8 +217,11 @@ def get_script_generation_logic():
                 "export MAKO_GAMESCOPE_COMPOSITE_FORCE=1",
             ])
         if config.get("enable_low_latency", False):
-            lines.append("export PROTON_DXVK_LOWLATENCY=1")
-            lines.append("export DXVK_FRAME_PACE=low-latency")
+            lines.extend([
+                "export PROTON_DXVK_LOWLATENCY=1",
+                "export DXVK_FRAME_PACE=low-latency",
+                "export PROTON_VKD3D_LOWLATENCY=1",
+            ])
         if config.get("force_alsa_audio", False):
             lines.extend([
                 "export SDL_AUDIODRIVER=alsa",
