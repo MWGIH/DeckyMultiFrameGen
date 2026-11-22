@@ -8,6 +8,12 @@ import support
 
 from multifg import helix_fg, helix_opti
 
+
+def _read_raw(path):
+    """The file's text with its line endings as they are (Path.read_text has no newline argument before 3.13)."""
+    with open(path, newline="") as f:
+        return f.read()
+
 INI = ("[FrameGen]\r\nEnabled=auto\r\nFGInput = auto\r\nFGNvngxReplacement=auto\r\n\r\n"
        "[Spoofing]\r\nDxgi=auto\r\nSpoofHAGS=auto\r\n\r\n[Plugins]\r\nLoadAsiPlugins=true\r\n")
 
@@ -25,32 +31,32 @@ class SwitchTests(unittest.TestCase):
 
     def test_on_sets_everything_and_off_puts_the_earlier_values_back(self):
         self.assertTrue(helix_fg.switch(self.game, True))
-        text = (self.game / "OptiScaler.ini").read_text(newline="")
+        text = _read_raw(self.game / "OptiScaler.ini")
         for (s, k), v in helix_fg.SETTINGS.items():
             self.assertEqual(helix_opti.ini_get(text, s, k), v)
         self.assertIn("FGInput = NvngxFG\r\n", text)   # OptiScaler's spaced style stays
 
         self.assertFalse(helix_fg.switch(self.game, False))
-        self.assertEqual((self.game / "OptiScaler.ini").read_text(newline=""), INI)
+        self.assertEqual(_read_raw(self.game / "OptiScaler.ini"), INI)
         self.assertFalse((self.game / helix_fg.RECORD).exists())
 
     def test_off_leaves_values_changed_by_hand(self):
         helix_fg.switch(self.game, True)
         ini = self.game / "OptiScaler.ini"
-        ini.write_text(helix_opti.ini_set(ini.read_text(newline=""), "Spoofing", "Dxgi", "false"), newline="")
+        ini.write_text(helix_opti.ini_set(_read_raw(ini), "Spoofing", "Dxgi", "false"), newline="")
         helix_fg.switch(self.game, False)
-        self.assertEqual(helix_opti.ini_get(ini.read_text(newline=""), "Spoofing", "Dxgi"), "false")
+        self.assertEqual(helix_opti.ini_get(_read_raw(ini), "Spoofing", "Dxgi"), "false")
 
     def test_frame_generation_switched_off_for_mako_comes_back_and_goes_off_again(self):
         ini = self.game / "OptiScaler.ini"
         off = helix_opti.ini_set(INI.replace("Enabled=auto", "Enabled=false"), "FrameGen", "FGOutput", "nofg")
         ini.write_text(off, newline="")
         helix_fg.switch(self.game, True)
-        text = ini.read_text(newline="")
+        text = _read_raw(ini)
         self.assertEqual(helix_opti.ini_get(text, "FrameGen", "Enabled"), "auto")
         self.assertEqual(helix_opti.ini_get(text, "FrameGen", "FGOutput"), "auto")
         helix_fg.switch(self.game, False)
-        self.assertEqual(ini.read_text(newline=""), off)
+        self.assertEqual(_read_raw(ini), off)
 
     def test_no_optiscaler(self):
         self.assertIsNone(helix_fg.switch(self.game / "missing", True))
