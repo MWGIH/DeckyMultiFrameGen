@@ -20,16 +20,16 @@ CHUNK = 1 << 20
 USER_AGENT = "Mozilla/5.0"
 UPSCALER = "amd_fidelityfx_upscaler_dx12.dll"
 
-# Steam Deck / RDNA2 iGPU archive (dll-2026-11-05). The .7z (about 9 MB) holds the same DLLs as the 100 MB .zip;
+# Steam Deck / RDNA2 iGPU archive (dll-2026-11-22). The .7z (about 9 MB) holds the same DLLs as the 100 MB .zip;
 # 7z is already needed for OptiScaler's own archives.
 RELEASE = {
-    "tag": "dll-2026-11-05",
-    "name": "fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.7z",
+    "tag": "dll-2026-11-22",
+    "name": "fsr4.1.2-igpu-cyboman-rdna2-2026-11-22.7z",
     "url": (
         "https://github.com/zgauthier2000/fsr4-shader-performance-overrides/releases/download/"
-        "dll-2026-11-05/fsr4.1.2-igpu-cyboman-rdna2-2026-11-05.7z"
+        "dll-2026-11-22/fsr4.1.2-igpu-cyboman-rdna2-2026-11-22.7z"
     ),
-    "sha256": "da7c7681bffe7ac60a01e859d5b107900d963557793ef67ddcfd03a832e1c03f",
+    "sha256": "8dd65d22b20f968f0d6529716cbcd05b12ca93d8e543f1e878fc5e08bbb1099c",
     "project": "https://github.com/zgauthier2000/fsr4-shader-performance-overrides",
 }
 
@@ -42,8 +42,8 @@ VARIANTS = {
         "archive_folder": "lossy",
         "label": "FSR 4.1.2 Lossy (Cyboman)",
         "dir_name": "fsr4-cyboman-lossy",
-        "sha256": "d34dd6c9841e290ccb29f4cc129a3b6fd3ba5a9d3c5a0379119311bdf66534ff",
-        "size": 56302080,
+        "sha256": "d376cebf14d055f906ea3b17296fa7d59d52e2fc8626c488e63fd4197aa06433",
+        "size": 56812544,
         "lite": False,
         "hint": (
             "Cyboman's lossy FSR 4.1.2 build for Steam Deck / RDNA2 iGPUs: about 30% faster on the Deck than the Valve Deck build, by skipping "
@@ -56,8 +56,8 @@ VARIANTS = {
         "label": "FSR 4.1.2 Lite Lossy (Cyboman)",
         "dir_name": "fsr4-cyboman-lite-lossy",
         "archive_folder": "4.1.2l-lossy",
-        "sha256": "06b55e8d3a588b15b5ec93d52a306473f5d78cb899b4699f6f63ed9d6f88a71a",
-        "size": 51491328,
+        "sha256": "851b95d11dd007691f3743999f634e5ce20816843d6c2b63f31be0f65ed9f2a9",
+        "size": 52067840,
         "lite": True,
         "hint": (
             "Cyboman's lossy FSR 4.1.2 Lite build for Steam Deck / RDNA2 iGPUs: about 13–22% faster than "
