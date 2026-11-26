@@ -248,6 +248,9 @@ PROXY_DLL_BACKUPS = [
 ]
 
 VALID_DLL_NAMES = set(PROXY_DLL_BACKUPS)
+# A file under a proxy name OptiScaler isn't using is a mod's (RED4ext and many mod loaders are winmm.dll or
+# version.dll): a patch, an unpatch and the game update check leave it alone
+_PROXY_SET = set(PROXY_DLL_BACKUPS)
 
 INJECTOR_FILENAMES = [
     *PROXY_DLL_BACKUPS,
@@ -514,10 +517,26 @@ class OptiScaler:
     def _has_patch_fingerprint(self, directory: Path) -> bool:
         return any((directory / filename).exists() for filename in PATCH_FINGERPRINT_FILES)
 
-    def _backup_preexisting_proxy_files(self, directory: Path, fgmod_path: Path) -> list[str]:
+    def _is_optiscaler_copy(self, file_path: Path, fgmod_path: Path) -> bool:
+        """An OptiScaler build (Decky Framegen's or another), never a mod's or the game's own DLL."""
+        if self._is_bundled_proxy_copy(file_path, fgmod_path):
+            return True
+        try:
+            return b"OptiScaler" in file_path.read_bytes()
+        except OSError:
+            return False
+
+    def _foreign_proxy(self, file_path: Path, dll_name: str | None, fgmod_path: Path) -> bool:
+        """A file under a proxy name OptiScaler isn't loaded as, that isn't OptiScaler: a mod's, left where it is."""
+        return (file_path.name in _PROXY_SET and file_path.name != dll_name and file_path.is_file()
+                and not self._is_optiscaler_copy(file_path, fgmod_path))
+
+    def _backup_preexisting_proxy_files(self, directory: Path, fgmod_path: Path, dll_name: str) -> list[str]:
+        """The game's (or a mod's) file under the proxy name OptiScaler goes in as is kept aside as .b; files under the
+        other proxy names stay where they are."""
         backed_up: list[str] = []
         already_patched = self._has_patch_fingerprint(directory)
-        for filename in PROXY_DLL_BACKUPS:
+        for filename in [dll_name]:
             source = directory / filename
             backup = directory / f"{filename}.b"
             if not source.exists() or backup.exists():
@@ -1424,7 +1443,7 @@ class OptiScaler:
             )
 
             already_patched = self._has_patch_fingerprint(directory)
-            backed_up_proxies = self._backup_preexisting_proxy_files(directory, fgmod_path)
+            backed_up_proxies = self._backup_preexisting_proxy_files(directory, fgmod_path, dll_name)
             decky.logger.info(
                 f"Backed up pre-existing proxy files: {backed_up_proxies}"
                 if backed_up_proxies
@@ -1459,11 +1478,17 @@ class OptiScaler:
             )
 
             removed_patch_files = []
+            kept_foreign = []
             for filename in dict.fromkeys(PATCH_CLEANUP_FILES):
                 path = directory / filename
+                if self._foreign_proxy(path, dll_name, fgmod_path):
+                    kept_foreign.append(filename)
+                    continue
                 if path.exists():
                     path.unlink()
                     removed_patch_files.append(filename)
+            if kept_foreign:
+                decky.logger.info(f"Left alone (not OptiScaler, another proxy name): {kept_foreign}")
             decky.logger.info(
                 f"Removed stale patch files: {removed_patch_files}"
                 if removed_patch_files
@@ -1587,9 +1612,16 @@ class OptiScaler:
         try:
             decky.logger.info(f"Manual unpatch started for {directory}")
 
+            fgmod_path = Path(decky.HOME) / "fgmod"
+            marker = directory / MARKER_FILENAME
+            active = self._read_marker(marker).get("dll_name") if marker.is_file() else None
             removed_files = []
+            kept_foreign = []
             for filename in set(INJECTOR_FILENAMES + SUPPORT_FILES + VARIANT_EXTRA_FILENAMES + [FSR4_UPSCALER_FILENAME]):
                 path = directory / filename
+                if self._foreign_proxy(path, active, fgmod_path):
+                    kept_foreign.append(filename)
+                    continue
                 if path.exists():
                     path.unlink()
                     removed_files.append(filename)
@@ -1621,6 +1653,9 @@ class OptiScaler:
                 backup = directory / f"{dll}.b"
                 original = directory / dll
                 if backup.exists():
+                    if dll in kept_foreign:
+                        # a mod's file put in after the patch: it stays in use, the older one stays as .b
+                        continue
                     if original.exists():
                         original.unlink()
                     shutil.move(backup, original)
@@ -1869,6 +1904,7 @@ class OptiScaler:
         optiscaler_version: str | None = None,
         fsr4_variant: str | None = None,
         fsr4_upscaler_sha256: str | None = None,
+        steam_build: str | None = None,
     ) -> None:
         normalized_variant = self._normalize_fsr4_variant(fsr4_variant)
         variant_info = FSR4_VARIANTS[normalized_variant]
@@ -1893,6 +1929,7 @@ class OptiScaler:
             ],
             "patched_at": datetime.now(timezone.utc).isoformat(),
             "file_stamps": self._file_stamps(target_dir),
+            "steam_build": steam_build,
         }
         self._write_json_file(marker_path, payload)
 
@@ -1911,11 +1948,14 @@ class OptiScaler:
 
     def _files_changed_since_patch(self, target_dir: Path, metadata: dict) -> tuple[list[str], bool]:
         """WATCHED_FILES that something other than the patch wrote, added or removed since; and whether that is known
-        for sure (the marker has file_stamps) or guessed from write times (a marker from an older plugin version)."""
-        now = self._file_stamps(target_dir)
+        for sure (the marker has file_stamps) or guessed from write times (a marker from an older plugin version).
+        Proxy names other than the one OptiScaler is loaded as aren't looked at: a file there is a mod's."""
+        dll_name = metadata.get("dll_name") or "dxgi.dll"
+        names = [n for n in WATCHED_FILES if n not in _PROXY_SET or n == dll_name]
+        now = {n: v for n, v in self._file_stamps(target_dir).items() if n in names}
         recorded = metadata.get("file_stamps")
         if isinstance(recorded, dict):
-            return [n for n in WATCHED_FILES if now.get(n) != recorded.get(n)], True
+            return [n for n in names if now.get(n) != recorded.get(n)], True
         try:
             patched = datetime.fromisoformat(str(metadata.get("patched_at"))).timestamp()
         except (TypeError, ValueError):
@@ -1945,10 +1985,27 @@ class OptiScaler:
             kept.append(name)
         return kept
 
-    async def refresh_after_game_update(self, appid: str, fsr4_variant: str | None = None) -> dict | None:
+    def _steam_updated_since(self, metadata: dict, build: str) -> bool:
+        """Whether the game's appmanifest says Steam updated it after it was patched: another buildid/LastUpdated
+        than at the patch, or (a marker from before steam_build) a LastUpdated later than the patch."""
+        recorded = metadata.get("steam_build")
+        if recorded is not None:
+            return recorded != build
+        try:
+            updated = int(build.rpartition("/")[2])
+            patched = datetime.fromisoformat(str(metadata.get("patched_at"))).timestamp()
+        except (TypeError, ValueError):
+            return False
+        return updated > patched
+
+    async def refresh_after_game_update(self, appid: str, fsr4_variant: str | None = None,
+                                        steam_busy_seen: bool = False) -> dict | None:
         """When Steam has updated (or verified) a patched game, the files it wrote replace OptiScaler's and the
         backups hold the game's older files: the new ones become the backups and OptiScaler is patched in again with
-        the proxy DLL and settings it had. None when nothing changed (or the game is running, so it waits)."""
+        the proxy DLL and settings it had. Only when Steam did that: its manifest shows a new build or update time, or
+        steam_busy_seen (Steam was seen updating or verifying the game since). Files changed any other way (a mod put
+        in by hand) are left as they are and become the new baseline. None when there's nothing to do;
+        {"status": "waiting"} while the game is running."""
         game_info = self._game_record(str(appid))
         if not game_info:
             return None
@@ -1969,8 +2026,17 @@ class OptiScaler:
                 metadata["file_stamps"] = self._file_stamps(target_dir)
                 self._write_json_file(marker, metadata)
             return None
-        if self._is_game_running(game_info):
+        build = game_info.get("build")
+        if build is not None and not steam_busy_seen and not self._steam_updated_since(metadata, build):
+            # not Steam: a mod or the user. Left as it is; only later changes count
+            decky.logger.info(f"[Framegen] {game_info['name']} ({appid}): {changed} changed without a Steam update, "
+                              f"left as they are")
+            metadata["file_stamps"] = self._file_stamps(target_dir)
+            metadata["steam_build"] = build
+            self._write_json_file(marker, metadata)
             return None
+        if self._is_game_running(game_info):
+            return {"status": "waiting"}
         fgmod_path = Path(decky.HOME) / "fgmod"
         if not (fgmod_path / "OptiScaler.dll").exists():
             return None
@@ -2227,6 +2293,7 @@ class OptiScaler:
                 optiscaler_version=result.get("optiscaler_version"),
                 fsr4_variant=result.get("fsr4_variant"),
                 fsr4_upscaler_sha256=result.get("fsr4_upscaler_sha256"),
+                steam_build=game_info.get("build"),
             )
 
             if existing_marker and existing_marker != marker_path:
