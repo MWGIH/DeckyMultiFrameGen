@@ -269,6 +269,25 @@ export type HelixFgStatus = {
 export const helixsrFg = callable<[appid: string, on?: boolean], HelixFgStatus>(
   "helixsr_fg",
 );
+export type HlxDeepReuse = "default" | "exact" | "1:2" | "1:4";
+export type HlxNetworkResolution = "default" | "full" | "fast";
+export type HlxDlss = {
+  ok: boolean;
+  error?: string;
+  route?: "scaler" | "direct" | "optiscaler";
+  // helixsr.ini next to HelixSR's DLL (and OptiScaler.ini for a Scaler install's DeepReuse)
+  ini?: string;
+  ini_exists?: boolean;
+  opti_ini?: string | null;
+  deep_reuse?: HlxDeepReuse;
+  network_resolution?: HlxNetworkResolution;
+};
+// HLX DLSS's speed settings (HelixSR 3.4+): [Upscaling] DeepReuse / NetworkResolution in helixsr.ini. Read when both
+// values are left out; "default" removes the override.
+export const helixsrDlss = callable<
+  [appid: string, deep_reuse?: HlxDeepReuse | "", network_resolution?: HlxNetworkResolution | ""],
+  HlxDlss
+>("helixsr_dlss");
 export const helixsrFixStreamline = callable<
   [appid: string],
   { ok: boolean; error?: string; added?: string[]; missing?: string[] }

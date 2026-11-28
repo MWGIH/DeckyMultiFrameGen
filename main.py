@@ -10,7 +10,7 @@ import decky
 
 from mako_plugin.plugin import Plugin as MakoPlugin
 
-from multifg import evolution, backends, game_files, helix_fg, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
+from multifg import evolution, backends, game_files, helix_dlss, helix_fg, helix_opti, leftovers, mako_payload, shortcuts, steam_library, updates
 from multifg.anrfg import ANRFG
 from multifg.fsr4injector import FSR4Injector
 from multifg.helixsr import OPTI_RELEASE, HelixSR
@@ -946,6 +946,47 @@ class Plugin:
                                               "after its setup built it (HelixSR 3.4 or newer)"}
             await asyncio.to_thread(helix_fg.switch, folder, bool(on))
         return {"ok": True, "blocked": blocked, **await asyncio.to_thread(helix_fg.status, folder)}
+
+    async def helixsr_dlss(self, appid: str, deep_reuse: str = "", network_resolution: str = "") -> dict:
+        """HLX DLSS's speed settings (HelixSR 3.4+) in the game: helixsr.ini next to HelixSR's DLL, and for HelixSR
+        Scaler also [HelixSR] DeepReuse in OptiScaler.ini. Read when neither value is set, else set the ones given
+        ("default": HelixSR's own default again)."""
+        try:
+            appid = _valid_appid(appid)
+            folder = _game_folder(appid)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        try:
+            game = await asyncio.to_thread(HELIXSR.game_status, folder)
+        except Exception as exc:
+            decky.logger.exception("helixsr_dlss")
+            return {"ok": False, "error": str(exc)}
+        if game.get("ok") and game.get("installed") and game.get("current") in ("scaler", "direct"):
+            route = game["current"]
+            version = game.get("installed_version")
+            if version and not helix_dlss.supports(version):
+                return {"ok": False, "error": f"HLX DLSS needs HelixSR 3.4 or newer (this game has {version})."}
+            exe = game.get("exe_folder") or folder
+            # 2.0+ bridge: the direct drop-in's helixsr.ini; 1.x has no settings_path and resolves from fsr_targets
+            hint = game.get("settings_path") if route == "direct" else None
+            return await asyncio.to_thread(
+                helix_dlss.apply, exe, route, game.get("fsr_targets"), hint,
+                deep_reuse or None, network_resolution or None)
+        try:
+            target = await _opti_target(appid)
+            st = await asyncio.to_thread(helix_opti.status, target) if target else None
+        except Exception as exc:
+            decky.logger.exception("helixsr_dlss")
+            return {"ok": False, "error": str(exc)}
+        if st and st.get("installed"):
+            version = st.get("helixsr")
+            if not helix_dlss.supports(version):
+                return {"ok": False, "error": "HLX DLSS needs HelixSR 3.4 or newer: OptiScaler + HelixSR uses "
+                                              f"HelixSR {version or '(an older version)'}. Use HelixSR Scaler."}
+            return await asyncio.to_thread(
+                helix_dlss.apply, target, "optiscaler", None, None,
+                deep_reuse or None, network_resolution or None)
+        return {"ok": False, "error": "HelixSR isn't installed in this game"}
 
     async def helixsr_fix_streamline(self, appid: str) -> dict:
         """Adds the Streamline plugins OptiScaler's Streamline folder lacks (from NVIDIA's SDK of its version)."""

@@ -152,6 +152,28 @@ OptiScaler + HelixSR uses HelixSR 1.9.3: from 2.0 HelixSR's DLL only runs inside
 Scaler), and the OptiScaler Decky Framegen installs (0.9.4) falls back to FSR 2.1.2 with it. The plugin sets 1.9.3 up
 next to the newer release when needed.
 
+### HLX DLSS speed settings (per game)
+
+With HelixSR Scaler in a game (HelixSR 3.4 or newer), the game's panel sets HLX DLSS's two speed settings. HelixSR reads
+them when the game starts, so restart the game after a change:
+
+- **Network reuse (Balanced/Performance)**: `Default (exact)` runs the whole network every frame; `1:2` and `1:4` run its
+  deeper layers every second or fourth frame. Faster, a little softer in fast motion; no effect at Ultra Performance.
+- **Ultra Performance network**: `Full` (default) has the network output the screen size; `Fast` outputs twice the render
+  size and scales it to the screen, about 30% less GPU time at Ultra Performance, visibly softer.
+
+The plugin writes `[Upscaling] DeepReuse` and `NetworkResolution` in `helixsr.ini` next to HelixSR's DLL and, for HelixSR
+Scaler, the same `DeepReuse` in `OptiScaler.ini` `[HelixSR]` (the place HelixSR Scaler documents; it copies it to
+`helixsr.ini` at every game start and keeps the other settings there). `Default` removes the plugin's override
+(`DeepReuse=auto` in `OptiScaler.ini`), so HelixSR's own defaults apply.
+
+Measured on an Ayaneo 2 (Radeon 680M, 15 W) in [fsr4-handheld's quality
+scores](https://github.com/LaurensBosscher/fsr4-handheld/blob/main/research/2026-11-28-quality-scores.md): at 1200p
+Balanced, `1:4` took 6.90 ms per frame vs 8.62 ms for the frame-skipping FSR 4 Lite build, with equal single-frame SSIM
+against a native reference (`1:2` 7.53 ms, `exact` 8.28 ms). `NetworkResolution = fast` halved Ultra Performance's time
+(4.20 ms vs 8.01 ms) but lost thin detail (SSIM 75 vs 86). Steam Deck-like RDNA2 handhelds are expected to behave
+similarly; they weren't measured.
+
 Reports so far:
 
 | Game | Way | Result | Source |

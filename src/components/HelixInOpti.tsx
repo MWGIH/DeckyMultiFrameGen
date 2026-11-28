@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ButtonItem, Field, PanelSectionRow } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { ProgressRow } from "./ProgressRow";
+import { HlxDlssSettings } from "./HlxDlssSettings";
 import {
   helixsrInstall,
   helixsrOptiAdd,
@@ -156,6 +157,7 @@ export function HelixInOptiGame({
           }
         />
       </PanelSectionRow>
+      {st.installed && <HlxDlssSettings appid={appid} />}
       {(!st.installed || outdated || !st.ini_ok) && (
         <PanelSectionRow>
           <ButtonItem

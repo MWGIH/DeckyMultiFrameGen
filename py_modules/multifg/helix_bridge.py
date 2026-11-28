@@ -170,6 +170,9 @@ def describe20(b, j, here=None):
         "launch_options_now": scaler_launch_options(j),
         "installed_version": j.get("version") if way else None,
         "outdated": outdated,
+        # helixsr.ini's folder and OptiScaler.ini for the install in place (game_json: where HelixSR reads settings)
+        "settings_path": j.get("settings_path"),
+        "scaler_layout": j.get("scaler_layout"),
     }
 
 
