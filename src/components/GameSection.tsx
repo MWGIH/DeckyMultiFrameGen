@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ButtonItem, Field, PanelSection, PanelSectionRow, ToggleField } from "@decky/ui";
+import { useEffect, useRef, useState } from "react";
+import { ButtonItem, ConfirmModal, Field, PanelSection, PanelSectionRow, showModal, ToggleField } from "@decky/ui";
 import { BelowDropdown, openPicker } from "./BelowDropdown";
 import { ProgressRow } from "./ProgressRow";
 import { GAME_NOTES } from "../gameNotes";
@@ -35,6 +35,14 @@ import { AnrGame } from "./ANRFG";
 import { useShowAll } from "../showAll";
 import { GameFolder } from "./GameFolder";
 import { defaultProxyDll } from "../optiscalerOptions";
+import {
+  getInstallState,
+  INSTALL_NAMES,
+  installBackends,
+  type InstallId,
+  type InstallRefresh,
+} from "../installs";
+import { INSTALL_ABOUT } from "./FirstRunSetup";
 
 const CHOICE_LABELS: Record<GameChoice, string> = {
   none: "Off",
@@ -132,6 +140,7 @@ type Props = {
   anr: AnrStatus | null;
   onPick: (appid: string) => void;
   onChoice: (choice: GameChoice | null) => void;
+  refresh: InstallRefresh;
 };
 
 export function GameSection({
@@ -144,6 +153,7 @@ export function GameSection({
   anr,
   onPick,
   onChoice,
+  refresh,
 }: Props) {
   const [detail, setDetail] = useState<GameDetail | null>(null);
   const [reload, setReload] = useState(0); // bumped after a non-Steam game's folder changes
@@ -277,6 +287,62 @@ export function GameSection({
   const installed = new Set(
     (backends ?? []).filter((b) => b.installed).map((b) => b.id as string),
   );
+  // the backends a choice needs that aren't installed (none until the backend list has loaded)
+  const missingFor = (c: GameChoice): InstallId[] =>
+    backends ? (parts(c).filter((id) => id !== "none" && !installed.has(id)) as InstallId[]) : [];
+
+  // A Use choice whose backends aren't installed: they're installed first, then the game is set to it
+  const [installingFor, setInstallingFor] = useState<{ appid: string; choice: GameChoice } | null>(null);
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const installThenChoose = (c: GameChoice, missing: InstallId[]) => {
+    if (!selected) return;
+    const appid = selected.appid;
+    const gameName = detail?.name ?? selected.name ?? "the game";
+    const label = CHOICE_LABELS[c].replace(/ \(.*\)$/, "");
+    const names = missing.map((id) => INSTALL_NAMES[id]);
+    const what = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+    const notes = missing.map((id) => `${INSTALL_NAMES[id]}: ${INSTALL_ABOUT[id].about}`).join("\n");
+    const build = helix?.build !== false;
+    showModal(
+      <ConfirmModal
+        strTitle={`Install ${what}?`}
+        strDescription={
+          <div style={{ whiteSpace: "pre-line" }}>
+            {`${label} needs ${what}, which ${names.length > 1 ? "aren't" : "isn't"} installed yet. Install ` +
+          `${names.length > 1 ? "them" : "it"} now? ${gameName} is set to ${label} once ${names.length > 1 ? "they're" : "it's"} done.\n\n${notes}` +
+          (missing.includes("helixsr") ? `\n\nBuild HelixSR is ${build ? "on" : "off"} (change it in Backends).` : "")}
+          </div>
+        }
+        strOKButtonText="Install"
+        onOK={() => {
+          const s = getInstallState();
+          if (s.batch || s.starting) {
+            toast("Wait for the installs or updates going on to finish, then pick again.");
+            return;
+          }
+          setInstallingFor({ appid, choice: c });
+          installBackends(missing, {
+            helixBuild: missing.includes("helixsr") ? build : undefined,
+            refresh,
+            after: (failed) => {
+              setInstallingFor(null);
+              if (failed.length) return; // the install's own toast says what went wrong
+              if (selectedRef.current?.appid !== appid)
+                toast(`${what} ${names.length > 1 ? "are" : "is"} installed: open ${gameName} and pick ${label} again.`);
+              else chooseRef.current(c);
+            },
+          }).catch((e) => {
+            setInstallingFor(null);
+            toast(`Couldn't install ${what}: ${e}`);
+          });
+        }}
+      />,
+    );
+  };
+  const installingHere = installingFor && installingFor.appid === selected?.appid ? installingFor : null;
   const name =
     detail?.name ?? selected?.name ?? (selected ? `App ${selected.appid}` : "");
 
@@ -357,28 +423,41 @@ export function GameSection({
               <ButtonItem
                 layout="below"
                 description={useDescription(detail, showAll)}
-                disabled={switching !== null || gameRunning}
+                disabled={switching !== null || gameRunning || installingHere !== null}
                 onClick={() =>
                   openPicker(
                     "Use",
                     ((showAll ? detail.all_choices : null) ?? detail.choices ?? [])
-                      // only methods that are installed, plus whatever the game is set to now
-                      .filter(
-                        (c) =>
-                          c === "none" ||
-                          c === detail.backend ||
-                          parts(c).every((id) => installed.has(id)),
-                      )
+                      // every method the game can use: one that isn't installed yet is installed when it's picked
                       .slice()
                       .sort((a, b) => choiceRank(a) - choiceRank(b))
-                      .map((c) => ({ data: c, label: CHOICE_LABELS[c] })),
+                      .map((c) => ({
+                        data: c,
+                        label:
+                          c !== detail.backend && missingFor(c).length
+                            ? `${CHOICE_LABELS[c]} (not installed)`
+                            : CHOICE_LABELS[c],
+                      })),
                     detail.backend,
-                    (o) => choose(o.data as GameChoice),
+                    (o) => {
+                      const c = o.data as GameChoice;
+                      const missing = c === detail.backend ? [] : missingFor(c);
+                      if (missing.length) installThenChoose(c, missing);
+                      else choose(c);
+                    },
                   )
                 }
               >
                 {(detail.backend ?? "none") === "none" ? "Choose an option" : "Change option"}
               </ButtonItem>
+            </PanelSectionRow>
+          )}
+          {installingHere && (
+            <PanelSectionRow>
+              <Field
+                label={`Installing for ${CHOICE_LABELS[installingHere.choice].replace(/ \(.*\)$/, "")}…`}
+                description="The game is set to it as soon as the install is done. Progress is at the top of the panel."
+              />
             </PanelSectionRow>
           )}
           {switching !== null && (

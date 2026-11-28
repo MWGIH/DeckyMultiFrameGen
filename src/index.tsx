@@ -106,6 +106,13 @@ function Content() {
     if (makoInstalled !== undefined) makoWasInstalled.current = makoInstalled;
   }, [makoInstalled]);
   const refreshOpti = () => optiscalerStatus().then(setOpti);
+  const refreshAll = {
+    opti: refreshOpti,
+    helix: refreshHelix,
+    mako: () => refreshBackends(),
+    fsr4: refreshFsr4,
+    anr: refreshAnr,
+  };
 
   const refreshBackends = () =>
     getBackends()
@@ -156,6 +163,7 @@ function Content() {
         anr={anr}
         onPick={pick}
         onChoice={setChoice}
+        refresh={refreshAll}
       />
       {/* MAKO Decky's own controls (vendored, GPL-3.0) for a MAKO game, with ours to switch view or hide below */}
       {makoShown && <MakoContent variant={makoFull ? "full" : "light"} />}

@@ -32,6 +32,15 @@ class Settings:
         data["test_builds"] = bool(on)
         self.save(data)
 
+    def setup_done(self) -> bool:
+        """The first-time install setup was finished or skipped (the panel stops offering it)."""
+        return bool(self.load().get("setup_done"))
+
+    def set_setup_done(self, done: bool) -> None:
+        data = self.load()
+        data["setup_done"] = bool(done)
+        self.save(data)
+
     def game_choice(self, appid: str) -> str:
         return self.load().get("games", {}).get(appid, {}).get("backend", "none")
 
