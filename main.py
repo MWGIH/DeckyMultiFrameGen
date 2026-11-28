@@ -499,6 +499,9 @@ def _anr_backend() -> dict:
 GAME_UPDATE_POLL_S = 30
 GAME_UPDATE_RETRY_S = 600   # after a failed repatch (logged), the next try
 _repatch_failed: dict[str, float] = {}
+# games Steam was seen updating or verifying (appmanifest not settled) since their last check: a verify keeps the
+# buildid and update time, so this is how it's told apart from a mod put in by hand
+_steam_busy: set[str] = set()
 
 
 async def _repatch_updated_games() -> list[str]:
@@ -509,11 +512,16 @@ async def _repatch_updated_games() -> list[str]:
     for appid in SETTINGS.games_using("optiscaler"):
         try:
             game = _opti_record(appid)
+            if game and not game.get("settled", True):
+                _steam_busy.add(appid)
             if not game or not game.get("install_found") or not game.get("settled", True):
                 continue
             if time.monotonic() - _repatch_failed.get(appid, -GAME_UPDATE_RETRY_S) < GAME_UPDATE_RETRY_S:
                 continue
-            result = await OPTISCALER.refresh_after_game_update(appid, _opti_variant(appid))
+            result = await OPTISCALER.refresh_after_game_update(appid, _opti_variant(appid), appid in _steam_busy)
+            if result and result.get("status") == "waiting":
+                continue   # the game is running: Steam's update is still remembered for later
+            _steam_busy.discard(appid)
             if not result:
                 continue
             if result.get("status") == "success":

@@ -8,6 +8,7 @@ that folder: Crimson Desert ships the same FidelityFX/XeSS DLLs Decky Framegen c
 import shutil
 from pathlib import Path
 
+from . import asiloader
 from . import optiscaler as opti
 
 # HelixSR Scaler (an OptiScaler build) keeps the game's files it replaced here; HelixSR's drop-in keeps the game's DLL
@@ -81,8 +82,13 @@ def _sweep_opti(d: Path, fgmod: Path | None) -> list[str]:
     for name in dict.fromkeys([*opti.RESTORABLE_BACKUP_FILES, "nvapi64.dll"]):
         b = d / f"{name}.b"
         if b.is_file():
+            if name in opti.PROXY_DLL_BACKUPS and (d / name).is_file():
+                continue   # a mod's DLL in use there (OptiScaler's builds went above): it stays
             b.replace(d / name)
             done.append(f"{name} restored")
+
+    if asiloader.remove(d):
+        done.append(f"{asiloader.PROXY} removed")
 
     for name in OPTI_FILES:
         if (d / name).is_file():

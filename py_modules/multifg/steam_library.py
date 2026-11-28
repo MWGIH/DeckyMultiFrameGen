@@ -170,6 +170,8 @@ def installed_games(home: Path, appid: str | None = None, media_roots=None) -> l
                 "install_path": str(install_path) if install_path else "",
                 "install_found": bool(install_path and install_path.is_dir()) and _fully_installed(text),
                 "settled": _settled(text),
+                # changes when Steam updates the game (a new build, or the same build put down again)
+                "build": f'{_acf_field(text, "buildid")}/{_acf_field(text, "LastUpdated")}',
             }
             # a leftover manifest in one library mustn't hide the game installed in another (moved to the SD card)
             if gid not in games or not games[gid]["install_found"]:

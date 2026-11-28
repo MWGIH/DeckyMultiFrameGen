@@ -52,8 +52,11 @@ class AutoPatchTests(unittest.TestCase):
         self.assertEqual(f["winmm.dll"], b"MZ OptiScaler build")
         self.assertEqual(f["libxess.dll"], b"OptiScaler's XeSS")
         # the game's own files are kept aside, also the ones the patch deletes
-        for name in ("dxgi.dll", "nvngx.dll", "amdxc64.dll", "libxess.dll"):
+        for name in ("nvngx.dll", "amdxc64.dll", "libxess.dll"):
             self.assertEqual(f[f"{name}.b"], GAME_FILES[name], name)
+        # a DLL under another proxy name than OptiScaler's stays in use (mod loaders are dxgi/winmm/version.dll)
+        self.assertEqual(f["dxgi.dll"], GAME_FILES["dxgi.dll"])
+        self.assertNotIn("dxgi.dll.b", f)
 
         r = run(p.set_game_backend("4242", "none", r["launch_options"]))
         self.assertTrue(r["ok"], r)
@@ -203,13 +206,107 @@ class AutoPatchTests(unittest.TestCase):
         self.assertEqual(self.files(), GAME_FILES)
 
 
-    def steam_update(self, files):
-        """Steam writes the game's new files over whatever is there (a later write time, as a real update)."""
+    def steam_update(self, files, manifest=True):
+        """Steam writes the game's new files over whatever is there (a later write time, as a real update) and its new
+        buildid and update time in the appmanifest. manifest=False: the files only, as a mod or the user would."""
         import os, time
         later = time.time() + 600
         for name, data in files.items():
             (self.d / name).write_bytes(data)
             os.utime(self.d / name, (later, later))
+        if manifest:
+            acf = self.d.parent.parent / "appmanifest_4242.acf"
+            self._build = getattr(self, "_build", 100) + 1
+            text = "\n".join(l for l in acf.read_text().splitlines() if '"buildid"' not in l and '"LastUpdated"' not in l)
+            acf.write_text(text.replace('"StateFlags"', f'"buildid"\t\t"{self._build}"\n\t"LastUpdated"\t\t'
+                                        f'"{int(later)}"\n\t"StateFlags"', 1))
+
+    def test_a_mods_dll_put_in_by_hand_is_left_alone(self):
+        """Issue 41: RED4ext's winmm.dll copied into a game patched as dxgi.dll was moved to winmm.dll.b each time."""
+        p = main.Plugin()
+        r = run(p.set_game_backend("4242", "optiscaler", ""))
+        self.assertTrue(r["opti"]["ok"], r)
+        self.steam_update({"winmm.dll": b"RED4ext loader", "nvngx.dll": b"a DLSS file the user put in"},
+                          manifest=False)
+        self.assertEqual(run(main._repatch_updated_games()), [])
+        f = self.files()
+        self.assertEqual(f["winmm.dll"], b"RED4ext loader")
+        self.assertNotIn("winmm.dll.b", f)
+        self.assertEqual(f["nvngx.dll"], b"a DLSS file the user put in")
+        self.assertEqual(f["dxgi.dll"], b"MZ OptiScaler build")
+        self.assertEqual(run(main._repatch_updated_games()), [])
+        # a real update after that: OptiScaler goes back in, the mod stays
+        self.steam_update({"libxess.dll": b"the game's XeSS 2"})
+        self.assertEqual(run(main._repatch_updated_games()), ["Some Game"])
+        f = self.files()
+        self.assertEqual(f["winmm.dll"], b"RED4ext loader")
+        self.assertEqual(f["libxess.dll.b"], b"the game's XeSS 2")
+        # patching again and Off leave it in place too
+        r2 = run(p.optiscaler_patch_game("4242", "dxgi.dll", r["launch_options"]))
+        self.assertEqual(r2["status"], "success", r2)
+        self.assertEqual(self.files()["winmm.dll"], b"RED4ext loader")
+        run(p.set_game_backend("4242", "none", r["launch_options"]))
+        f = self.files()
+        self.assertEqual(f["winmm.dll"], b"RED4ext loader")
+        self.assertEqual(f["dxgi.dll"], GAME_FILES["dxgi.dll"])
+
+    def asi_loader(self):
+        """A stand-in for Ultimate ASI Loader's download."""
+        import hashlib
+        from unittest import mock
+        from multifg import asiloader
+        dll = self.d.parents[5] / "ual-dinput8.dll"
+        dll.write_bytes(b"MZ Ultimate ASI Loader")
+        sha = hashlib.sha256(dll.read_bytes()).hexdigest()
+        return (mock.patch.object(asiloader, "loader_dll", lambda cache: dll),
+                mock.patch.dict(asiloader.RELEASE, {"dll_sha256": sha}))
+
+    def test_optiscaler_asi_comes_with_the_asi_loader(self):
+        """Issue 43: Red Dead Redemption 2 on Vulkan takes OptiScaler only as OptiScaler.asi via Ultimate ASI Loader."""
+        p = main.Plugin()
+        a, b = self.asi_loader()
+        with a, b:
+            r = run(p.set_game_backend("4242", "optiscaler", "", "OptiScaler.asi"))
+            self.assertTrue(r["opti"]["ok"], r)
+            self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dinput8=n,b SteamDeck=0 %command%")
+            f = self.files()
+            self.assertEqual(f["dinput8.dll"], b"MZ Ultimate ASI Loader")
+            self.assertEqual(f["OptiScaler.asi"], b"MZ OptiScaler build")
+            # another proxy DLL: the loader goes
+            r2 = run(p.optiscaler_patch_game("4242", "dxgi.dll", r["launch_options"]))
+            self.assertEqual(r2["status"], "success", r2)
+            self.assertNotIn("dinput8.dll", self.files())
+            self.assertNotIn("OptiScaler.asi", self.files())
+            r = run(p.optiscaler_patch_game("4242", "OptiScaler.asi", r2["launch_options"]))
+            self.assertEqual(r["status"], "success", r)
+            self.assertIn("dinput8.dll", self.files())
+            r = run(p.set_game_backend("4242", "none", r["launch_options"]))
+            self.assertTrue(r["ok"], r)
+            self.assertEqual(r["launch_options"], "")
+            f = self.files()
+            self.assertEqual(f, GAME_FILES)
+
+    def test_a_games_own_dinput8_loader_is_used_and_kept(self):
+        (self.d / "dinput8.dll").write_bytes(b"ScriptHookRDR2 V2 loader")
+        p = main.Plugin()
+        a, b = self.asi_loader()
+        with a, b:
+            r = run(p.set_game_backend("4242", "optiscaler", "", "OptiScaler.asi"))
+            self.assertTrue(r["opti"]["ok"], r)
+            self.assertEqual(self.files()["dinput8.dll"], b"ScriptHookRDR2 V2 loader")
+            run(p.set_game_backend("4242", "none", r["launch_options"]))
+        self.assertEqual(self.files(), {**GAME_FILES, "dinput8.dll": b"ScriptHookRDR2 V2 loader"})
+
+    def test_a_mod_loader_already_in_the_game_stays_when_optiscaler_goes_in(self):
+        (self.d / "version.dll").write_bytes(b"a mod loader")
+        p = main.Plugin()
+        r = run(p.set_game_backend("4242", "optiscaler", ""))
+        self.assertTrue(r["opti"]["ok"], r)
+        f = self.files()
+        self.assertEqual(f["version.dll"], b"a mod loader")
+        self.assertNotIn("version.dll.b", f)
+        run(p.set_game_backend("4242", "none", r["launch_options"]))
+        self.assertEqual(self.files(), {**GAME_FILES, "version.dll": b"a mod loader"})
 
     def test_a_steam_update_gets_optiscaler_patched_in_again_with_the_new_files_as_backups(self):
         p = main.Plugin()
