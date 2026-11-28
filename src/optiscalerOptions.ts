@@ -7,7 +7,7 @@ export const PROXY_DLL_OPTIONS = [
   { value: "dbghelp.dll", label: "dbghelp.dll", hint: "For games with a crash reporter (many Unreal Engine games)." },
   { value: "winhttp.dll", label: "winhttp.dll", hint: "Last resort, for games that go online at start." },
   { value: "wininet.dll", label: "wininet.dll", hint: "Last resort, for games that go online at start." },
-  { value: "OptiScaler.asi", label: "OptiScaler.asi", hint: "Needs an ASI loader already installed in the game." },
+  { value: "OptiScaler.asi", label: "OptiScaler.asi (ASI loader)", hint: "Starts OptiScaler through Ultimate ASI Loader (dinput8.dll), put in unless the game has its own. For games that need it, like Red Dead Redemption 2 on Vulkan." },
 ] as const;
 
 // Games where the default dxgi.dll doesn't work, by Steam app id: the proxy DLL that does (see the README)

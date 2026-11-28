@@ -33,6 +33,9 @@ Because MAKO is GPL-3.0-or-later, this plugin as a whole is distributed under th
   [fsr4-shader-performance-overrides releases](https://github.com/zgauthier2000/fsr4-shader-performance-overrides/releases)
   on your device when you pick those FSR 4 options. They are modified / third-party FSR files: **single-player only**,
   never in online or anti-cheat games.
+- **No Ultimate ASI Loader files.** For the "OptiScaler.asi (ASI loader)" proxy choice, ThirteenAG's
+  [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) (MIT) x64 release is downloaded on your
+  device, checked by SHA-256 and put in the game as `dinput8.dll` (never over the game's or a mod's own `dinput8.dll`).
 - **No ANR FG files.** ANR FG's full package (Apex's OptiScaler build with ANR FG as its frame generation provider) is
   downloaded from [apex-compute/ANR](https://github.com/apex-compute/ANR/releases) as released.
 - **No MAKO Renderer, MAKO FG, NVIDIA or Lossless Scaling files.** The MAKO Renderer (with the MAKO FG model, free for

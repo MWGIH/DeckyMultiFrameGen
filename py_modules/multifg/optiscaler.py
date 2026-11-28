@@ -17,7 +17,7 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fsr4lite, fsr4overrides
+from . import asiloader, fsr4lite, fsr4overrides
 
 OPTISCALER_ARCHIVE_ASSET = {
     "name": "Optiscaler_0.9.4-final.20260718._MM.7z",
@@ -531,9 +531,11 @@ class OptiScaler:
         return (file_path.name in _PROXY_SET and file_path.name != dll_name and file_path.is_file()
                 and not self._is_optiscaler_copy(file_path, fgmod_path))
 
-    def _backup_preexisting_proxy_files(self, directory: Path, fgmod_path: Path, dll_name: str) -> list[str]:
+    def _backup_preexisting_proxy_files(self, directory: Path, fgmod_path: Path, dll_name: str,
+                                        previous_dll: str | None = None) -> list[str]:
         """The game's (or a mod's) file under the proxy name OptiScaler goes in as is kept aside as .b; files under the
-        other proxy names stay where they are."""
+        other proxy names stay where they are. When a patched game moves to another proxy name, the file already
+        under the new name is the game's (left in place by the earlier patch) unless it's an OptiScaler build."""
         backed_up: list[str] = []
         already_patched = self._has_patch_fingerprint(directory)
         for filename in [dll_name]:
@@ -541,7 +543,10 @@ class OptiScaler:
             backup = directory / f"{filename}.b"
             if not source.exists() or backup.exists():
                 continue
-            if already_patched or self._is_bundled_proxy_copy(source, fgmod_path):
+            if self._is_bundled_proxy_copy(source, fgmod_path):
+                continue
+            if already_patched and (filename == previous_dll or not previous_dll
+                                    or self._is_optiscaler_copy(source, fgmod_path)):
                 continue
             shutil.move(source, backup)
             backed_up.append(filename)
@@ -1443,7 +1448,8 @@ class OptiScaler:
             )
 
             already_patched = self._has_patch_fingerprint(directory)
-            backed_up_proxies = self._backup_preexisting_proxy_files(directory, fgmod_path, dll_name)
+            backed_up_proxies = self._backup_preexisting_proxy_files(
+                directory, fgmod_path, dll_name, str(previous_marker_metadata.get("dll_name") or "") or None)
             decky.logger.info(
                 f"Backed up pre-existing proxy files: {backed_up_proxies}"
                 if backed_up_proxies
@@ -1661,6 +1667,9 @@ class OptiScaler:
                     shutil.move(backup, original)
                     restored_backups.append(dll)
             decky.logger.info(f"Restored backups: {restored_backups}" if restored_backups else "No backups found to restore")
+
+            if asiloader.remove(directory):
+                decky.logger.info("Removed the ASI loader (dinput8.dll)")
 
             uninstaller = directory / "fgmod-uninstaller.sh"
             if uninstaller.exists():
@@ -2052,9 +2061,8 @@ class OptiScaler:
     # ── Launch options helpers ────────────────────────────────────────────────
 
     def _build_managed_launch_options(self, dll_name: str) -> str:
-        if dll_name == "OptiScaler.asi":
-            return "SteamDeck=0 %command%"
-        base = dll_name.replace(".dll", "")
+        # OptiScaler.asi is started by the ASI loader as dinput8.dll
+        base = "dinput8" if dll_name == "OptiScaler.asi" else dll_name.replace(".dll", "")
         return f"WINEDLLOVERRIDES={base}=n,b SteamDeck=0 %command%"
 
     def _is_managed_launch_options(self, opts: str) -> bool:
@@ -2062,9 +2070,7 @@ class OptiScaler:
             return False
         normalized = " ".join(opts.strip().split())
         for dll_name in VALID_DLL_NAMES:
-            if dll_name == "OptiScaler.asi":
-                continue
-            base = dll_name.replace(".dll", "")
+            base = "dinput8" if dll_name == "OptiScaler.asi" else dll_name.replace(".dll", "")
             if f"WINEDLLOVERRIDES={base}=n,b" in normalized:
                 return True
         if "fgmod/fgmod" in normalized:
@@ -2267,6 +2273,18 @@ class OptiScaler:
             # Auto-detect the right directory to patch
             target_dir, target_exe = self._guess_patch_target(game_info)
             decky.logger.info(f"[Framegen] patch_game: appid={appid} dll={dll_name} target={target_dir} exe={target_exe}")
+
+            # OptiScaler.asi needs an ASI loader to start it: Ultimate ASI Loader as dinput8.dll, unless the game has
+            # a dinput8.dll of its own (a mod loader that loads .asi files)
+            if dll_name == "OptiScaler.asi":
+                try:
+                    loader = await asyncio.to_thread(asiloader.install, target_dir, BIN_DIR / "asi-loader")
+                except Exception as exc:
+                    decky.logger.error(f"[Framegen] ASI loader: {exc}")
+                    return {"status": "error", "message": f"Couldn't install the ASI loader: {exc}"}
+                decky.logger.info(f"[Framegen] ASI loader in {target_dir}: {loader}")
+            elif asiloader.remove(target_dir):
+                decky.logger.info(f"[Framegen] removed the ASI loader from {target_dir}")
 
             allow_managed_support_cleanup = bool(
                 existing_marker and existing_marker_target_dir == target_dir

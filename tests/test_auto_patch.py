@@ -250,6 +250,53 @@ class AutoPatchTests(unittest.TestCase):
         self.assertEqual(f["winmm.dll"], b"RED4ext loader")
         self.assertEqual(f["dxgi.dll"], GAME_FILES["dxgi.dll"])
 
+    def asi_loader(self):
+        """A stand-in for Ultimate ASI Loader's download."""
+        import hashlib
+        from unittest import mock
+        from multifg import asiloader
+        dll = self.d.parents[5] / "ual-dinput8.dll"
+        dll.write_bytes(b"MZ Ultimate ASI Loader")
+        sha = hashlib.sha256(dll.read_bytes()).hexdigest()
+        return (mock.patch.object(asiloader, "loader_dll", lambda cache: dll),
+                mock.patch.dict(asiloader.RELEASE, {"dll_sha256": sha}))
+
+    def test_optiscaler_asi_comes_with_the_asi_loader(self):
+        """Issue 43: Red Dead Redemption 2 on Vulkan takes OptiScaler only as OptiScaler.asi via Ultimate ASI Loader."""
+        p = main.Plugin()
+        a, b = self.asi_loader()
+        with a, b:
+            r = run(p.set_game_backend("4242", "optiscaler", "", "OptiScaler.asi"))
+            self.assertTrue(r["opti"]["ok"], r)
+            self.assertEqual(r["launch_options"], "WINEDLLOVERRIDES=dinput8=n,b SteamDeck=0 %command%")
+            f = self.files()
+            self.assertEqual(f["dinput8.dll"], b"MZ Ultimate ASI Loader")
+            self.assertEqual(f["OptiScaler.asi"], b"MZ OptiScaler build")
+            # another proxy DLL: the loader goes
+            r2 = run(p.optiscaler_patch_game("4242", "dxgi.dll", r["launch_options"]))
+            self.assertEqual(r2["status"], "success", r2)
+            self.assertNotIn("dinput8.dll", self.files())
+            self.assertNotIn("OptiScaler.asi", self.files())
+            r = run(p.optiscaler_patch_game("4242", "OptiScaler.asi", r2["launch_options"]))
+            self.assertEqual(r["status"], "success", r)
+            self.assertIn("dinput8.dll", self.files())
+            r = run(p.set_game_backend("4242", "none", r["launch_options"]))
+            self.assertTrue(r["ok"], r)
+            self.assertEqual(r["launch_options"], "")
+            f = self.files()
+            self.assertEqual(f, GAME_FILES)
+
+    def test_a_games_own_dinput8_loader_is_used_and_kept(self):
+        (self.d / "dinput8.dll").write_bytes(b"ScriptHookRDR2 V2 loader")
+        p = main.Plugin()
+        a, b = self.asi_loader()
+        with a, b:
+            r = run(p.set_game_backend("4242", "optiscaler", "", "OptiScaler.asi"))
+            self.assertTrue(r["opti"]["ok"], r)
+            self.assertEqual(self.files()["dinput8.dll"], b"ScriptHookRDR2 V2 loader")
+            run(p.set_game_backend("4242", "none", r["launch_options"]))
+        self.assertEqual(self.files(), {**GAME_FILES, "dinput8.dll": b"ScriptHookRDR2 V2 loader"})
+
     def test_a_mod_loader_already_in_the_game_stays_when_optiscaler_goes_in(self):
         (self.d / "version.dll").write_bytes(b"a mod loader")
         p = main.Plugin()
