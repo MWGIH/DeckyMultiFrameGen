@@ -158,7 +158,8 @@ With HelixSR Scaler in a game (HelixSR 3.4 or newer), the game's panel sets HLX 
 them when the game starts, so restart the game after a change:
 
 - **Network reuse (Balanced/Performance)**: `Default (exact)` runs the whole network every frame; `1:2` and `1:4` run its
-  deeper layers every second or fourth frame. Faster, a little softer in fast motion; no effect at Ultra Performance.
+  deeper layers every second or fourth frame. Faster, a little softer in fast motion; no effect at Ultra Performance. Keep
+  `Default (exact)` with the Quality preset: there `1:4` visibly smears motion.
 - **Ultra Performance network**: `Full` (default) has the network output the screen size; `Fast` outputs twice the render
   size and scales it to the screen, about 30% less GPU time at Ultra Performance, visibly softer.
 
@@ -171,8 +172,11 @@ Measured on an Ayaneo 2 (Radeon 680M, 15 W) in [fsr4-handheld's quality
 scores](https://github.com/LaurensBosscher/fsr4-handheld/blob/main/research/2026-11-28-quality-scores.md): at 1200p
 Balanced, `1:4` took 6.90 ms per frame vs 8.62 ms for the frame-skipping FSR 4 Lite build, with equal single-frame SSIM
 against a native reference (`1:2` 7.53 ms, `exact` 8.28 ms). `NetworkResolution = fast` halved Ultra Performance's time
-(4.20 ms vs 8.01 ms) but lost thin detail (SSIM 75 vs 86). Steam Deck-like RDNA2 handhelds are expected to behave
-similarly; they weren't measured.
+(4.20 ms vs 8.01 ms) but lost thin detail (SSIM 75 vs 86). A follow-up sweep (800p to 1200p x Quality / Balanced /
+Performance / Ultra Performance, [details](https://github.com/LaurensBosscher/fsr4-handheld/blob/main/research/2026-11-28-hlxd-sweep.md))
+found `1:4` 16-21% faster than `exact` at every size and preset, with the same picture at Balanced and Performance but
+7-19 SSIM lower in motion at Quality. Steam Deck-like RDNA2 handhelds are expected to behave similarly; they weren't
+measured.
 
 Reports so far:
 

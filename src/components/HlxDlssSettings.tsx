@@ -69,7 +69,7 @@ export function HlxDlssSettings({
       <PanelSectionRow>
         <BelowDropdown
           label="Network reuse (Balanced/Performance)"
-          description="Runs HLX DLSS's deeper layers every second or fourth frame: faster, a little softer in fast motion. No effect at Ultra Performance."
+          description="Runs HLX DLSS's deeper layers every second or fourth frame: faster, a little softer in fast motion. No effect at Ultra Performance. Keep Default with the Quality preset: 1:4 smears motion there."
           rgOptions={DEEP_REUSE}
           selectedOption={st.deep_reuse ?? "default"}
           disabled={busy}
