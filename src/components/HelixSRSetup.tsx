@@ -9,6 +9,7 @@ import {
 } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { promptRestart } from "../restartPrompt";
+import { takeHelixRestartHeld } from "../installs";
 import { ProgressRow } from "./ProgressRow";
 import {
   helixsrInstall,
@@ -349,7 +350,7 @@ export function useHelixStatus() {
   const lastState = useRef(status?.job?.state);
   useEffect(() => {
     const state = status?.job?.state;
-    if (lastState.current === "running" && state === "succeeded" && !status?.job?.no_build)
+    if (lastState.current === "running" && state === "succeeded" && !status?.job?.no_build && !takeHelixRestartHeld())
       promptRestart(`HelixSR ${status?.job?.tag ?? ""}`.trim());
     lastState.current = state;
   }, [status?.job?.state]);

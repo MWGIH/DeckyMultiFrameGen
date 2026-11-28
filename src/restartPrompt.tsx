@@ -2,11 +2,13 @@ import { ConfirmModal, showModal } from "@decky/ui";
 import { toaster } from "@decky/api";
 
 // MAKO's and HelixSR's installs only take effect after the Deck restarts
-export function promptRestart(what: string) {
+export function promptRestart(what: string, plural = false) {
   showModal(
     <ConfirmModal
       strTitle="Restart to finish"
-      strDescription={`${what} is installed. Restart your Steam Deck before using it: it doesn't take effect until then.`}
+      strDescription={plural
+        ? `${what} are installed. Restart your Steam Deck before using them: they don't take effect until then.`
+        : `${what} is installed. Restart your Steam Deck before using it: it doesn't take effect until then.`}
       strOKButtonText="Restart now"
       strCancelButtonText="Later"
       onOK={() => {

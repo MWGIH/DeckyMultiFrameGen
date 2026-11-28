@@ -232,6 +232,16 @@ and use **Install Plugin from ZIP** (on the Steam Machine, installs from URL can
 
 Test builds from other branches are published as the [`test` prerelease](https://github.com/MWGIH/DeckyMultiFrameGen/releases/tag/test).
 
+### First start
+
+With nothing installed yet, the panel opens with **Get started**: **Choose what to install** lists OptiScaler, FSR4
+Injector, HelixSR (with its **Build HelixSR** switch), MAKO and ANR FG, with what each is for. The ticked ones are
+installed in one go with one progress bar, and one restart prompt comes at the end if MAKO or a built HelixSR needs it.
+Later, **Install more options** (above Show backends) opens the same list for whatever isn't installed.
+
+A game's **Use** list also shows options whose backend isn't installed, marked "(not installed)": picking one installs
+it, then sets the game to it.
+
 ## Releasing
 
 Bump `version` in `package.json` and push to `main`: the build publishes release `v<version>` with the ZIP attached.

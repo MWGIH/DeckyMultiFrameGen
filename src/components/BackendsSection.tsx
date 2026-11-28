@@ -31,6 +31,8 @@ import { promptRestart } from "../restartPrompt";
 import { rememberUpdates, useAvailableUpdates } from "../dailyUpdateCheck";
 import { ProgressRow } from "./ProgressRow";
 import { backendProgress, jobRunning, type BatchName, type UpdateJobs } from "../updateProgress";
+import { FirstRunSetup, InstallMoreButton, showGetStarted, useSetupDone } from "./FirstRunSetup";
+import { finishInstall, setInstallState, useInstallState, type Batch } from "../installs";
 
 function statusLine(b: Backend): string {
   if (b.error) return `Couldn't check: ${b.error}`;
@@ -88,6 +90,7 @@ function usePluginVersion() {
 // At the top of the panel: the update notice with Update All, and the Show backends switch; the backends open at
 // the bottom
 export function BackendsHeader({
+  backends,
   helix,
   collapsed,
   onToggle,
@@ -102,13 +105,17 @@ export function BackendsHeader({
   onUpdated: UpdateRefresh;
 }) {
   const version = usePluginVersion();
+  const [setupDone, markSetupDone] = useSetupDone();
+  const gettingStarted = showGetStarted(backends, setupDone);
   // the installed MultiFrameGen isn't an update (it was found before this one was installed)
   const updates = useAvailableUpdates().filter(
     (u) => !(version && u === `MultiFrameGen ${version}`),
   );
-  // the update run started here: what it updates, and which of them have been seen running
-  const [batch, setBatch] = useState<{ names: BatchName[]; seen: BatchName[]; at: number } | null>(null);
-  const [starting, setStarting] = useState<string | null>(null);
+  // the update or install run going on: what it does, and which backends have been seen running (shared with the
+  // first-time setup and Use's install-on-pick, so there is one bar)
+  const { batch, starting } = useInstallState();
+  const setBatch = (b: Batch | null) => setInstallState({ batch: b });
+  const setStarting = (s: string | null) => setInstallState({ starting: s });
   const running = [jobs.opti, jobs.helix, jobs.fsr4, jobs.anr].some((j) => j?.state === "running");
   // a backend counts as finished once its job ran and stopped (or, if it was too quick to be seen, after a while)
   const finished = (n: BatchName) =>
@@ -121,12 +128,24 @@ export function BackendsHeader({
     else if (batch.names.every(finished)) {
       const failed = batch.names.filter((n) => backendProgress(n, jobs).stage === "failed");
       setBatch(null);
-      toaster.toast({
-        title: "Updates",
-        body: failed.length
-          ? `Updated, except ${failed.join(", ")}: show backends for what went wrong.`
-          : `${batch.names.join(", ")} updated.`,
-      });
+      Object.values(onUpdated).forEach((f) => f());
+      if (batch.kind === "install") {
+        finishInstall({
+          names: batch.names,
+          failed,
+          startFailed: batch.startFailed,
+          helixBuild: batch.helixBuild,
+          after: batch.after
+            ? (f) => batch.after!([...(batch.startFailedNames ?? []), ...f])
+            : undefined,
+        });
+      } else
+        toaster.toast({
+          title: "Updates",
+          body: failed.length
+            ? `Updated, except ${failed.join(", ")}: show backends for what went wrong.`
+            : `${batch.names.join(", ")} updated.`,
+        });
       checkUpdates()
         .then(rememberUpdates)
         .catch(() => undefined);
@@ -148,7 +167,7 @@ export function BackendsHeader({
       rememberUpdates(u);
       const r = await updateAll(u, onUpdated, (name) => setStarting(`Starting ${name}`));
       const names = r.started as BatchName[];
-      if (names.some((n) => n !== "MAKO")) setBatch({ names, seen: [], at: Date.now() });
+      if (names.some((n) => n !== "MAKO")) setBatch({ kind: "update", names, seen: [], at: Date.now() });
       else if (names.length) toaster.toast({ title: "Updates", body: `${names.join(", ")} updated.` });
       if (r.message) toaster.toast({ title: "Updates", body: r.message });
     } catch (e) {
@@ -167,16 +186,26 @@ export function BackendsHeader({
         return {
           percent: fraction * 100,
           title: current
-            ? `Updating ${current.n} (${Math.min(doneCount + 1, each.length)} of ${each.length})`
-            : "Finishing the updates",
+            ? `${batch.kind === "install" ? "Installing" : "Updating"} ${current.n} (${Math.min(doneCount + 1, each.length)} of ${each.length})`
+            : batch.kind === "install"
+              ? "Finishing the installs"
+              : "Finishing the updates",
           detail: current ? (jobRunning(current.n, jobs) ? current.stage : "starting") : null,
         };
       })()
     : null;
   const busy = !!starting || !!batch;
   return (
+    <>
+    <FirstRunSetup
+      backends={backends}
+      helix={helix}
+      refresh={onUpdated}
+      done={setupDone}
+      markDone={markSetupDone}
+    />
     <PanelSection title="Backends">
-      {starting && <ProgressRow title={starting} detail="Don't close Steam until the updates are done." />}
+      {starting && <ProgressRow title={starting} detail="Don't close Steam until this is done." />}
       {progress && <ProgressRow title={progress.title} percent={progress.percent} detail={progress.detail} />}
       {updates.length > 0 && !batch && (
         <>
@@ -196,6 +225,9 @@ export function BackendsHeader({
           )}
         </>
       )}
+      {!gettingStarted && (
+        <InstallMoreButton backends={backends} helix={helix} refresh={onUpdated} markDone={markSetupDone} />
+      )}
       <PanelSectionRow>
         <ToggleField
           label="Show backends"
@@ -211,6 +243,7 @@ export function BackendsHeader({
         />
       </PanelSectionRow>
     </PanelSection>
+    </>
   );
 }
 

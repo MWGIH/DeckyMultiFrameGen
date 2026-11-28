@@ -151,3 +151,18 @@ class GamesUsingTests(unittest.TestCase):
         s.set_game_choice("2", "optiscaler+helixsr+mako")
         s.set_game_choice("3", "optiscaler")
         self.assertEqual(sorted(s.games_using("mako")), ["1", "2"])
+
+
+class SetupDoneTests(unittest.TestCase):
+    def test_off_until_set_and_keeps_other_settings(self):
+        import tempfile
+        from pathlib import Path
+        from multifg.settings import Settings
+        s = Settings(Path(tempfile.mkdtemp()) / "settings.json")
+        self.assertFalse(s.setup_done())
+        s.set_game_choice("1", "mako")
+        s.set_setup_done(True)
+        self.assertTrue(s.setup_done())
+        self.assertEqual(s.game_choice("1"), "mako")
+        s.set_setup_done(False)
+        self.assertFalse(s.setup_done())

@@ -515,6 +515,8 @@ export type Updates = {
 export const checkUpdates = callable<[], Updates>("check_updates");
 export const getTestBuilds = callable<[], boolean>("get_test_builds");
 export const setTestBuilds = callable<[on: boolean], boolean>("set_test_builds");
+export const getSetupDone = callable<[], boolean>("get_setup_done");
+export const setSetupDone = callable<[done: boolean], boolean>("set_setup_done");
 
 // --- ANR FG (Apex Neural Rendering) ---
 

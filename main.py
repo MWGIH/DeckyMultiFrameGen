@@ -1214,6 +1214,14 @@ class Plugin:
         await asyncio.to_thread(SETTINGS.set_test_builds, bool(on))
         return bool(on)
 
+    async def get_setup_done(self) -> bool:
+        """Whether the first-time install setup was finished or skipped."""
+        return await asyncio.to_thread(SETTINGS.setup_done)
+
+    async def set_setup_done(self, done: bool) -> bool:
+        await asyncio.to_thread(SETTINGS.set_setup_done, bool(done))
+        return bool(done)
+
     async def check_updates(self) -> dict:
         """What can be updated: this plugin (a new release), and each installed backend (the version this plugin
         brings, or for HelixSR its newest release). Upstream releases of Decky Framegen and MAKO newer than the ones
